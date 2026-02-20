@@ -1,1 +1,10 @@
 project_id = "sgfpvrfjgzwsjwduibhm"
+
+[functions.sync-portal]
+verify_jwt = false
+
+[functions.get-portal]
+verify_jwt = false
+
+[functions.upload-photo]
+verify_jwt = false

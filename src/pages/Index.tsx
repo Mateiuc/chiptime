@@ -17,6 +17,7 @@ import { migratePhotosToFilesystem } from '@/lib/photoMigration';
 import { photoStorageService } from '@/services/photoStorageService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { contactsService } from '@/services/contactsService';
+import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 
 
 
@@ -292,6 +293,18 @@ const Index = () => {
       title: 'Work Completed',
       description: needsFollowUp ? 'Task completed - more work needed' : 'Work session finished successfully',
     });
+
+    // Background cloud sync
+    const client = clients.find(c => c.id === activeTask.clientId);
+    if (client) {
+      syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate)
+        .then(portalId => {
+          if (!client.portalId) {
+            updateClient(client.id, { portalId });
+          }
+        })
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+    }
   };
 
   const handleRestartTimer = (taskId: string) => {
@@ -561,7 +574,7 @@ const Index = () => {
     <div className="h-dvh overflow-y-auto bg-background">
       <header className="border-b bg-primary/20 backdrop-blur-sm shadow-md sticky top-0 z-10">
         <div className="px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-primary">Auto Task Tracker</h1>
+          <h1 className="text-lg font-bold text-primary">Auto-Tracker</h1>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />
             <Button variant="default" size="icon" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">

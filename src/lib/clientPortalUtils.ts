@@ -1,4 +1,5 @@
 import { Client, Vehicle, Task, TaskStatus, Part } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface SessionCostDetail {
   description: string;
@@ -384,4 +385,63 @@ init();
 </html>`;
 
   return new Blob([html], { type: 'text/html' });
+}
+
+// ============= Cloud Portal Functions =============
+
+/**
+ * Sync a client's cost data to the cloud portal
+ * Returns the portal ID (short URL ID)
+ */
+export async function syncPortalToCloud(
+  client: Client,
+  vehicles: Vehicle[],
+  tasks: Task[],
+  defaultHourlyRate: number
+): Promise<string> {
+  const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate);
+  const slim = slimDown(summary);
+
+  const { data, error } = await supabase.functions.invoke('sync-portal', {
+    body: {
+      clientLocalId: client.id,
+      clientName: client.name,
+      accessCode: client.accessCode || null,
+      data: slim,
+    },
+  });
+
+  if (error) throw error;
+  return data.id;
+}
+
+/**
+ * Fetch portal data from the cloud by portal ID
+ */
+export async function fetchPortalFromCloud(portalId: string): Promise<{
+  data: ClientCostSummary;
+  accessCode: string | null;
+  clientName: string;
+}> {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const resp = await fetch(
+    `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`,
+    {
+      headers: {
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Failed to fetch portal');
+  }
+
+  const result = await resp.json();
+  return {
+    data: inflateSlimPayload(result.data),
+    accessCode: result.accessCode,
+    clientName: result.clientName,
+  };
 }

@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {
-        name: "Auto Task Tracker",
-        short_name: "AutoTask",
+        name: "Auto-Tracker",
+        short_name: "AutoTracker",
         description: "Time tracking app for automotive mechanics",
         theme_color: "#1a1a2e",
         background_color: "#1a1a2e",

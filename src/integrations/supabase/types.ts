@@ -14,7 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      client_portals: {
+        Row: {
+          access_code: string | null
+          client_local_id: string
+          client_name: string
+          data: Json
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          access_code?: string | null
+          client_local_id: string
+          client_name: string
+          data?: Json
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          access_code?: string | null
+          client_local_id?: string
+          client_name?: string
+          data?: Json
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

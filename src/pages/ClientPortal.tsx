@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
-import { ClientCostSummary, calculateClientCosts, decodeClientData } from '@/lib/clientPortalUtils';
+import { ClientCostSummary, calculateClientCosts, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { ChevronLeft, Lock, Wrench } from 'lucide-react';
 
@@ -12,6 +12,7 @@ const ClientPortal = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -20,13 +21,19 @@ const ClientPortal = () => {
   const [loading, setLoading] = useState(true);
   const [expectedCode, setExpectedCode] = useState<string | null>(null);
 
-  // Determine mode: on-device (/client/:id) or shared (/client-view#data)
-  const isSharedMode = location.pathname === '/client-view';
+  // Determine mode: cloud (?id=xxx), on-device (/client/:id), or shared (/client-view#data)
+  const cloudPortalId = searchParams.get('id');
+  const isSharedMode = location.pathname === '/client-view' && !cloudPortalId;
 
   useEffect(() => {
     const load = async () => {
       try {
-        if (isSharedMode) {
+        if (cloudPortalId) {
+          // Cloud mode: fetch from backend
+          const result = await fetchPortalFromCloud(cloudPortalId);
+          setCostSummary(result.data);
+          setExpectedCode(result.accessCode);
+        } else if (isSharedMode) {
           // Decode data from URL hash
           const hash = location.hash.slice(1);
           if (!hash) {
@@ -62,7 +69,7 @@ const ClientPortal = () => {
       setLoading(false);
     };
     load();
-  }, [clientId, isSharedMode, location.hash]);
+  }, [clientId, cloudPortalId, isSharedMode, location.hash]);
 
   const handleVerify = () => {
     if (!expectedCode) {

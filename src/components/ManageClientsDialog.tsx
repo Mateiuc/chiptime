@@ -13,7 +13,7 @@ import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Print
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
-import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile } from '@/lib/clientPortalUtils';
+import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud } from '@/lib/clientPortalUtils';
 
 interface ManageClientsDialogProps {
   open: boolean;
@@ -581,6 +581,37 @@ export const ManageClientsDialog = ({
                                   if (!client.accessCode) {
                                     onUpdateClient(client.id, { accessCode: code });
                                   }
+                                  
+                                  // Try cloud sync first
+                                  try {
+                                    let portalId = client.portalId;
+                                    if (!portalId) {
+                                      portalId = await syncPortalToCloud(
+                                        { ...client, accessCode: code },
+                                        vehicles,
+                                        tasks,
+                                        settings.defaultHourlyRate
+                                      );
+                                      onUpdateClient(client.id, { portalId, accessCode: code });
+                                    } else {
+                                      // Re-sync latest data
+                                      await syncPortalToCloud(
+                                        { ...client, accessCode: code },
+                                        vehicles,
+                                        tasks,
+                                        settings.defaultHourlyRate
+                                      );
+                                    }
+                                    
+                                    const url = `${window.location.origin}/client-view?id=${portalId}`;
+                                    await navigator.clipboard.writeText(url);
+                                    toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                                    return;
+                                  } catch (err) {
+                                    console.warn('[Share] Cloud sync failed, falling back:', err);
+                                  }
+
+                                  // Fallback to hash/file method
                                   const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate);
                                   const encoded = await encodeClientData(summary, code);
                                   const url = `${window.location.origin}/client-view#${encoded}`;
@@ -589,7 +620,6 @@ export const ManageClientsDialog = ({
                                     await navigator.clipboard.writeText(url);
                                     toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
                                   } else {
-                                    // URL too long - use file sharing fallback
                                     const htmlBlob = generatePortalHtmlFile(summary, code);
                                     const file = new File([htmlBlob], `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`, { type: 'text/html' });
                                     
@@ -603,7 +633,6 @@ export const ManageClientsDialog = ({
                                         toast({ title: 'Shared!', description: `PIN: ${code}` });
                                       } catch (e: any) {
                                         if (e.name !== 'AbortError') {
-                                          // Share was cancelled or failed - fallback to download
                                           const a = document.createElement('a');
                                           a.href = URL.createObjectURL(htmlBlob);
                                           a.download = file.name;
@@ -613,7 +642,6 @@ export const ManageClientsDialog = ({
                                         }
                                       }
                                     } else {
-                                      // No Share API - download directly
                                       const a = document.createElement('a');
                                       a.href = URL.createObjectURL(htmlBlob);
                                       a.download = file.name;

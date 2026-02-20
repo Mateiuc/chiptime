@@ -5,6 +5,7 @@ export interface Client {
   phone?: string;
   hourlyRate?: number;
   accessCode?: string;
+  portalId?: string;
   createdAt: Date;
 }
 
@@ -29,6 +30,7 @@ export interface SessionPhoto {
   id: string;
   filePath?: string;      // Path to photo file in filesystem
   base64?: string;        // Deprecated: only used for migration from old format
+  cloudUrl?: string;      // Public URL of photo in cloud storage
   capturedAt: Date;
   sessionNumber: number;
 }

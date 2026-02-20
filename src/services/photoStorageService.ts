@@ -269,6 +269,65 @@ class PhotoStorageService {
       reader.readAsDataURL(blob);
     });
   }
+
+  /**
+   * Compress an image before cloud upload
+   */
+  async compressImage(base64: string, maxWidth = 800, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context unavailable'));
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const compressed = dataUrl.split(',')[1];
+        resolve(compressed);
+      };
+      img.onerror = reject;
+      img.src = `data:image/jpeg;base64,${base64}`;
+    });
+  }
+
+  /**
+   * Upload a photo to cloud storage
+   */
+  async uploadPhotoToCloud(base64: string, taskId: string, photoId: string): Promise<string> {
+    const compressed = await this.compressImage(base64);
+    
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const resp = await fetch(
+      `https://${projectId}.supabase.co/functions/v1/upload-photo`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ base64: compressed, taskId, photoId }),
+      }
+    );
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Failed to upload photo');
+    }
+
+    const result = await resp.json();
+    return result.url;
+  }
 }
 
 export const photoStorageService = new PhotoStorageService();

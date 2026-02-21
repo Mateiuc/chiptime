@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
 import { ClientCostSummary, calculateClientCosts, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
 import { capacitorStorage } from '@/lib/capacitorStorage';
@@ -20,6 +21,7 @@ const ClientPortal = () => {
   const [costSummary, setCostSummary] = useState<ClientCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [expectedCode, setExpectedCode] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'pending' | 'billed' | 'paid'>('pending');
 
   // Determine mode: cloud (?id=xxx), on-device (/client/:id), or shared (/client-view#data)
   const cloudPortalId = searchParams.get('id');
@@ -109,7 +111,7 @@ const ClientPortal = () => {
   if (!verified && expectedCode) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10">
+        <header className="border-b-2 border-border px-4 py-3 flex items-center gap-2 bg-card">
           <Wrench className="h-5 w-5 text-primary" />
           <span className="font-bold text-foreground">Client Portal</span>
         </header>
@@ -151,13 +153,22 @@ const ClientPortal = () => {
   // Cost breakdown view
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10 sticky top-0 z-10">
-        <Wrench className="h-5 w-5 text-primary" />
-        <span className="font-bold text-foreground">Client Portal</span>
+      <header className="border-b-2 border-border px-4 py-3 sticky top-0 z-10 bg-card space-y-3">
+        <div className="flex items-center gap-2">
+          <Wrench className="h-5 w-5 text-primary" />
+          <span className="font-bold text-foreground">Client Portal</span>
+        </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pending' | 'billed' | 'paid')}>
+          <TabsList className="w-full">
+            <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
+            <TabsTrigger value="billed" className="flex-1">Billed</TabsTrigger>
+            <TabsTrigger value="paid" className="flex-1">Paid</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </header>
 
       <div className="p-4 pb-8">
-        {costSummary && <ClientCostBreakdown costSummary={costSummary} />}
+        {costSummary && <ClientCostBreakdown costSummary={costSummary} filter={activeTab} />}
       </div>
     </div>
   );

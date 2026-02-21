@@ -7,6 +7,7 @@ import { Car, Clock, Wrench, DollarSign } from 'lucide-react';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
+  statusFilter?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -18,7 +19,23 @@ const statusColors: Record<string, string> = {
   paused: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
 };
 
-export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) => {
+export const ClientCostBreakdown = ({ costSummary, statusFilter }: ClientCostBreakdownProps) => {
+  // Filter vehicles/sessions by status if a filter is provided
+  const filteredSummary = (() => {
+    if (!statusFilter) return costSummary;
+    const vehicles = costSummary.vehicles
+      .map(v => {
+        const sessions = v.sessions.filter(s => s.status === statusFilter);
+        const totalLabor = sessions.reduce((sum, s) => sum + s.laborCost, 0);
+        const totalParts = sessions.reduce((sum, s) => sum + s.partsCost, 0);
+        return { ...v, sessions, totalLabor, totalParts, vehicleTotal: totalLabor + totalParts };
+      })
+      .filter(v => v.sessions.length > 0);
+    const grandTotalLabor = vehicles.reduce((sum, v) => sum + v.totalLabor, 0);
+    const grandTotalParts = vehicles.reduce((sum, v) => sum + v.totalParts, 0);
+    return { ...costSummary, vehicles, grandTotalLabor, grandTotalParts, grandTotal: grandTotalLabor + grandTotalParts };
+  })();
+
   const formatDate = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return 'N/A';
@@ -30,13 +47,13 @@ export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) =
       {/* Client greeting */}
       <div className="text-center py-2">
         <h2 className="text-xl font-bold text-foreground">
-          Hello, {costSummary.client.name}
+          Hello, {filteredSummary.client.name}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">Your cost breakdown</p>
       </div>
 
       {/* Vehicle sections */}
-      {costSummary.vehicles.map((vehicleSummary, vIdx) => {
+      {filteredSummary.vehicles.map((vehicleSummary, vIdx) => {
         const v = vehicleSummary.vehicle;
         const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
 
@@ -140,27 +157,27 @@ export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) =
         );
       })}
 
-      {costSummary.vehicles.length === 0 && (
+      {filteredSummary.vehicles.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
           No work records found.
         </div>
       )}
 
       {/* Grand total */}
-      {costSummary.vehicles.length > 0 && (
+      {filteredSummary.vehicles.length > 0 && (
         <Card className="bg-primary/5 border-primary/30">
           <CardContent className="p-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span>Total Labor:</span>
-              <span className="font-semibold">{formatCurrency(costSummary.grandTotalLabor)}</span>
+              <span className="font-semibold">{formatCurrency(filteredSummary.grandTotalLabor)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span>Total Parts:</span>
-              <span className="font-semibold">{formatCurrency(costSummary.grandTotalParts)}</span>
+              <span className="font-semibold">{formatCurrency(filteredSummary.grandTotalParts)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2 text-primary">
               <span>GRAND TOTAL:</span>
-              <span>{formatCurrency(costSummary.grandTotal)}</span>
+              <span>{formatCurrency(filteredSummary.grandTotal)}</span>
             </div>
           </CardContent>
         </Card>

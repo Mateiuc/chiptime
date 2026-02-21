@@ -1,31 +1,25 @@
 
 
-## Fix: Client Portal Not Scrollable
+## Remove Scrollbar from Everywhere
 
-### Root Cause
+Hide the scrollbar globally while keeping scroll functionality intact.
 
-The entire app is wrapped in a `mobile-phone-frame` container (in `App.tsx` line 17) which has `overflow: hidden` and a fixed `height: 844px` set in `index.css` (line 101). This means any content taller than 844px is clipped and cannot be scrolled.
+### Change
 
-The Client Portal page uses `min-h-screen` which expands beyond this fixed frame, but the parent container blocks scrolling.
+**File: `src/index.css`** -- Add scrollbar-hiding rules in the `@layer base` section:
 
-### Fix
-
-Add `overflow-y: auto` to the `.mobile-phone-frame` class in `src/index.css` so content inside the frame can scroll naturally.
-
-**File:** `src/index.css` (line 101, the `.mobile-phone-frame` rule)
-
-Add one property:
 ```css
-overflow-y: auto;
+/* Hide scrollbars globally */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
 ```
 
-This changes the frame from clipping overflow to allowing vertical scrolling, which fixes the portal and any other page that exceeds the frame height.
+This removes visible scrollbars from all elements (including the mobile phone frame, dialogs, and the client portal) across all browsers while preserving scroll functionality via touch/trackpad/mouse wheel.
 
-### Technical Details
-
-| File | Change |
-|------|--------|
-| `src/index.css` (line 101) | Add `overflow-y: auto;` to `.mobile-phone-frame` |
-
-Single-line change. No other files affected.
+Single file change, no other files affected.
 

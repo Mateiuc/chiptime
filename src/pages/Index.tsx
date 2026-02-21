@@ -558,6 +558,20 @@ const Index = () => {
     toast({ title: 'Vehicle Deleted' });
   };
 
+  const handleMoveVehicle = (vehicleId: string, newClientId: string) => {
+    const newClient = clients.find(c => c.id === newClientId);
+    if (!newClient) return;
+
+    // Update vehicle's clientId
+    updateVehicle(vehicleId, { clientId: newClientId });
+
+    // Update all tasks for this vehicle
+    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
+    vehicleTasks.forEach(t => {
+      updateTask(t.id, { clientId: newClientId, customerName: newClient.name });
+    });
+  };
+
   const activeTasks = tasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status));
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
@@ -734,6 +748,7 @@ const Index = () => {
         onUpdateVehicle={handleUpdateVehicle}
         onDeleteVehicle={handleDeleteVehicle}
         onStartWork={handleStartTimer}
+        onMoveVehicle={handleMoveVehicle}
       />
     </div>
   );

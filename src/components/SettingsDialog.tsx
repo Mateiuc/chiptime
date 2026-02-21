@@ -35,6 +35,7 @@ interface SettingsDialogProps {
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
   onDeleteVehicle: (id: string) => void;
   onStartWork: (vehicleId: string) => void;
+  onMoveVehicle?: (vehicleId: string, newClientId: string) => void;
 }
 
 type DialogView = 'menu' | 'settings' | 'billed' | 'paid' | 'backup';
@@ -56,7 +57,8 @@ export const SettingsDialog = ({
   onDeleteClient,
   onUpdateVehicle,
   onDeleteVehicle,
-  onStartWork
+  onStartWork,
+  onMoveVehicle,
 }: SettingsDialogProps) => {
   const [currentView, setCurrentView] = useState<DialogView>('menu');
   const [hourlyRate, setHourlyRate] = useState(settings.defaultHourlyRate.toString());
@@ -571,6 +573,7 @@ export const SettingsDialog = ({
         onUpdateVehicle={onUpdateVehicle}
         onDeleteVehicle={onDeleteVehicle}
         onStartWork={onStartWork}
+        onMoveVehicle={onMoveVehicle}
       />
     </Dialog>
   );

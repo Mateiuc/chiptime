@@ -9,7 +9,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, Play, KeyRound, Link2, Eye } from 'lucide-react';
+import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, Play, KeyRound, Link2, Eye, ArrowRightLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
@@ -27,6 +28,7 @@ interface ManageClientsDialogProps {
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
   onDeleteVehicle: (id: string) => void;
   onStartWork: (vehicleId: string) => void;
+  onMoveVehicle?: (vehicleId: string, newClientId: string) => void;
 }
 
 export const ManageClientsDialog = ({
@@ -41,6 +43,7 @@ export const ManageClientsDialog = ({
   onUpdateVehicle,
   onDeleteVehicle,
   onStartWork,
+  onMoveVehicle,
 }: ManageClientsDialogProps) => {
   const { toast } = useNotifications();
   const navigate = useNavigate();
@@ -51,6 +54,8 @@ export const ManageClientsDialog = ({
   const [showEditVehicleDialog, setShowEditVehicleDialog] = useState(false);
   const [deleteClientDialog, setDeleteClientDialog] = useState<{ open: boolean; clientId: string | null }>({ open: false, clientId: null });
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
+  const [moveVehicleDialog, setMoveVehicleDialog] = useState<{ open: boolean; vehicleId: string | null; currentClientId: string | null }>({ open: false, vehicleId: null, currentClientId: null });
+  const [moveTargetClientId, setMoveTargetClientId] = useState<string>('');
 
   // Filter clients - guard against non-string phone/email (legacy data fix)
   const filteredClients = clients.filter(client => {
@@ -712,6 +717,20 @@ export const ManageClientsDialog = ({
                                 >
                                   Edit
                                 </Button>
+                                {onMoveVehicle && clients.length > 1 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 text-xs hover:bg-accent/50 transition-colors"
+                                    onClick={() => {
+                                      setMoveVehicleDialog({ open: true, vehicleId: vehicle.id, currentClientId: client.id });
+                                      setMoveTargetClientId('');
+                                    }}
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                    Move
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -822,6 +841,68 @@ export const ManageClientsDialog = ({
               className="m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog 
+        open={moveVehicleDialog.open} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setMoveVehicleDialog({ open: false, vehicleId: null, currentClientId: null });
+            setMoveTargetClientId('');
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[90vw] max-w-sm p-4 rounded-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base">Move Vehicle</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {moveVehicleDialog.vehicleId && (() => {
+                const vehicle = vehicles.find(v => v.id === moveVehicleDialog.vehicleId);
+                const vehicleName = vehicle
+                  ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || vehicle.vin
+                  : 'this vehicle';
+                const stats = getVehicleStats(moveVehicleDialog.vehicleId);
+                return `Move "${vehicleName}" and its ${stats.total} task${stats.total !== 1 ? 's' : ''} to another client:`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Select value={moveTargetClientId} onValueChange={setMoveTargetClientId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select target client..." />
+              </SelectTrigger>
+              <SelectContent>
+                {clients
+                  .filter(c => c.id !== moveVehicleDialog.currentClientId)
+                  .map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter className="flex-row gap-2">
+            <AlertDialogCancel className="m-0">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!moveTargetClientId}
+              onClick={() => {
+                if (moveVehicleDialog.vehicleId && moveTargetClientId && onMoveVehicle) {
+                  onMoveVehicle(moveVehicleDialog.vehicleId, moveTargetClientId);
+                  const vehicle = vehicles.find(v => v.id === moveVehicleDialog.vehicleId);
+                  const targetClient = clients.find(c => c.id === moveTargetClientId);
+                  const vehicleName = vehicle
+                    ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || vehicle.vin
+                    : 'Vehicle';
+                  toast({ title: 'Vehicle Moved', description: `${vehicleName} moved to ${targetClient?.name}` });
+                }
+                setMoveVehicleDialog({ open: false, vehicleId: null, currentClientId: null });
+                setMoveTargetClientId('');
+              }}
+              className="m-0"
+            >
+              Move
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

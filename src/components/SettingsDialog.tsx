@@ -571,6 +571,11 @@ export const SettingsDialog = ({
         onUpdateVehicle={onUpdateVehicle}
         onDeleteVehicle={onDeleteVehicle}
         onStartWork={onStartWork}
+        onMarkBilled={onMarkBilled}
+        onMarkPaid={onMarkPaid}
+        onRestartTimer={onRestartTimer}
+        onUpdateTask={onUpdateTask}
+        onDelete={onDelete}
       />
     </Dialog>
   );

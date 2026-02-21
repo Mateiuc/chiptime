@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
 import { ClientCostSummary, calculateClientCosts, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
 import { capacitorStorage } from '@/lib/capacitorStorage';
@@ -109,10 +110,10 @@ const ClientPortal = () => {
   if (!verified && expectedCode) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10">
-          <Wrench className="h-5 w-5 text-primary" />
-          <span className="font-bold text-foreground">Client Portal</span>
-        </header>
+      <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary text-primary-foreground">
+        <Wrench className="h-5 w-5" />
+        <span className="font-bold">Client Portal</span>
+      </header>
 
         <div className="flex-1 flex items-center justify-center p-6">
           <Card className="w-full max-w-xs">
@@ -151,13 +152,26 @@ const ClientPortal = () => {
   // Cost breakdown view
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10 sticky top-0 z-10">
-        <Wrench className="h-5 w-5 text-primary" />
-        <span className="font-bold text-foreground">Client Portal</span>
+      <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary text-primary-foreground sticky top-0 z-10">
+        <Wrench className="h-5 w-5" />
+        <span className="font-bold">Client Portal</span>
       </header>
 
       <div className="p-4 pb-8">
-        {costSummary && <ClientCostBreakdown costSummary={costSummary} />}
+        {costSummary && (
+          <Tabs defaultValue="billed" className="w-full">
+            <TabsList className="w-full mb-4">
+              <TabsTrigger value="billed" className="flex-1 font-bold">Billed</TabsTrigger>
+              <TabsTrigger value="paid" className="flex-1 font-bold">Paid</TabsTrigger>
+            </TabsList>
+            <TabsContent value="billed">
+              <ClientCostBreakdown costSummary={costSummary} statusFilter="billed" />
+            </TabsContent>
+            <TabsContent value="paid">
+              <ClientCostBreakdown costSummary={costSummary} statusFilter="paid" />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   );

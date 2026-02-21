@@ -12,7 +12,6 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, Play, KeyRound, Link2, Eye } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
-import { TaskCard } from './TaskCard';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud } from '@/lib/clientPortalUtils';
 
@@ -28,11 +27,6 @@ interface ManageClientsDialogProps {
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
   onDeleteVehicle: (id: string) => void;
   onStartWork: (vehicleId: string) => void;
-  onMarkBilled?: (taskId: string) => void;
-  onMarkPaid?: (taskId: string) => void;
-  onRestartTimer?: (taskId: string) => void;
-  onUpdateTask?: (updatedTask: Task) => void;
-  onDelete?: (taskId: string) => void;
 }
 
 export const ManageClientsDialog = ({
@@ -47,11 +41,6 @@ export const ManageClientsDialog = ({
   onUpdateVehicle,
   onDeleteVehicle,
   onStartWork,
-  onMarkBilled,
-  onMarkPaid,
-  onRestartTimer,
-  onUpdateTask,
-  onDelete,
 }: ManageClientsDialogProps) => {
   const { toast } = useNotifications();
   const navigate = useNavigate();
@@ -62,7 +51,6 @@ export const ManageClientsDialog = ({
   const [showEditVehicleDialog, setShowEditVehicleDialog] = useState(false);
   const [deleteClientDialog, setDeleteClientDialog] = useState<{ open: boolean; clientId: string | null }>({ open: false, clientId: null });
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
-  const [clientTab, setClientTab] = useState<Record<string, 'info' | 'billed' | 'paid'>>({});
 
   // Filter clients - guard against non-string phone/email (legacy data fix)
   const filteredClients = clients.filter(client => {
@@ -416,7 +404,7 @@ export const ManageClientsDialog = ({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-full h-full m-0 p-0 rounded-none flex flex-col bg-gradient-to-b from-background via-background to-muted/20">
-          <header className="border-b bg-purple-500/20">
+          <header className="border-b bg-purple-500/10 backdrop-blur-sm">
             <div className="px-4 py-3 flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -469,83 +457,6 @@ export const ManageClientsDialog = ({
                       </AccordionTrigger>
 
                       <AccordionContent className="pb-2">
-                        {/* Tab navigation */}
-                        {!isEditing && (
-                          <div className="flex gap-1 mx-2 mb-2 p-1 bg-muted/50 rounded-lg">
-                            {(['info', 'billed', 'paid'] as const).map(tab => (
-                              <Button
-                                key={tab}
-                                size="sm"
-                                variant={(clientTab[client.id] || 'info') === tab ? 'default' : 'ghost'}
-                                className="h-7 text-xs flex-1 capitalize"
-                                onClick={() => setClientTab(prev => ({ ...prev, [client.id]: tab }))}
-                              >
-                                {tab}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Billed tab */}
-                        {!isEditing && (clientTab[client.id] === 'billed') && (() => {
-                          const billedTasks = tasks.filter(t => t.clientId === client.id && t.status === 'billed');
-                          if (billedTasks.length === 0) return (
-                            <div className="text-center py-6 text-muted-foreground text-xs mx-2">No billed tasks</div>
-                          );
-                          return (
-                            <div className="space-y-2 mx-2">
-                              {billedTasks.map(task => {
-                                const vehicle = vehicles.find(v => v.id === task.vehicleId);
-                                return (
-                                  <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    client={client}
-                                    vehicle={vehicle}
-                                    settings={settings}
-                                    onMarkBilled={onMarkBilled || (() => {})}
-                                    onMarkPaid={onMarkPaid || (() => {})}
-                                    onRestartTimer={onRestartTimer || (() => {})}
-                                    onUpdateTask={onUpdateTask}
-                                    onDelete={onDelete}
-                                    vehicleColorScheme={getVehicleColorScheme(task.vehicleId)}
-                                  />
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-
-                        {/* Paid tab */}
-                        {!isEditing && (clientTab[client.id] === 'paid') && (() => {
-                          const paidTasks = tasks.filter(t => t.clientId === client.id && t.status === 'paid');
-                          if (paidTasks.length === 0) return (
-                            <div className="text-center py-6 text-muted-foreground text-xs mx-2">No paid tasks</div>
-                          );
-                          return (
-                            <div className="space-y-2 mx-2">
-                              {paidTasks.map(task => {
-                                const vehicle = vehicles.find(v => v.id === task.vehicleId);
-                                return (
-                                  <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    client={client}
-                                    vehicle={vehicle}
-                                    settings={settings}
-                                    onMarkBilled={onMarkBilled || (() => {})}
-                                    onMarkPaid={onMarkPaid || (() => {})}
-                                    onRestartTimer={onRestartTimer || (() => {})}
-                                    onUpdateTask={onUpdateTask}
-                                    onDelete={onDelete}
-                                    vehicleColorScheme={getVehicleColorScheme(task.vehicleId)}
-                                  />
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-
                         {isEditing ? (
                           <div className="space-y-2 p-3 bg-muted/30 rounded-lg mx-2 border border-primary/10">
                             <div className="space-y-1">
@@ -596,7 +507,7 @@ export const ManageClientsDialog = ({
                               </Button>
                             </div>
                           </div>
-                        ) : (clientTab[client.id] || 'info') === 'info' ? (
+                        ) : (
                           <div className="space-y-3 p-3 mx-2">
                             <div className="text-xs space-y-1 bg-accent/5 p-2 rounded-md">
                               {client.email && (
@@ -817,7 +728,7 @@ export const ManageClientsDialog = ({
                               </div>
                             )}
                           </div>
-                        ) : null}
+                        )}
                       </AccordionContent>
                     </AccordionItem>
                   );

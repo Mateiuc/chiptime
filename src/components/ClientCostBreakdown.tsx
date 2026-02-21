@@ -7,7 +7,14 @@ import { Car, Clock, Wrench, DollarSign } from 'lucide-react';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
+  filter?: 'pending' | 'billed' | 'paid';
 }
+
+const statusMap: Record<string, string[]> = {
+  pending: ['pending', 'in-progress', 'paused', 'completed'],
+  billed: ['billed'],
+  paid: ['paid'],
+};
 
 const statusColors: Record<string, string> = {
   completed: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30',
@@ -18,11 +25,35 @@ const statusColors: Record<string, string> = {
   paused: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
 };
 
-export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) => {
+export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdownProps) => {
   const formatDate = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return 'N/A';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Filter vehicles and sessions based on active tab
+  const allowedStatuses = filter ? statusMap[filter] : null;
+
+  const filteredVehicles = costSummary.vehicles
+    .map((vehicleSummary) => {
+      const sessions = allowedStatuses
+        ? vehicleSummary.sessions.filter((s) => allowedStatuses.includes(s.status))
+        : vehicleSummary.sessions;
+      const totalLabor = sessions.reduce((sum, s) => sum + s.laborCost, 0);
+      const totalParts = sessions.reduce((sum, s) => sum + s.partsCost, 0);
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, vehicleTotal: totalLabor + totalParts };
+    })
+    .filter((v) => v.sessions.length > 0);
+
+  const grandTotalLabor = filteredVehicles.reduce((sum, v) => sum + v.totalLabor, 0);
+  const grandTotalParts = filteredVehicles.reduce((sum, v) => sum + v.totalParts, 0);
+  const grandTotal = grandTotalLabor + grandTotalParts;
+
+  const emptyMessages: Record<string, string> = {
+    pending: 'No pending work found.',
+    billed: 'No billed work found.',
+    paid: 'No paid work found.',
   };
 
   return (
@@ -36,7 +67,7 @@ export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) =
       </div>
 
       {/* Vehicle sections */}
-      {costSummary.vehicles.map((vehicleSummary, vIdx) => {
+      {filteredVehicles.map((vehicleSummary, vIdx) => {
         const v = vehicleSummary.vehicle;
         const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
 
@@ -140,27 +171,27 @@ export const ClientCostBreakdown = ({ costSummary }: ClientCostBreakdownProps) =
         );
       })}
 
-      {costSummary.vehicles.length === 0 && (
+      {filteredVehicles.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
-          No work records found.
+          {filter ? emptyMessages[filter] : 'No work records found.'}
         </div>
       )}
 
       {/* Grand total */}
-      {costSummary.vehicles.length > 0 && (
+      {filteredVehicles.length > 0 && (
         <Card className="bg-primary/5 border-primary/30">
           <CardContent className="p-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span>Total Labor:</span>
-              <span className="font-semibold">{formatCurrency(costSummary.grandTotalLabor)}</span>
+              <span className="font-semibold">{formatCurrency(grandTotalLabor)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span>Total Parts:</span>
-              <span className="font-semibold">{formatCurrency(costSummary.grandTotalParts)}</span>
+              <span className="font-semibold">{formatCurrency(grandTotalParts)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2 text-primary">
               <span>GRAND TOTAL:</span>
-              <span>{formatCurrency(costSummary.grandTotal)}</span>
+              <span>{formatCurrency(grandTotal)}</span>
             </div>
           </CardContent>
         </Card>

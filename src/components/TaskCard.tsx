@@ -488,42 +488,53 @@ export const TaskCard = ({
         doc.setTextColor(0, 0, 0);
         photoYPos += 15;
         
+        const colWidth = 85;
+        const colHeight = 64;
+        const colX = [15, 110];
+        let colIdx = 0;
+
         for (const item of allPhotos) {
-          // Check if we need a new page (photos are ~60mm tall + label)
-          if (photoYPos > 200) {
+          // Check if we need a new page
+          if (colIdx === 0 && photoYPos > 200) {
             doc.addPage();
             photoYPos = 20;
           }
-          
+
+          const x = colX[colIdx];
+
           // Session label
-          doc.setFontSize(10);
+          doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
-          doc.text(`Session ${item.sessionNum}`, 20, photoYPos);
-          photoYPos += 5;
-          
-          // Get photo data from map (by filePath) or fallback to base64 (legacy)
+          doc.text(`Session ${item.sessionNum}`, x, photoYPos);
+
           const photoBase64 = item.photo.filePath 
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
-          
-          // Add image (centered, ~80mm wide)
+
           if (photoBase64) {
             try {
               const imgData = `data:image/jpeg;base64,${photoBase64}`;
-              doc.addImage(imgData, 'JPEG', 20, photoYPos, 80, 60);
-              photoYPos += 70;
+              doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth, colHeight);
             } catch (imgError) {
               doc.setFontSize(9);
               doc.setFont('helvetica', 'italic');
-              doc.text('(Image could not be loaded)', 20, photoYPos + 10);
-              photoYPos += 20;
+              doc.text('(Image could not be loaded)', x, photoYPos + 15);
             }
           } else {
             doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
-            doc.text('(Image could not be loaded)', 20, photoYPos + 10);
-            photoYPos += 20;
+            doc.text('(Image could not be loaded)', x, photoYPos + 15);
           }
+
+          colIdx++;
+          if (colIdx >= 2) {
+            colIdx = 0;
+            photoYPos += colHeight + 12;
+          }
+        }
+        // If last row had only one photo, advance Y
+        if (colIdx !== 0) {
+          photoYPos += colHeight + 12;
         }
       }
 
@@ -746,42 +757,50 @@ export const TaskCard = ({
         doc.setTextColor(0, 0, 0);
         photoYPos += 15;
         
+        const colWidth2 = 85;
+        const colHeight2 = 64;
+        const colX2 = [15, 110];
+        let colIdx2 = 0;
+
         for (const item of allPhotos) {
-          // Check if we need a new page (photos are ~60mm tall + label)
-          if (photoYPos > 200) {
+          if (colIdx2 === 0 && photoYPos > 200) {
             doc.addPage();
             photoYPos = 20;
           }
-          
-          // Session label
-          doc.setFontSize(10);
+
+          const x = colX2[colIdx2];
+
+          doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
-          doc.text(`Session ${item.sessionNum}`, 20, photoYPos);
-          photoYPos += 5;
-          
-          // Get photo data from map (by filePath) or fallback to base64 (legacy)
+          doc.text(`Session ${item.sessionNum}`, x, photoYPos);
+
           const photoBase64 = item.photo.filePath 
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
-          
-          // Add image (centered, ~80mm wide)
+
           if (photoBase64) {
             try {
               const imgData = `data:image/jpeg;base64,${photoBase64}`;
-              doc.addImage(imgData, 'JPEG', 20, photoYPos, 80, 60);
-              photoYPos += 70;
+              doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth2, colHeight2);
             } catch (imgError) {
               doc.setFontSize(9);
               doc.setFont('helvetica', 'italic');
-              doc.text('(Image could not be loaded)', 20, photoYPos + 10);
-              photoYPos += 20;
+              doc.text('(Image could not be loaded)', x, photoYPos + 15);
             }
           } else {
             doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
-            doc.text('(Image could not be loaded)', 20, photoYPos + 10);
-            photoYPos += 20;
+            doc.text('(Image could not be loaded)', x, photoYPos + 15);
           }
+
+          colIdx2++;
+          if (colIdx2 >= 2) {
+            colIdx2 = 0;
+            photoYPos += colHeight2 + 12;
+          }
+        }
+        if (colIdx2 !== 0) {
+          photoYPos += colHeight2 + 12;
         }
       }
 

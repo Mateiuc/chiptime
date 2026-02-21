@@ -120,7 +120,7 @@ All colors MUST be HSL.
       0 0 0 8px hsl(220 15% 20%),
       0 0 0 10px hsl(220 15% 25%),
       0 20px 60px -10px hsl(220 15% 10% / 0.5);
-    overflow: hidden;
+    overflow-y: auto;
     position: relative;
   }
 

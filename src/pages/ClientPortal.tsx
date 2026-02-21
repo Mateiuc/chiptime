@@ -6,7 +6,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
 import { ClientCostSummary, calculateClientCosts, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { ChevronLeft, Lock, Wrench } from 'lucide-react';
+import { Lock, Wrench } from 'lucide-react';
 
 const ClientPortal = () => {
   const { clientId } = useParams<{ clientId: string }>();
@@ -98,8 +98,8 @@ const ClientPortal = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 gap-4">
         <p className="text-destructive font-semibold">{error}</p>
-        <Button variant="outline" onClick={() => navigate('/')}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Back
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Try Again
         </Button>
       </div>
     );
@@ -110,9 +110,6 @@ const ClientPortal = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
           <Wrench className="h-5 w-5 text-primary" />
           <span className="font-bold text-foreground">Client Portal</span>
         </header>
@@ -155,9 +152,6 @@ const ClientPortal = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b px-4 py-3 flex items-center gap-2 bg-primary/10 sticky top-0 z-10">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8">
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
         <Wrench className="h-5 w-5 text-primary" />
         <span className="font-bold text-foreground">Client Portal</span>
       </header>

@@ -297,7 +297,12 @@ const Index = () => {
     // Background cloud sync
     const client = clients.find(c => c.id === activeTask.clientId);
     if (client) {
-      syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate)
+      const updatedTasks = tasks.map(t =>
+        t.id === activeTask.id
+          ? { ...t, status: 'completed' as const, sessions: updatedSessions, needsFollowUp, startTime: undefined, activeSessionId: undefined }
+          : t
+      );
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
         .then(portalId => {
           if (!client.portalId) {
             updateClient(client.id, { portalId });

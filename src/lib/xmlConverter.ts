@@ -105,6 +105,21 @@ export const exportToXML = (data: DatabaseExport): string => {
           xml += '          </Parts>\n';
         }
 
+        // Photos
+        if (session.photos && session.photos.length > 0) {
+          xml += '          <Photos>\n';
+          session.photos.forEach(photo => {
+            xml += `            <Photo `;
+            xml += `id="${escapeXML(photo.id)}" `;
+            if (photo.filePath) xml += `filePath="${escapeXML(photo.filePath)}" `;
+            if (photo.cloudUrl) xml += `cloudUrl="${escapeXML(photo.cloudUrl)}" `;
+            xml += `capturedAt="${formatDate(photo.capturedAt)}" `;
+            xml += `sessionNumber="${escapeXML(photo.sessionNumber)}" `;
+            xml += `/>\n`;
+          });
+          xml += '          </Photos>\n';
+        }
+
         xml += '        </Session>\n';
       });
       xml += '      </Sessions>\n';
@@ -256,6 +271,21 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
                 quantity: parseFloat(partNode.getAttribute('quantity') || '1'),
                 price: parseFloat(partNode.getAttribute('price') || '0'),
                 description: partNode.getAttribute('description') || undefined,
+              });
+            });
+          }
+
+          // Parse Photos
+          const photosNode = sessionNode.querySelector('Photos');
+          if (photosNode) {
+            session.photos = [];
+            photosNode.querySelectorAll('Photo').forEach(photoNode => {
+              session.photos.push({
+                id: photoNode.getAttribute('id') || '',
+                filePath: photoNode.getAttribute('filePath') || undefined,
+                cloudUrl: photoNode.getAttribute('cloudUrl') || undefined,
+                capturedAt: new Date(photoNode.getAttribute('capturedAt') || ''),
+                sessionNumber: parseInt(photoNode.getAttribute('sessionNumber') || '1'),
               });
             });
           }

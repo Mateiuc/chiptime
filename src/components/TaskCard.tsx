@@ -507,9 +507,28 @@ export const TaskCard = ({
           doc.setFont('helvetica', 'bold');
           doc.text(`Session ${item.sessionNum}`, x, photoYPos);
 
-          const photoBase64 = item.photo.filePath 
+          let photoBase64 = item.photo.filePath 
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
+
+          // Fallback to cloudUrl if local photo is missing
+          if (!photoBase64 && item.photo.cloudUrl) {
+            try {
+              const response = await fetch(item.photo.cloudUrl);
+              const blob = await response.blob();
+              photoBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(',')[1]); // strip data:...;base64, prefix
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (fetchError) {
+              console.warn('Failed to fetch photo from cloud:', fetchError);
+            }
+          }
 
           if (photoBase64) {
             try {

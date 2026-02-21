@@ -1,47 +1,78 @@
 
 
-## Add Tabs to Client Portal: Pending, Billed, Paid
+## Fix: Preserve Photos Across Cache Clears and XML Import/Export
 
-Add a fixed top tab menu to the client portal that filters sessions by status, with a solid (non-transparent) header.
+### Problem
 
-### Tab Definitions
+Photos are stored separately from task data (in IndexedDB on web, filesystem on native). The XML backup only exports task metadata -- it does not include photo references or data. After clearing cache or importing XML, tasks have `filePath` references that point to nothing.
 
-| Tab | Sessions Shown |
-|-----|---------------|
-| Pending | Sessions with status: `pending`, `in-progress`, `paused`, `completed` |
-| Billed | Sessions with status: `billed` |
-| Paid | Sessions with status: `paid` |
+### Solution
 
-### Changes
+Two changes to make photos resilient:
 
-**File: `src/pages/ClientPortal.tsx`**
-- Import `Tabs`, `TabsList`, `TabsTrigger` from `@/components/ui/tabs`
-- Add `activeTab` state defaulting to `'pending'`
-- Replace header background from `bg-primary/10` to solid `bg-card border-b-2 border-border` (both PIN screen and cost breakdown views)
-- Add a tab bar inside the sticky header with three triggers: Pending, Billed, Paid
-- Pass `activeTab` as a `filter` prop to `ClientCostBreakdown`
+---
 
-**File: `src/components/ClientCostBreakdown.tsx`**
-- Accept a new optional `filter` prop: `'pending' | 'billed' | 'paid'`
-- Filter each vehicle's sessions based on the active tab:
-  - `pending` matches statuses: `pending`, `in-progress`, `paused`, `completed`
-  - `billed` matches status: `billed`
-  - `paid` matches status: `paid`
-- Recalculate vehicle subtotals and grand totals from filtered sessions only
-- Hide vehicles with zero matching sessions
-- Show an empty state message per tab if no sessions match (e.g., "No pending work found.")
+### 1. Include photo metadata in XML export/import
+
+**File: `src/lib/xmlConverter.ts`**
+
+- **Export**: After the `</Parts>` block inside each `<Session>`, add a `<Photos>` section that writes each photo's `id`, `filePath`, `cloudUrl`, `capturedAt`, `sessionNumber`, and optionally the `base64` data if still present.
+- **Import** (`parseXMLString`): Parse the `<Photos>` section back into `SessionPhoto[]` objects when reading the XML, restoring `id`, `filePath`, `cloudUrl`, `capturedAt`, and `sessionNumber`.
+
+This ensures that even if local blobs are gone, the `cloudUrl` (from previous portal shares) survives the round-trip.
+
+---
+
+### 2. Fall back to `cloudUrl` when local photo is missing
+
+**File: `src/components/TaskCard.tsx`** (PDF generation)
+
+- When loading photos for the bill PDF, if `photoStorageService.loadPhoto(filePath)` returns `null` and the photo has a `cloudUrl`, fetch the image from the cloud URL instead.
+- Convert the fetched image to base64 for embedding in the PDF.
+
+**File: `src/components/ClientCostBreakdown.tsx`** (portal display, if applicable)
+
+- Same fallback: if local load fails, use `cloudUrl` as the `<img>` source.
+
+---
+
+### 3. Optionally embed base64 in XML for full offline backup
+
+Add a setting or flag to include base64 photo data directly in the XML export. This makes the XML file larger but fully self-contained. When importing, the base64 is saved back into IndexedDB/filesystem via `photoStorageService.savePhoto()`.
+
+This step is optional and can be behind a toggle (e.g., "Include photos in backup") since it significantly increases file size.
+
+---
 
 ### Technical Details
 
-Filtering logic applied before rendering:
+**XML export addition** (inside each Session element):
 
 ```text
-const statusMap = {
-  pending: ['pending', 'in-progress', 'paused', 'completed'],
-  billed:  ['billed'],
-  paid:    ['paid'],
-};
+<Photos>
+  <Photo id="..." filePath="..." cloudUrl="..." capturedAt="..." sessionNumber="1" />
+</Photos>
 ```
 
-Each vehicle's sessions are filtered, then labor/parts/totals are recalculated from the filtered set. Vehicles with no matching sessions are excluded from the view. The grand total card reflects only the active tab's data.
+**Fallback loading logic** (pseudo-code):
+
+```text
+let photoData = await photoStorageService.loadPhoto(photo.filePath);
+if (!photoData && photo.cloudUrl) {
+  // Fetch from cloud
+  const response = await fetch(photo.cloudUrl);
+  const blob = await response.blob();
+  photoData = await blobToBase64(blob);
+}
+```
+
+**Import restoration**: When importing XML that contains `cloudUrl` references, those URLs are preserved on the `SessionPhoto` objects so the fallback path works immediately.
+
+### Files to modify
+
+| File | Change |
+|------|--------|
+| `src/lib/xmlConverter.ts` | Add Photos export/import in XML format |
+| `src/components/TaskCard.tsx` | Add cloudUrl fallback when loading photos for PDF |
+| `src/components/ClientCostBreakdown.tsx` | Add cloudUrl fallback for portal photo display (if needed) |
 

@@ -13,25 +13,31 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <ErrorBoundary>
-    <div className="mobile-preview-container">
-      <div className="mobile-phone-frame">
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/client/:clientId" element={<ClientPortal />} />
-                <Route path="/client-view" element={<ClientPortal />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </div>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Portal routes - full screen, no phone frame */}
+            <Route path="/client/:clientId" element={<ClientPortal />} />
+            <Route path="/client-view" element={<ClientPortal />} />
+
+            {/* Main app routes - inside phone frame */}
+            <Route path="/*" element={
+              <div className="mobile-preview-container">
+                <div className="mobile-phone-frame">
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </div>
+              </div>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
   </ErrorBoundary>
 );
 

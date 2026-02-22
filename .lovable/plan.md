@@ -1,50 +1,64 @@
 
 
-## Responsive Client Portal: Tablet and Desktop Only
+## Fix: Client Portal Not Responsive on PC
 
-### Principle
-The phone layout stays **exactly as it is today** -- zero changes for screens under 768px. Enhancements only apply to tablet (768-1024px) and desktop (over 1024px).
+### Root Cause
 
-### Approach
-Use Tailwind's responsive prefixes (`md:` and `lg:`) directly in the existing components. No custom hook needed -- Tailwind handles the breakpoints in CSS, so phone rendering is completely untouched.
+The entire app is wrapped in a "mobile phone frame" container (`App.tsx` lines 16-17):
+
+```text
+<div className="mobile-preview-container">
+  <div className="mobile-phone-frame">
+    ... all routes including ClientPortal ...
+  </div>
+</div>
+```
+
+This frame is hardcoded to max 390px wide and 844px tall (defined in `src/index.css`). Because the Client Portal renders inside this tiny container, Tailwind's responsive breakpoints (`md:`, `lg:`) never activate -- the portal always thinks it's on a phone-sized screen.
+
+### Solution
+
+Render the Client Portal routes **outside** the phone frame, so they use the full browser window. The main app (Index page) keeps the phone frame as before.
 
 ### Changes
 
-**File: `src/pages/ClientPortal.tsx`**
+**File: `src/App.tsx`**
 
-- Wrap the main content area in a centered container that only constrains width on larger screens:
-  - `md:max-w-[720px] lg:max-w-[960px] md:mx-auto`
-- Header: on tablet/desktop, put the logo and tabs on a single row instead of stacked:
-  - `md:flex md:items-center md:justify-between md:space-y-0` (tabs sit beside the logo)
-  - Tabs list loses `w-full` on larger screens: `md:w-auto`
-- PIN screen card: allow slightly wider card on tablet/desktop:
-  - `md:max-w-sm lg:max-w-md`
-- Add more padding on larger screens: `md:p-8 lg:p-12`
+- Move the `/client/:clientId` and `/client-view` routes outside the `mobile-phone-frame` wrapper
+- The main route (`/`) stays inside the phone frame -- no change to the main app
+- Structure will become:
 
-**File: `src/components/ClientCostBreakdown.tsx`**
+```text
+<BrowserRouter>
+  <Routes>
+    {/* Portal routes - full screen, no phone frame */}
+    <Route path="/client/:clientId" element={<ClientPortal />} />
+    <Route path="/client-view" element={<ClientPortal />} />
 
-- Vehicle cards: on desktop, display in a 2-column grid when there are multiple vehicles:
-  - Wrap vehicle list in `lg:grid lg:grid-cols-2 lg:gap-4` (single column stays on phone and tablet)
-- Greeting text: larger on bigger screens:
-  - `md:text-2xl lg:text-3xl` on the name heading
-- Session text and parts table: slightly larger text on tablet/desktop:
-  - Session title: `md:text-base` (currently `text-sm`)
-  - Parts table cells: `md:text-sm` (currently `text-xs`)
-  - Status badge: `md:text-xs` (currently `text-[10px]`)
-- Grand total card: centered with max-width on larger screens:
-  - `md:max-w-lg md:mx-auto`
-- Vehicle subtotal section: more padding on larger screens:
-  - `md:p-4 md:text-sm`
+    {/* Main app routes - inside phone frame */}
+    <Route path="/*" element={
+      <div className="mobile-preview-container">
+        <div className="mobile-phone-frame">
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </div>
+    } />
+  </Routes>
+</BrowserRouter>
+```
 
-### What stays the same
-- All current phone styling (everything under 768px) is preserved exactly as-is
-- No new files or hooks needed
-- No JavaScript-based device detection -- pure CSS breakpoints via Tailwind
+### What this fixes
+
+- On PC/tablet: the Client Portal will use the full screen width, so `md:` and `lg:` Tailwind classes will activate (wider content, side-by-side header, 2-column vehicle grid, etc.)
+- On phone: the portal naturally fills the screen as before -- no change
+- The main app (Index page) keeps the phone frame exactly as it is today
 
 ### Files to modify
 
 | File | Change |
 |------|--------|
-| `src/pages/ClientPortal.tsx` | Add `md:` and `lg:` Tailwind classes for layout, header, and padding |
-| `src/components/ClientCostBreakdown.tsx` | Add `md:` and `lg:` classes for grid, text sizing, and spacing |
+| `src/App.tsx` | Move portal routes outside the phone frame wrapper |
 

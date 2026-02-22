@@ -116,8 +116,8 @@ const ClientPortal = () => {
           <span className="font-bold text-foreground">Client Portal</span>
         </header>
 
-        <div className="flex-1 flex items-center justify-center p-6">
-          <Card className="w-full max-w-xs">
+        <div className="flex-1 flex items-center justify-center p-6 md:p-8 lg:p-12">
+          <Card className="w-full max-w-xs md:max-w-sm lg:max-w-md">
             <CardContent className="pt-6 space-y-6 text-center">
               <Lock className="h-10 w-10 mx-auto text-primary" />
               <div>
@@ -153,21 +153,21 @@ const ClientPortal = () => {
   // Cost breakdown view
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b-2 border-border px-4 py-3 sticky top-0 z-10 bg-card space-y-3">
+      <header className="border-b-2 border-border px-4 py-3 sticky top-0 z-10 bg-card space-y-3 md:space-y-0 md:flex md:items-center md:justify-between md:px-6 lg:px-8">
         <div className="flex items-center gap-2">
           <Wrench className="h-5 w-5 text-primary" />
           <span className="font-bold text-foreground">Client Portal</span>
         </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pending' | 'billed' | 'paid')}>
-          <TabsList className="w-full">
-            <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-            <TabsTrigger value="billed" className="flex-1">Billed</TabsTrigger>
-            <TabsTrigger value="paid" className="flex-1">Paid</TabsTrigger>
+          <TabsList className="w-full md:w-auto">
+            <TabsTrigger value="pending" className="flex-1 md:flex-none">Pending</TabsTrigger>
+            <TabsTrigger value="billed" className="flex-1 md:flex-none">Billed</TabsTrigger>
+            <TabsTrigger value="paid" className="flex-1 md:flex-none">Paid</TabsTrigger>
           </TabsList>
         </Tabs>
       </header>
 
-      <div className="p-4 pb-8">
+      <div className="p-4 pb-8 md:p-8 lg:p-12 md:max-w-[720px] lg:max-w-[960px] md:mx-auto">
         {costSummary && <ClientCostBreakdown costSummary={costSummary} filter={activeTab} />}
       </div>
     </div>

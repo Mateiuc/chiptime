@@ -60,13 +60,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     <div className="space-y-4">
       {/* Client greeting */}
       <div className="text-center py-2">
-        <h2 className="text-xl font-bold text-foreground">
+        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">
           Hello, {costSummary.client.name}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">Your cost breakdown</p>
       </div>
 
       {/* Vehicle sections */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
       {filteredVehicles.map((vehicleSummary, vIdx) => {
         const v = vehicleSummary.vehicle;
         const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
@@ -89,14 +90,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 <div key={sIdx} className="border-b last:border-b-0 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-sm md:text-base font-semibold text-foreground">
                         Session {sIdx + 1} — {formatDate(session.date)}
                       </p>
                       <p className="text-xs text-muted-foreground italic mt-0.5">
                         "{session.description}"
                       </p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] ${statusColors[session.status] || ''}`}>
+                    <Badge variant="outline" className={`text-[10px] md:text-xs ${statusColors[session.status] || ''}`}>
                       {session.status}
                     </Badge>
                   </div>
@@ -128,7 +129,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         </TableHeader>
                         <TableBody>
                           {session.parts.map((part, pIdx) => (
-                            <TableRow key={pIdx} className="text-xs">
+                            <TableRow key={pIdx} className="text-xs md:text-sm">
                               <TableCell className="py-1 px-2">{part.name}</TableCell>
                               <TableCell className="py-1 px-2 text-center">{part.quantity}</TableCell>
                               <TableCell className="py-1 px-2 text-right">{formatCurrency(part.price)}</TableCell>
@@ -152,7 +153,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               ))}
 
               {/* Vehicle subtotal */}
-              <div className="p-3 bg-muted/50 text-xs space-y-0.5">
+              <div className="p-3 md:p-4 bg-muted/50 text-xs md:text-sm space-y-0.5">
                 <div className="flex justify-between">
                   <span>Vehicle Labor:</span>
                   <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor)}</span>
@@ -171,6 +172,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
         );
       })}
 
+      </div>
+
       {filteredVehicles.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
           {filter ? emptyMessages[filter] : 'No work records found.'}
@@ -179,7 +182,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
       {/* Grand total */}
       {filteredVehicles.length > 0 && (
-        <Card className="bg-primary/5 border-primary/30">
+        <Card className="bg-primary/5 border-primary/30 md:max-w-lg md:mx-auto">
           <CardContent className="p-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span>Total Labor:</span>

@@ -1,64 +1,30 @@
 
 
-## Fix: Client Portal Not Responsive on PC
+# Fix Share Link Domain to `chiptime.chipplc.one`
 
-### Root Cause
+## Changes
 
-The entire app is wrapped in a "mobile phone frame" container (`App.tsx` lines 16-17):
-
-```text
-<div className="mobile-preview-container">
-  <div className="mobile-phone-frame">
-    ... all routes including ClientPortal ...
-  </div>
-</div>
+### 1. `src/lib/clientPortalUtils.ts`
+Add a constant near the top of the file:
+```typescript
+export const PORTAL_BASE_URL = 'https://chiptime.chipplc.one';
 ```
 
-This frame is hardcoded to max 390px wide and 844px tall (defined in `src/index.css`). Because the Client Portal renders inside this tiny container, Tailwind's responsive breakpoints (`md:`, `lg:`) never activate -- the portal always thinks it's on a phone-sized screen.
+### 2. `src/components/ManageClientsDialog.tsx`
+- Add `PORTAL_BASE_URL` to the existing import from `@/lib/clientPortalUtils`
+- **Line 611**: Replace `${window.location.origin}` with `${PORTAL_BASE_URL}`
+- **Line 622**: Replace `${window.location.origin}` with `${PORTAL_BASE_URL}`
 
-### Solution
+No other domain references exist elsewhere in the codebase.
 
-Render the Client Portal routes **outside** the phone frame, so they use the full browser window. The main app (Index page) keeps the phone frame as before.
+## Custom Domain Setup (you do this after approval)
 
-### Changes
+1. Go to project **Settings > Domains**
+2. Click **Connect Domain** and enter `chiptime.chipplc.one`
+3. At your DNS provider for `chipplc.one`, add:
+   - **A record**: Name = `chiptime`, Value = `185.158.133.1`
+   - **TXT record**: as shown in the Lovable setup flow
+4. Wait for DNS propagation and SSL (usually minutes, up to 72 hours)
 
-**File: `src/App.tsx`**
-
-- Move the `/client/:clientId` and `/client-view` routes outside the `mobile-phone-frame` wrapper
-- The main route (`/`) stays inside the phone frame -- no change to the main app
-- Structure will become:
-
-```text
-<BrowserRouter>
-  <Routes>
-    {/* Portal routes - full screen, no phone frame */}
-    <Route path="/client/:clientId" element={<ClientPortal />} />
-    <Route path="/client-view" element={<ClientPortal />} />
-
-    {/* Main app routes - inside phone frame */}
-    <Route path="/*" element={
-      <div className="mobile-preview-container">
-        <div className="mobile-phone-frame">
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </div>
-    } />
-  </Routes>
-</BrowserRouter>
-```
-
-### What this fixes
-
-- On PC/tablet: the Client Portal will use the full screen width, so `md:` and `lg:` Tailwind classes will activate (wider content, side-by-side header, 2-column vehicle grid, etc.)
-- On phone: the portal naturally fills the screen as before -- no change
-- The main app (Index page) keeps the phone frame exactly as it is today
-
-### Files to modify
-
-| File | Change |
-|------|--------|
-| `src/App.tsx` | Move portal routes outside the phone frame wrapper |
+Until the domain is active, generated links won't resolve, but the app keeps working on `chiptime.lovable.app`.
 

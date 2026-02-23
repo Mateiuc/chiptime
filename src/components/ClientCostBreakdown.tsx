@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { formatDuration, formatCurrency } from '@/lib/formatTime';
-import { Car, Clock, Wrench, DollarSign } from 'lucide-react';
+import { Car, Clock, Wrench, DollarSign, Camera } from 'lucide-react';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
@@ -25,6 +27,49 @@ const statusColors: Record<string, string> = {
   paused: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
 };
 
+const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  if (photoUrls.length === 0) return null;
+
+  return (
+    <>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
+        <Camera className="h-3 w-3" />
+        <span>Photos ({photoUrls.length})</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {photoUrls.map((url, i) => (
+          <button
+            key={i}
+            onClick={() => setLightboxUrl(url)}
+            className="flex-shrink-0 rounded-md overflow-hidden border border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <img
+              src={url}
+              alt={`Session photo ${i + 1}`}
+              className="w-20 h-16 md:w-48 md:h-36 object-cover"
+              loading="lazy"
+            />
+          </button>
+        ))}
+      </div>
+
+      <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          {lightboxUrl && (
+            <img
+              src={lightboxUrl}
+              alt="Full size photo"
+              className="w-full h-auto rounded-md"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
 export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdownProps) => {
   const formatDate = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
@@ -32,7 +77,6 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // Filter vehicles and sessions based on active tab
   const allowedStatuses = filter ? statusMap[filter] : null;
 
   const filteredVehicles = costSummary.vehicles
@@ -57,7 +101,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:space-y-6">
       {/* Client greeting */}
       <div className="text-center py-2">
         <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">
@@ -67,111 +111,120 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       </div>
 
       {/* Vehicle sections */}
-      <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
-      {filteredVehicles.map((vehicleSummary, vIdx) => {
-        const v = vehicleSummary.vehicle;
-        const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-4 lg:space-y-0">
+        {filteredVehicles.map((vehicleSummary, vIdx) => {
+          const v = vehicleSummary.vehicle;
+          const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
 
-        return (
-          <Card key={vIdx} className="overflow-hidden">
-            <CardHeader className="py-3 px-4 bg-primary/10">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Car className="h-4 w-4 text-primary" />
-                {vehicleName}
-              </CardTitle>
-              {v.vin && (
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  VIN: {v.vin}
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="p-0">
-              {vehicleSummary.sessions.map((session, sIdx) => (
-                <div key={sIdx} className="border-b last:border-b-0 p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm md:text-base font-semibold text-foreground">
-                        Session {sIdx + 1} — {formatDate(session.date)}
-                      </p>
-                      <p className="text-xs text-muted-foreground italic mt-0.5">
-                        "{session.description}"
-                      </p>
-                    </div>
-                    <Badge variant="outline" className={`text-[10px] md:text-xs ${statusColors[session.status] || ''}`}>
-                      {session.status}
+          return (
+            <Card key={vIdx} className="overflow-hidden">
+              <CardHeader className="py-3 px-4 md:py-4 md:px-6 bg-primary/10">
+                <CardTitle className="text-sm md:text-lg font-bold flex items-center gap-2">
+                  <Car className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                  {vehicleName}
+                  {v.color && (
+                    <Badge variant="outline" className="text-[10px] md:text-xs ml-auto">
+                      {v.color}
                     </Badge>
-                  </div>
-
-                  <div className="flex gap-4 text-xs">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {formatDuration(session.duration)}
-                    </span>
-                    <span className="flex items-center gap-1 font-semibold text-foreground">
-                      <DollarSign className="h-3 w-3" />
-                      Labor: {formatCurrency(session.laborCost)}
-                    </span>
-                  </div>
-
-                  {session.parts.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs font-semibold flex items-center gap-1 mb-1">
-                        <Wrench className="h-3 w-3" /> Parts
-                      </p>
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="text-[10px]">
-                            <TableHead className="h-7 px-2 text-xs">Part</TableHead>
-                            <TableHead className="h-7 px-2 text-xs text-center">Qty</TableHead>
-                            <TableHead className="h-7 px-2 text-xs text-right">Price</TableHead>
-                            <TableHead className="h-7 px-2 text-xs text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {session.parts.map((part, pIdx) => (
-                            <TableRow key={pIdx} className="text-xs md:text-sm">
-                              <TableCell className="py-1 px-2">{part.name}</TableCell>
-                              <TableCell className="py-1 px-2 text-center">{part.quantity}</TableCell>
-                              <TableCell className="py-1 px-2 text-right">{formatCurrency(part.price)}</TableCell>
-                              <TableCell className="py-1 px-2 text-right font-medium">
-                                {formatCurrency(part.price * part.quantity)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      <p className="text-xs font-semibold text-right mt-1 pr-2">
-                        Parts Total: {formatCurrency(session.partsCost)}
-                      </p>
-                    </div>
                   )}
+                </CardTitle>
+                {v.vin && (
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    VIN: {v.vin}
+                  </p>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                {vehicleSummary.sessions.map((session, sIdx) => (
+                  <div key={sIdx} className="border-b last:border-b-0 p-4 md:p-6 space-y-2 md:space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm md:text-lg font-semibold text-foreground">
+                          Session {sIdx + 1} — {formatDate(session.date)}
+                        </p>
+                        <p className="text-xs md:text-sm text-muted-foreground italic mt-0.5">
+                          "{session.description}"
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={`text-[10px] md:text-xs ${statusColors[session.status] || ''}`}>
+                        {session.status}
+                      </Badge>
+                    </div>
 
-                  <div className="text-xs font-bold text-right border-t pt-1 text-foreground">
-                    Session Total: {formatCurrency(session.laborCost + session.partsCost)}
+                    <div className="flex gap-4 text-xs md:text-sm">
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(session.duration)}
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-foreground">
+                        <DollarSign className="h-3 w-3" />
+                        Labor: {formatCurrency(session.laborCost)}
+                      </span>
+                    </div>
+
+                    {/* Photo gallery */}
+                    {session.photoUrls && session.photoUrls.length > 0 && (
+                      <PhotoGallery photoUrls={session.photoUrls} />
+                    )}
+
+                    {session.parts.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs md:text-sm font-semibold flex items-center gap-1 mb-1">
+                          <Wrench className="h-3 w-3" /> Parts
+                        </p>
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="text-[10px]">
+                              <TableHead className="h-7 px-2 text-xs md:text-sm">Part</TableHead>
+                              <TableHead className="h-7 px-2 text-xs md:text-sm text-center">Qty</TableHead>
+                              <TableHead className="h-7 px-2 text-xs md:text-sm text-right">Price</TableHead>
+                              <TableHead className="h-7 px-2 text-xs md:text-sm text-right">Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {session.parts.map((part, pIdx) => (
+                              <TableRow key={pIdx} className="text-xs md:text-sm">
+                                <TableCell className="py-1 px-2">{part.name}</TableCell>
+                                <TableCell className="py-1 px-2 text-center">{part.quantity}</TableCell>
+                                <TableCell className="py-1 px-2 text-right">{formatCurrency(part.price)}</TableCell>
+                                <TableCell className="py-1 px-2 text-right font-medium">
+                                  {formatCurrency(part.price * part.quantity)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        <p className="text-xs md:text-sm font-semibold text-right mt-1 pr-2">
+                          Parts Total: {formatCurrency(session.partsCost)}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="text-xs md:text-sm font-bold text-right border-t pt-1 text-foreground">
+                      Session Total: {formatCurrency(session.laborCost + session.partsCost)}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Vehicle subtotal */}
+                <div className="p-3 md:p-4 bg-muted/50 text-xs md:text-sm space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Vehicle Labor:</span>
+                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Vehicle Parts:</span>
+                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm border-t pt-1 mt-1">
+                    <span>Vehicle Total:</span>
+                    <span>{formatCurrency(vehicleSummary.vehicleTotal)}</span>
                   </div>
                 </div>
-              ))}
-
-              {/* Vehicle subtotal */}
-              <div className="p-3 md:p-4 bg-muted/50 text-xs md:text-sm space-y-0.5">
-                <div className="flex justify-between">
-                  <span>Vehicle Labor:</span>
-                  <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Vehicle Parts:</span>
-                  <span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-sm border-t pt-1 mt-1">
-                  <span>Vehicle Total:</span>
-                  <span>{formatCurrency(vehicleSummary.vehicleTotal)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {filteredVehicles.length === 0 && (

@@ -11,6 +11,7 @@ export interface SessionCostDetail {
   parts: Part[];
   partsCost: number;
   status: TaskStatus;
+  photoUrls: string[];
 }
 
 export interface VehicleCostSummary {
@@ -44,6 +45,7 @@ interface SlimSession {
   pc: number;
   st: string;
   p: SlimPart[];
+  ph?: string[];
 }
 
 interface SlimVehicle {
@@ -106,6 +108,9 @@ export function calculateClientCosts(
           parts: session.parts || [],
           partsCost,
           status: task.status,
+          photoUrls: (session.photos || [])
+            .filter(p => p.cloudUrl)
+            .map(p => p.cloudUrl!),
         });
       });
     });
@@ -149,6 +154,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         pc: Math.round(s.partsCost * 100) / 100,
         st: s.status,
         p: s.parts.map(p => ({ n: p.name, q: p.quantity, pr: p.price })),
+        ph: s.photoUrls.length > 0 ? s.photoUrls : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -182,6 +188,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         parts: ss.p.map(p => ({ name: p.n, quantity: p.q, price: p.pr })),
         partsCost: ss.pc,
         status: ss.st as TaskStatus,
+        photoUrls: ss.ph || [],
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,
@@ -366,6 +373,11 @@ h+='</div>';
 v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
 h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(ss.lc)+'</b></span></div>';
+if(ss.ph&&ss.ph.length>0){
+h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
+ss.ph.forEach(function(url){h+='<img src="'+esc(url)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0" loading="lazy">'});
+h+='</div>';
+}
 if(ss.p.length>0){
 h+='<div class="parts"><div class="parts-title">🔧 Parts</div><table><tr><th>Part</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr>';
 ss.p.forEach(function(p){h+='<tr><td>'+esc(p.n)+'</td><td class="text-center">'+p.q+'</td><td class="text-right">'+fmt(p.pr)+'</td><td class="text-right"><b>'+fmt(p.pr*p.q)+'</b></td></tr>'});

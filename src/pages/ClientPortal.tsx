@@ -167,7 +167,7 @@ const ClientPortal = () => {
         </Tabs>
       </header>
 
-      <div className="p-4 pb-8 md:p-8 lg:p-12 md:max-w-[720px] lg:max-w-[960px] md:mx-auto">
+      <div className="p-4 pb-8 md:p-8 lg:p-12 md:max-w-[720px] lg:max-w-[1200px] xl:max-w-[1400px] md:mx-auto">
         {costSummary && <ClientCostBreakdown costSummary={costSummary} filter={activeTab} />}
       </div>
     </div>

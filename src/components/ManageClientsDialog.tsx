@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
-import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud } from '@/lib/clientPortalUtils';
+import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 
 interface ManageClientsDialogProps {
   open: boolean;
@@ -608,7 +608,7 @@ export const ManageClientsDialog = ({
                                       );
                                     }
                                     
-                                    const url = `${window.location.origin}/client-view?id=${portalId}`;
+                                    const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
                                     await navigator.clipboard.writeText(url);
                                     toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
                                     return;
@@ -619,7 +619,7 @@ export const ManageClientsDialog = ({
                                   // Fallback to hash/file method
                                   const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate);
                                   const encoded = await encodeClientData(summary, code);
-                                  const url = `${window.location.origin}/client-view#${encoded}`;
+                                  const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
                                   
                                   if (url.length <= 2000) {
                                     await navigator.clipboard.writeText(url);

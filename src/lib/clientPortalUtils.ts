@@ -1,4 +1,6 @@
 import { Client, Vehicle, Task, TaskStatus, Part } from '@/types';
+
+export const PORTAL_BASE_URL = 'https://chiptime.chipplc.one';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SessionCostDetail {

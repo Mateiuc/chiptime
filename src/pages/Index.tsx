@@ -402,11 +402,39 @@ const Index = () => {
   const handleMarkBilled = (taskId: string) => {
     updateTask(taskId, { status: 'billed' });
     toast({ title: 'Task Marked as Billed' });
+
+    // Sync portal so client sees updated status immediately
+    const task = tasks.find(t => t.id === taskId);
+    const client = task ? clients.find(c => c.id === task.clientId) : null;
+    if (client) {
+      const updatedTasks = tasks.map(t =>
+        t.id === taskId ? { ...t, status: 'billed' as const } : t
+      );
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
+        .then(portalId => {
+          if (!client.portalId) updateClient(client.id, { portalId });
+        })
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+    }
   };
 
   const handleMarkPaid = (taskId: string) => {
     updateTask(taskId, { status: 'paid' });
     toast({ title: 'Payment Recorded' });
+
+    // Sync portal so client sees updated status immediately
+    const task = tasks.find(t => t.id === taskId);
+    const client = task ? clients.find(c => c.id === task.clientId) : null;
+    if (client) {
+      const updatedTasks = tasks.map(t =>
+        t.id === taskId ? { ...t, status: 'paid' as const } : t
+      );
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
+        .then(portalId => {
+          if (!client.portalId) updateClient(client.id, { portalId });
+        })
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+    }
   };
 
   const handleDelete = async (taskId: string) => {

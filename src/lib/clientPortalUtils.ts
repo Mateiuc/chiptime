@@ -12,6 +12,7 @@ export interface SessionCostDetail {
   partsCost: number;
   status: TaskStatus;
   photoUrls: string[];
+  statusDate?: Date;
 }
 
 export interface VehicleCostSummary {
@@ -46,6 +47,7 @@ interface SlimSession {
   st: string;
   p: SlimPart[];
   ph?: string[];
+  sdt?: number;
 }
 
 interface SlimVehicle {
@@ -100,6 +102,14 @@ export function calculateClientCosts(
         totalLabor += laborCost;
         totalParts += partsCost;
 
+        // Determine the status date: when the task entered its current status
+        let statusDate: Date | undefined;
+        if (task.status === 'paid' && task.paidAt) {
+          statusDate = task.paidAt instanceof Date ? task.paidAt : new Date(task.paidAt);
+        } else if (task.status === 'billed' && task.billedAt) {
+          statusDate = task.billedAt instanceof Date ? task.billedAt : new Date(task.billedAt);
+        }
+
         sessions.push({
           description: session.description || 'Work session',
           date: session.createdAt,
@@ -111,6 +121,7 @@ export function calculateClientCosts(
           photoUrls: (session.photos || [])
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
+          statusDate,
         });
       });
     });
@@ -155,6 +166,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         st: s.status,
         p: s.parts.map(p => ({ n: p.name, q: p.quantity, pr: p.price })),
         ph: s.photoUrls.length > 0 ? s.photoUrls : undefined,
+        sdt: s.statusDate ? Math.floor(new Date(s.statusDate).getTime() / 1000) : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -189,6 +201,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         partsCost: ss.pc,
         status: ss.st as TaskStatus,
         photoUrls: ss.ph || [],
+        statusDate: ss.sdt ? new Date(ss.sdt * 1000) : undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,

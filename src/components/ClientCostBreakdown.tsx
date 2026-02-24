@@ -100,7 +100,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     const monthMap = new Map<string, { month: string; money: number; cars: Set<string> }>();
     filteredVehicles.forEach(v => {
       v.sessions.forEach(s => {
-        const d = new Date(s.date);
+        const d = s.statusDate ? new Date(s.statusDate) : new Date(s.date);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });

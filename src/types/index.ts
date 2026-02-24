@@ -67,8 +67,6 @@ export interface Task {
   createdAt: Date;
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
-  billedAt?: Date;
-  paidAt?: Date;
 }
 
 export interface BackupSettings {

@@ -400,7 +400,7 @@ const Index = () => {
   };
 
   const handleMarkBilled = (taskId: string) => {
-    updateTask(taskId, { status: 'billed', billedAt: new Date() });
+    updateTask(taskId, { status: 'billed' });
     toast({ title: 'Task Marked as Billed' });
 
     // Sync portal so client sees updated status immediately
@@ -408,7 +408,7 @@ const Index = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t =>
-        t.id === taskId ? { ...t, status: 'billed' as const, billedAt: new Date() } : t
+        t.id === taskId ? { ...t, status: 'billed' as const } : t
       );
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
         .then(portalId => {
@@ -419,7 +419,7 @@ const Index = () => {
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid', paidAt: new Date() });
+    updateTask(taskId, { status: 'paid' });
     toast({ title: 'Payment Recorded' });
 
     // Sync portal so client sees updated status immediately
@@ -427,7 +427,7 @@ const Index = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t =>
-        t.id === taskId ? { ...t, status: 'paid' as const, paidAt: new Date() } : t
+        t.id === taskId ? { ...t, status: 'paid' as const } : t
       );
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
         .then(portalId => {

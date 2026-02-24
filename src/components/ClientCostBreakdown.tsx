@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { formatDuration, formatCurrency } from '@/lib/formatTime';
 import { Car, Clock, Wrench, DollarSign, Camera } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
@@ -93,6 +94,25 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalLabor = filteredVehicles.reduce((sum, v) => sum + v.totalLabor, 0);
   const grandTotalParts = filteredVehicles.reduce((sum, v) => sum + v.totalParts, 0);
   const grandTotal = grandTotalLabor + grandTotalParts;
+
+  const monthlyData = useMemo(() => {
+    if (filter !== 'paid') return [];
+    const monthMap = new Map<string, { month: string; money: number; cars: Set<string> }>();
+    filteredVehicles.forEach(v => {
+      v.sessions.forEach(s => {
+        const d = new Date(s.date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });
+        const entry = monthMap.get(key)!;
+        entry.money += s.laborCost + s.partsCost;
+        entry.cars.add(v.vehicle.vin);
+      });
+    });
+    return Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([_, v]) => ({ month: v.month, money: Math.round(v.money * 100) / 100, cars: v.cars.size }));
+  }, [filteredVehicles, filter]);
 
   const emptyMessages: Record<string, string> = {
     pending: 'No pending work found.',
@@ -252,6 +272,49 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           </CardContent>
         </Card>
       )}
+
+      {/* Paid tab charts */}
+      {filter === 'paid' && monthlyData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-sm md:text-base">Revenue by Month</CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 md:p-4">
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `$${v}`} />
+                  <Tooltip formatter={(value: number) => [formatCurrency(value), 'Revenue']} />
+                  <Bar dataKey="money" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-sm md:text-base">Cars by Month</CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 md:p-4">
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" allowDecimals={false} />
+                  <Tooltip formatter={(value: number) => [value, 'Cars']} />
+                  <Bar dataKey="cars" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Vehicle count footer */}
+      <p className="text-xs text-muted-foreground text-center py-4">
+        Showing {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''}
+      </p>
     </div>
   );
 };

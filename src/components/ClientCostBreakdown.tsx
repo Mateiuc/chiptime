@@ -100,18 +100,21 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     const now = new Date();
     const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
     const monthMap = new Map<string, { month: string; money: number; cars: Set<string> }>();
+
     filteredVehicles.forEach(v => {
-      v.sessions.forEach(s => {
-        const d = new Date(s.date);
-        if (d < cutoff) return;
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });
-        const entry = monthMap.get(key)!;
-        entry.money += s.laborCost + s.partsCost;
-        entry.cars.add(v.vehicle.vin);
-      });
+      const allDates = v.sessions.map(s => new Date(s.date).getTime());
+      if (allDates.length === 0) return;
+      const lastStopDate = new Date(Math.max(...allDates));
+      if (lastStopDate < cutoff) return;
+
+      const key = `${lastStopDate.getFullYear()}-${String(lastStopDate.getMonth() + 1).padStart(2, '0')}`;
+      const label = lastStopDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });
+      const entry = monthMap.get(key)!;
+      entry.money += v.sessions.reduce((sum, s) => sum + s.laborCost + s.partsCost, 0);
+      entry.cars.add(v.vehicle.vin);
     });
+
     return Array.from(monthMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([_, v]) => ({ month: v.month, money: Math.round(v.money * 100) / 100, cars: v.cars.size }));

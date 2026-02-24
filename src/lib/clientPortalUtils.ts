@@ -102,7 +102,10 @@ export function calculateClientCosts(
 
         sessions.push({
           description: session.description || 'Work session',
-          date: session.createdAt,
+          date: session.completedAt
+            || (session.periods.length > 0
+                ? session.periods[session.periods.length - 1].endTime
+                : session.createdAt),
           duration,
           laborCost,
           parts: session.parts || [],

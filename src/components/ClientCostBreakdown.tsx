@@ -97,10 +97,13 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
   const monthlyData = useMemo(() => {
     if (filter !== 'paid') return [];
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
     const monthMap = new Map<string, { month: string; money: number; cars: Set<string> }>();
     filteredVehicles.forEach(v => {
       v.sessions.forEach(s => {
         const d = new Date(s.date);
+        if (d < cutoff) return;
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });

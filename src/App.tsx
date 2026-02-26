@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ClientPortal from "./pages/ClientPortal";
+import DesktopDashboard from "./pages/DesktopDashboard";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
             {/* Portal routes - full screen, no phone frame */}
             <Route path="/client/:clientId" element={<ClientPortal />} />
             <Route path="/client-view" element={<ClientPortal />} />
+            <Route path="/chip" element={<DesktopDashboard />} />
 
             {/* Main app routes - inside phone frame */}
             <Route path="/*" element={

@@ -1,56 +1,57 @@
 
 
-# Fix Charts: One Entry Per Vehicle at Last Work Stop Date
+# Desktop Dashboard at `/chip` Route
 
-## Problem
-Currently the charts iterate over every session for every vehicle, which can count the same car in multiple months. You want each vehicle counted **once**, placed at the month when the **last work period of the last session ended** — the date the work was truly done on that car.
+## Overview
+Create a new `/chip` route that renders the same data (clients, vehicles, tasks, settings) in a desktop-friendly layout without the phone frame. No timer start/stop/pause functionality — only data viewing and editing (edit tasks, mark billed/paid, manage clients/vehicles, settings).
 
-## Changes
+## Architecture
 
-### `src/components/ClientCostBreakdown.tsx` -- Update `monthlyData` logic (lines 98-118)
+The `/chip` route will render a new `DesktopDashboard` page component that:
+- Reuses existing hooks (`useClients`, `useVehicles`, `useTasks`, `useSettings`)
+- Reuses existing components (`TaskCard`, `EditTaskDialog`, `SettingsDialog`, `ManageClientsDialog`, `AddVehicleDialog`, `AddClientDialog`)
+- Removes timer controls (start, pause, stop, auto-pause logic)
+- Uses a wide desktop layout with sidebar or multi-column design
 
-Replace the per-session loop with a per-vehicle approach:
+## Files
 
-1. For each vehicle in `filteredVehicles`, find the **last session** (by date)
-2. From that last session, get the **last period's end time** (the final work stop)
-3. Use that single date to place the vehicle on the chart
-4. Sum **all** of that vehicle's costs (across all sessions) into that one month
-5. Count the vehicle once in that month
+### 1. New: `src/pages/DesktopDashboard.tsx`
+- Full-width layout (no phone frame), responsive for PC browsers
+- Sidebar with client list + search/filter
+- Main content area showing tasks grouped by client, with tabs (Active / Completed / Billed / Paid)
+- Header with settings gear, add vehicle/client buttons
+- All CRUD: edit tasks, mark billed/paid, delete, manage clients/vehicles
+- No `handleStartTimer`, `handlePauseTimer`, `handleStopTimer`, `handleCompleteWork` — removes all timer logic
+- Keep: `handleMarkBilled`, `handleMarkPaid`, `handleDelete`, `handleAddClient`, `handleAddVehicle`, `handleUpdateClient`, `handleDeleteClient`, `handleUpdateVehicle`, `handleDeleteVehicle`, `handleMoveVehicle`, `handleRestartTimer` (for resuming completed tasks back to active)
+- TaskCard rendered without `onPauseTimer`/`onStopTimer` props (hides timer buttons)
 
-```typescript
-const monthlyData = useMemo(() => {
-  if (filter !== 'paid') return [];
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const monthMap = new Map<string, { month: string; money: number; cars: Set<string> }>();
+### 2. Update: `src/App.tsx`
+- Add route: `<Route path="/chip" element={<DesktopDashboard />} />` alongside the portal routes (outside phone frame)
 
-  filteredVehicles.forEach(v => {
-    // Find the last session's last work stop date
-    const allDates = v.sessions.map(s => new Date(s.date).getTime());
-    if (allDates.length === 0) return;
-    const lastStopDate = new Date(Math.max(...allDates));
-    if (lastStopDate < cutoff) return;
-
-    const key = `${lastStopDate.getFullYear()}-${String(lastStopDate.getMonth() + 1).padStart(2, '0')}`;
-    const label = lastStopDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    if (!monthMap.has(key)) monthMap.set(key, { month: label, money: 0, cars: new Set() });
-    const entry = monthMap.get(key)!;
-    // Sum ALL sessions' costs for this vehicle into that month
-    entry.money += v.sessions.reduce((sum, s) => sum + s.laborCost + s.partsCost, 0);
-    entry.cars.add(v.vehicle.vin);
-  });
-
-  return Array.from(monthMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([_, v]) => ({ month: v.month, money: Math.round(v.money * 100) / 100, cars: v.cars.size }));
-}, [filteredVehicles, filter]);
+### Layout Design
+```text
+┌──────────────────────────────────────────────────┐
+│  Header: Auto-Tracker Desktop  [+Vehicle] [⚙]   │
+├────────────┬─────────────────────────────────────┤
+│  Clients   │  Tasks for Selected Client          │
+│  ────────  │  [Active] [Completed] [Billed] [Paid]│
+│  • Client1 │                                     │
+│  • Client2 │  TaskCard  TaskCard  TaskCard        │
+│  • Client3 │  TaskCard  TaskCard                  │
+│            │                                     │
+└────────────┴─────────────────────────────────────┘
 ```
 
-### Result
-- Each vehicle appears **once** on the chart, at the month its work was last stopped
-- The "Cars by Month" count will match reality (e.g., 12 cars total = 12 across all months combined)
-- Revenue is grouped to the month of final work completion per vehicle
-- Only the last 12 months are shown
+- Left sidebar: scrollable client list with vehicle count, click to filter
+- Main area: task cards in a responsive grid (2-3 columns on wide screens)
+- All 4 status tabs: Active, Completed, Billed, Paid
+- "All Clients" option to see everything
 
-### Files Changed
-- `src/components/ClientCostBreakdown.tsx` -- rewrite monthlyData useMemo (lines 98-118)
+### Key Differences from Mobile Index
+- No phone frame wrapper
+- No timer start/pause/stop buttons on cards
+- No `CompleteWorkDialog`
+- Multi-column grid layout for task cards
+- Sidebar for client navigation
+- All status tabs visible (not just Active/Completed)
+

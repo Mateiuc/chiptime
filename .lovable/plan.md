@@ -1,70 +1,30 @@
 
 
-# Bidirectional Cloud Sync Between Mobile App and Desktop `/chip`
+# Simplify Sync: Mobile = Master, Desktop = Read + Manual Save
 
-## Problem
-The mobile app and desktop `/chip` dashboard both use `capacitorStorage` (Capacitor Preferences), which falls back to localStorage in the browser. Data is isolated per device — changes on mobile don't appear on desktop and vice versa.
+## Current Problem
+Both mobile and desktop auto-push to cloud on every change. This creates conflicts and makes it unclear which device "owns" the data.
 
-## Approach
-Store the full app state (clients, vehicles, tasks, settings) as a JSON blob in a Lovable Cloud table. Both the mobile app and desktop dashboard push on every save and pull on load. A unique `sync_id` (generated once, stored locally) scopes the data.
+## New Behavior
+- **Mobile (Index.tsx)**: Remains the master. Auto-pushes to cloud on every save (already works via debounced push in `useStorage.ts`).
+- **Desktop (/chip)**: Pulls from cloud on load. Edits are local-only until the user clicks a **Save to Cloud** button. No auto-push.
 
 ## Changes
 
-### 1. Database Migration — Create `app_sync` table
-```sql
-CREATE TABLE public.app_sync (
-  sync_id TEXT PRIMARY KEY,
-  data JSONB NOT NULL DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+### 1. `src/hooks/useStorage.ts`
+- Add a `pushEnabled` flag to `debouncedPushToCloud` so desktop can disable auto-push
+- Export a `setCloudPushEnabled(boolean)` function
+- Desktop calls `setCloudPushEnabled(false)` on mount
+- Mobile keeps default behavior (push enabled)
+- Add an explicit `pushNow()` export that forces an immediate push of `latestSnapshot`
 
-ALTER TABLE public.app_sync ENABLE ROW LEVEL SECURITY;
+### 2. `src/pages/DesktopDashboard.tsx`
+- On mount: disable auto-push, then pull from cloud
+- Replace the "Sync" button with **"Save to Cloud"** button that calls `pushNow()` to upload current desktop state
+- Add a **"Reload from Cloud"** button to re-pull latest data from mobile
+- Show last sync timestamp
 
--- Public read/write (no auth in this app, sync_id acts as access key)
-CREATE POLICY "Anyone can read app_sync" ON public.app_sync FOR SELECT USING (true);
-CREATE POLICY "Anyone can insert app_sync" ON public.app_sync FOR INSERT WITH CHECK (true);
-CREATE POLICY "Anyone can update app_sync" ON public.app_sync FOR UPDATE USING (true);
-```
-
-### 2. New: `src/services/appSyncService.ts`
-- `getSyncId()`: reads from localStorage, generates UUID if missing
-- `pushToCloud(clients, vehicles, tasks, settings)`: upserts full state to `app_sync` table by `sync_id`
-- `pullFromCloud()`: fetches data by `sync_id`, returns `{ clients, vehicles, tasks, settings }`
-- `getRemoteUpdatedAt()`: returns the `updated_at` timestamp for conflict detection
-- Uses the existing Supabase client
-
-### 3. Update: `src/hooks/useStorage.ts`
-- After every `setClients`, `setVehicles`, `setTasks`, `setSettings` call, debounce-push all data to cloud (5s delay to batch rapid changes)
-- On initial load, compare local `updated_at` vs remote `updated_at`:
-  - If remote is newer → pull from cloud and overwrite local
-  - If local is newer → push to cloud
-  - If no remote data exists → push local data as initial seed
-
-### 4. Update: `src/pages/DesktopDashboard.tsx`
-- On mount, trigger a cloud pull before rendering data (show loading state)
-- Add a "Refresh" button in the header to manually re-pull from cloud
-- Optionally subscribe to Supabase Realtime on the `app_sync` table for live updates
-
-### 5. Update: `src/pages/Index.tsx`
-- On mount (after migration), trigger cloud sync check (pull if remote is newer)
-
-## Sync Flow
-```text
-Mobile App                    Cloud (app_sync table)                Desktop /chip
-───────────                   ─────────────────────                 ─────────────
-  save data ──push──────────▶  { sync_id, data, updated_at }
-                                                                    ◀──pull── load page
-                                                                    edit data ──push──▶
-  open app ──pull if newer──◀  { sync_id, data, updated_at }
-```
-
-### Conflict Resolution
-Simple "last write wins" using `updated_at`. No merge — the most recent full snapshot replaces older data. This is acceptable because mobile and desktop are typically not used simultaneously.
-
-### Files Changed
-- **New**: `src/services/appSyncService.ts`
-- **Modified**: `src/hooks/useStorage.ts` (add cloud push/pull)
-- **Modified**: `src/pages/DesktopDashboard.tsx` (pull on mount, refresh button)
-- **Modified**: `src/pages/Index.tsx` (sync check on mount)
-- **Database**: New `app_sync` table
+### 3. `src/pages/Index.tsx`
+- Ensure auto-push stays enabled (default behavior, no change needed)
+- On mount: still check if remote is newer and pull if so (existing behavior)
 

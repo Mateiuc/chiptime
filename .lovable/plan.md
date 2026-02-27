@@ -1,44 +1,29 @@
 
 
-# Redesign Edit Task Dialog — Clean Desktop Layout from Scratch
+# Make Edit Task Dialog Full-Page with Color
 
 ## Problem
-The current dialog is a mess of conditional `d ?` ternaries everywhere, producing an awkward stretched version of the mobile layout. The user wants a fresh, clean design for desktop.
-
-## Approach
-Rewrite the JSX rendering section (lines 448-759) for the desktop case with a completely separate, clean layout — not a mobile layout with bigger spacing. Keep the mobile path unchanged.
+User wants: (1) not a floating window — should be full-page, and (2) bring back colors like the mobile version has, instead of plain white/black.
 
 ## Changes — `src/components/EditTaskDialog.tsx`
 
-### 1. Split rendering: mobile vs desktop
-- Extract the desktop body into its own block rather than littering every element with `d ?` conditionals
-- Use `if (isMobile) return <MobileLayout />` / `return <DesktopLayout />` pattern, or a single return with two distinct branches
+### 1. Make desktop layout full-page (not a centered modal)
+- Change desktop `DialogContent` className from centered modal (`left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-5xl w-[92%] max-h-[90vh]`) to fullscreen like mobile (`inset-0 w-full h-full max-w-none max-h-none`)
+- Keep `flex flex-col overflow-hidden` structure
 
-### 2. Desktop dialog design
-- **Dialog**: `max-w-5xl w-[92%] max-h-[90vh]` centered with the existing `left-1/2 top-1/2` approach
-- **Header**: Clean bar with task title, subtle color accent as a left border stripe (not full gradient background)
-- **Body**: Two-column layout when there are sessions:
-  - Left column (sessions list): scrollable list of session cards
-  - Each session card: clean white card with shadow, rounded corners
-- **Session card interior**:
-  - Session title + date on one line, delete icon on right
-  - Periods as a simple table-like row: `Start [date] [time] → End [date] [time] | duration | 🗑️`
-  - Parts as a simple table: Name | Qty | Price | Total | 🗑️
-  - Description textarea at the bottom
-  - Add Period / Add Part buttons inline
-- **Footer**: Standard right-aligned buttons: `Delete Car | Add Session | Cancel | Save Changes`
+### 2. Add color back to desktop layout
+- **Header**: Use `colorScheme.gradient` background (like mobile) instead of plain white with a thin stripe
+- **Session cards**: Use `sessionColorScheme.session` background + border classes instead of plain `bg-card border`
+- **Period rows**: Use `sessionColorScheme.period` background instead of plain `bg-background`
+- **Parts table header**: Use session color tint instead of `bg-muted/50`
+- **Parts rows**: Use `sessionColorScheme.part` background
+- **Duration badge**: Keep `bg-primary/10 text-primary` — already has color
 
-### 3. Clean styling principles
-- No gradient backgrounds on cards — use white/card background with subtle border
-- Inputs: standard `h-10` with proper labels above
-- Consistent `gap-4` spacing
-- Session cards separated by `space-y-4`
-- Period rows: horizontal flex layout, not nested grid cards
-- Parts: simple horizontal row per part
-
-### 4. Mobile layout stays untouched
-- Keep existing mobile JSX as-is (the `isMobile` branch)
+### 3. Keep desktop-specific improvements
+- Keep the larger text sizes, horizontal period rows, parts table layout
+- Keep generous spacing (`p-5`, `gap-3`, etc.)
+- These work fine full-page — the only issues were the window and lack of color
 
 ### Files changed
-- `src/components/EditTaskDialog.tsx` — complete desktop rendering rewrite
+- `src/components/EditTaskDialog.tsx` — desktop section only (lines 686-851)
 

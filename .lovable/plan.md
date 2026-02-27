@@ -1,38 +1,21 @@
 
 
-# Redesign Edit Task Dialog for Desktop
+# Fix Edit Task Dialog Centering on Desktop
 
 ## Problem
-The edit dialog uses cramped, phone-optimized styling — tiny text (`text-xs`, `text-[10px]`), minimal padding (`p-1`), stacked button labels — which looks ugly on desktop.
+The base `DialogContent` in `src/components/ui/dialog.tsx` uses `absolute inset-0 w-full h-full` — designed for mobile fullscreen. The desktop `max-w-4xl max-h-[85vh]` classes on EditTaskDialog get overridden, making it either tiny or mispositioned.
 
-## Changes — `src/components/EditTaskDialog.tsx`
+## Changes
 
-### 1. Desktop-aware layout throughout
-- On desktop: use generous spacing (`p-4`, `space-y-4`, `gap-4`), normal text sizes (`text-sm`, `text-base`), and wider inputs
-- On mobile: keep current compact layout
-- Use `isMobile` (already available) to conditionally apply classes
+### 1. `src/components/ui/dialog.tsx` — Support centered mode
+- Change `DialogContent` default className from `absolute inset-0 w-full h-full` to allow overriding
+- When a className containing `max-w-` is passed, it should center (using `left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`) instead of filling fullscreen
 
-### 2. Improved session cards
-- Desktop: `p-4 space-y-4 rounded-lg` with clear section headers using border-bottom separators
-- Session header: larger font, date displayed more prominently
-- Period cards: side-by-side Start/End with proper labels and spacing, duration shown as a badge
-
-### 3. Better period time inputs
-- Desktop: date and time inputs side-by-side with proper width, `h-10` height, `text-sm` font
-- Grid layout: `grid-cols-2 gap-6` for Start/End columns on desktop
-
-### 4. Parts section cleanup
-- Desktop: part name input full width with proper height, quantity/price/description in a 3-column grid
-- Total shown as a styled badge instead of plain text
-
-### 5. Footer buttons
-- Desktop: normal horizontal buttons with proper padding, no stacked text
-- Clean spacing with `gap-3`
-
-### 6. Dialog header
-- Show task name (vehicle info) in the header title instead of just "Edit"
-- Slightly larger header padding on desktop
+### 2. `src/components/EditTaskDialog.tsx` — Use proper centered desktop classes
+- Desktop className: `absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-4xl w-[90%] max-h-[85vh] p-0 rounded-lg flex flex-col overflow-hidden`
+- This centers the dialog as a proper modal window on desktop
 
 ### Files changed
-- `src/components/EditTaskDialog.tsx` — responsive desktop-friendly redesign
+- `src/components/ui/dialog.tsx`
+- `src/components/EditTaskDialog.tsx`
 

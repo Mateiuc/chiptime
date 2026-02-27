@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Settings, Task, Client, Vehicle } from '@/types';
-import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Share2, Copy } from 'lucide-react';
-import { appSyncService } from '@/services/appSyncService';
+import { ChevronLeft, ChevronRight, Download, Upload, Cloud } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';
 import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/xmlConverter';
@@ -428,36 +427,6 @@ export const SettingsDialog = ({
                 </div>
               )}
 
-              <div className="pt-4 border-t space-y-2">
-                <Label>Desktop Sync</Label>
-                <p className="text-xs text-muted-foreground">
-                  Share a link to open on your desktop browser — it will auto-connect to your data.
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={async () => {
-                    const syncId = appSyncService.getSyncId();
-                    const url = `${window.location.origin}/chip?sync=${syncId}`;
-                    try {
-                      // Try Capacitor Share first
-                      const { Share } = await import('@capacitor/share');
-                      await Share.share({
-                        title: 'Open on Desktop',
-                        text: 'Open this link on your desktop to sync:',
-                        url,
-                      });
-                    } catch {
-                      // Fallback to clipboard
-                      await navigator.clipboard.writeText(url);
-                      toast({ title: 'Link Copied', description: 'Paste this link in your desktop browser.' });
-                    }
-                  }}
-                >
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Share Desktop Link
-                </Button>
-              </div>
 
               {(ocrProvider === 'gemini' || ocrProvider === 'grok' || ocrProvider === 'ocrspace') && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">

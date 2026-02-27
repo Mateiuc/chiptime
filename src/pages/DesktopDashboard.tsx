@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +16,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
-import { appSyncService, SyncData } from '@/services/appSyncService';
+import { SyncData } from '@/services/appSyncService';
 
 const DesktopDashboard = () => {
   const clientsHook = useClients();
@@ -37,28 +36,12 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // Desktop: disable auto-push, pull on mount
   useEffect(() => {
     setCloudPushEnabled(false);
     return () => { setCloudPushEnabled(true); };
   }, []);
-
-  // Auto-link via ?sync= URL param
-  useEffect(() => {
-    const syncParam = searchParams.get('sync');
-    if (syncParam) {
-      appSyncService.setSyncId(syncParam);
-      // Clean URL
-      searchParams.delete('sync');
-      setSearchParams(searchParams, { replace: true });
-      // Pull data with new sync ID
-      refresh().then(() => {
-        toast({ title: 'Linked & Loaded', description: 'Connected to your phone\'s data.' });
-      });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveToCloud = async () => {
     setSaving(true);

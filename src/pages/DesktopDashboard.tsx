@@ -43,6 +43,11 @@ const DesktopDashboard = () => {
     return () => { setCloudPushEnabled(true); };
   }, []);
 
+  // Force pull cloud data on mount (after push is disabled)
+  useEffect(() => {
+    refresh();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSaveToCloud = async () => {
     setSaving(true);
     try {

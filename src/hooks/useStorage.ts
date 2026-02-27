@@ -24,6 +24,11 @@ const debouncedPushToCloud = () => {
         capacitorStorage.getTasks(),
         capacitorStorage.getSettings(),
       ]);
+      // Don't push empty snapshots — prevents wiping cloud data
+      if (clients.length === 0 && vehicles.length === 0 && tasks.length === 0) {
+        console.log('[CloudSync] Skipped push — snapshot is empty');
+        return;
+      }
       await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
     } catch (err) {
       console.error('[CloudSync] Push failed:', err);
@@ -328,18 +333,30 @@ export const useCloudSync = (deps: {
 
     const syncOnMount = async () => {
       try {
+        // Desktop mode (push disabled): always pull, never seed
+        if (!cloudPushEnabled) {
+          console.log('[CloudSync] Desktop mode — forcing pull');
+          await pullAndApply();
+          return;
+        }
+
         const remoteTs = await appSyncService.getRemoteUpdatedAt();
         if (appSyncService.isRemoteNewer(remoteTs)) {
           await pullAndApply();
         } else if (!remoteTs) {
-          // No remote data - push local as seed
+          // No remote data — only seed if local actually has data
           const [localClients, localVehicles, localTasks, localSettings] = await Promise.all([
             capacitorStorage.getClients(),
             capacitorStorage.getVehicles(),
             capacitorStorage.getTasks(),
             capacitorStorage.getSettings(),
           ]);
-          await appSyncService.pushToCloud({ clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings });
+          if (localClients.length > 0 || localTasks.length > 0) {
+            await appSyncService.pushToCloud({ clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings });
+            console.log('[CloudSync] Seeded cloud with local data');
+          } else {
+            console.log('[CloudSync] Skipped seeding — local data is empty');
+          }
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);

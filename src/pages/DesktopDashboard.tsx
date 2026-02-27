@@ -1,34 +1,25 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Plus, Users, Search, Car, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign } from 'lucide-react';
+import { Settings as SettingsIcon, Plus, Users, Search, Car, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign, ChevronDown, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { ManageClientsDialog } from '@/components/ManageClientsDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
-import { Task, Client, Vehicle } from '@/types';
+import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { formatDuration, formatCurrency } from '@/lib/formatTime';
+import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
 import { SyncData } from '@/services/appSyncService';
-
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  'pending': { label: 'Pending', variant: 'outline' },
-  'in-progress': { label: 'In Progress', variant: 'default' },
-  'paused': { label: 'Paused', variant: 'secondary' },
-  'completed': { label: 'Completed', variant: 'secondary' },
-  'billed': { label: 'Billed', variant: 'default' },
-  'paid': { label: 'Paid', variant: 'default' },
-};
 
 const DesktopDashboard = () => {
   const clientsHook = useClients();
@@ -254,36 +245,25 @@ const DesktopDashboard = () => {
   const [taskPhotos, setTaskPhotos] = useState<Record<string, string[]>>({});
   const [photosLoading, setPhotosLoading] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
 
-  // Load photo thumbnails for visible tasks
+  const toggleExpand = (taskId: string) => {
+    setExpandedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+  };
+
+  // Load photo thumbnails — cloudUrl only (desktop can't access phone filesystem)
   useEffect(() => {
-    const loadPhotos = async () => {
-      setPhotosLoading(true);
-      const photoMap: Record<string, string[]> = {};
-      
-      for (const task of filteredTasks) {
-        const allPhotos = (task.sessions || []).flatMap(s => s.photos || []);
-        if (allPhotos.length === 0) continue;
-        
-        const urls: string[] = [];
-        for (const photo of allPhotos.slice(0, 3)) {
-          if (photo.cloudUrl) {
-            urls.push(photo.cloudUrl);
-          } else if (photo.filePath) {
-            try {
-              const base64 = await photoStorageService.loadPhoto(photo.filePath);
-              if (base64) urls.push(`data:image/jpeg;base64,${base64}`);
-            } catch { /* skip */ }
-          }
-        }
-        if (urls.length > 0) photoMap[task.id] = urls;
-      }
-      
-      setTaskPhotos(photoMap);
-      setPhotosLoading(false);
-    };
-    
-    loadPhotos();
+    const photoMap: Record<string, string[]> = {};
+    for (const task of filteredTasks) {
+      const allPhotos = (task.sessions || []).flatMap(s => s.photos || []);
+      const urls = allPhotos.filter(p => p.cloudUrl).map(p => p.cloudUrl!);
+      if (urls.length > 0) photoMap[task.id] = urls;
+    }
+    setTaskPhotos(photoMap);
   }, [filteredTasks]);
 
   const getTaskCost = (task: Task) => {
@@ -299,21 +279,25 @@ const DesktopDashboard = () => {
   const getPhotoCount = (task: Task) => 
     (task.sessions || []).reduce((sum, s) => sum + (s.photos?.length || 0), 0);
 
+  const getSessionDuration = (session: WorkSession) =>
+    (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);
+
   const isAllClients = selectedClientId === null;
 
   const renderTaskTable = (taskList: Task[]) => {
     if (taskList.length === 0) {
       return <div className="text-center py-12 text-muted-foreground">No tasks in this category.</div>;
     }
+    const colCount = isAllClients ? 7 : 6;
     return (
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10"></TableHead>
             {isAllClients && <TableHead>Client</TableHead>}
             <TableHead>Vehicle</TableHead>
             <TableHead>VIN</TableHead>
             <TableHead>Photos</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead className="text-right">Time</TableHead>
             <TableHead className="text-right">Cost</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -329,78 +313,165 @@ const DesktopDashboard = () => {
             const vinShort = (vehicle?.vin || task.carVin || '').slice(0, 8);
             const photos = taskPhotos[task.id] || [];
             const photoCount = getPhotoCount(task);
-            const status = statusConfig[task.status] || statusConfig['pending'];
             const cost = getTaskCost(task);
+            const isExpanded = expandedTaskIds.has(task.id);
 
             return (
-              <TableRow 
-                key={task.id} 
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => setEditingTask(task)}
-              >
-                {isAllClients && (
-                  <TableCell className="font-medium">{client?.name || 'Unknown'}</TableCell>
-                )}
-                <TableCell className="font-medium">{vehicleLabel}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{vinShort}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    {photosLoading ? (
-                      <Skeleton className="h-8 w-8 rounded" />
-                    ) : photos.length > 0 ? (
-                      <>
-                        {photos.map((url, i) => (
-                          <img 
-                            key={i} 
-                            src={url} 
-                            alt="Task photo" 
-                            className="h-8 w-8 rounded object-cover border border-border"
-                          />
-                        ))}
-                        {photoCount > 3 && (
-                          <span className="text-xs text-muted-foreground ml-1">+{photoCount - 3}</span>
+              <Collapsible key={task.id} open={isExpanded} onOpenChange={() => toggleExpand(task.id)} asChild>
+                <>
+                  <TableRow className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="w-10 p-2">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                    </TableCell>
+                    {isAllClients && (
+                      <TableCell className="font-medium">{client?.name || 'Unknown'}</TableCell>
+                    )}
+                    <TableCell className="font-medium">{vehicleLabel}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{vinShort}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {photos.length > 0 ? (
+                          <>
+                            {photos.slice(0, 3).map((url, i) => (
+                              <img key={i} src={url} alt="Task photo" className="h-8 w-8 rounded object-cover border border-border" />
+                            ))}
+                            {photoCount > 3 && (
+                              <span className="text-xs text-muted-foreground ml-1">+{photoCount - 3}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={status.variant}>{status.label}</Badge>
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm">
-                  {formatDuration(task.totalTime)}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(cost)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTask(task)} title="Edit">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    {task.status === 'completed' && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkBilled(task.id)} title="Mark Billed">
-                        <Receipt className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {task.status === 'billed' && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
-                        <DollarSign className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {['completed', 'billed', 'paid'].includes(task.status) && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestartTimer(task.id)} title="Reactivate">
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(task.id)} title="Delete">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {formatDuration(task.totalTime)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(cost)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTask(task)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {task.status === 'completed' && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkBilled(task.id)} title="Mark Billed">
+                            <Receipt className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {task.status === 'billed' && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
+                            <DollarSign className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {['completed', 'billed', 'paid'].includes(task.status) && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestartTimer(task.id)} title="Reactivate">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(task.id)} title="Delete">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  <CollapsibleContent asChild>
+                    <tr>
+                      <td colSpan={colCount + 1} className="p-0">
+                        <div className="bg-muted/30 border-t border-b px-6 py-4 space-y-4">
+                          {(task.sessions || []).length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No work sessions recorded.</p>
+                          ) : (
+                            (task.sessions || []).map((session, sIdx) => {
+                              const sessionDuration = getSessionDuration(session);
+                              const sessionPhotos = (session.photos || []);
+                              const cloudPhotos = sessionPhotos.filter(p => p.cloudUrl);
+                              const deviceOnlyCount = sessionPhotos.length - cloudPhotos.length;
+
+                              return (
+                                <div key={session.id} className="space-y-2">
+                                  <div className="flex items-center gap-3">
+                                    <h4 className="text-sm font-semibold text-foreground">Session {sIdx + 1}</h4>
+                                    <span className="text-xs text-muted-foreground">
+                                      {session.createdAt ? new Date(session.createdAt).toLocaleDateString() : ''}
+                                    </span>
+                                    <span className="text-xs font-mono text-muted-foreground">{formatDuration(sessionDuration)}</span>
+                                  </div>
+
+                                  {session.description && (
+                                    <p className="text-sm text-muted-foreground">{session.description}</p>
+                                  )}
+
+                                  {/* Work Periods */}
+                                  {(session.periods || []).length > 0 && (
+                                    <div className="text-xs text-muted-foreground space-y-0.5">
+                                      {session.periods.map((period, pIdx) => (
+                                        <div key={period.id || pIdx}>
+                                          {formatTime(period.startTime)} – {formatTime(period.endTime)}
+                                          <span className="ml-2 font-mono">{formatDuration(period.duration)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Parts */}
+                                  {(session.parts || []).length > 0 && (
+                                    <div className="mt-1">
+                                      <span className="text-xs font-medium text-foreground">Parts:</span>
+                                      <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-0.5 text-xs mt-1 max-w-md">
+                                        {session.parts.map((part, pi) => (
+                                          <div key={pi} className="contents">
+                                            <span className="text-muted-foreground">{part.name}</span>
+                                            <span className="text-muted-foreground text-right">×{part.quantity}</span>
+                                            <span className="font-mono text-right">{formatCurrency(part.price * part.quantity)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Photos */}
+                                  {sessionPhotos.length > 0 && (
+                                    <div className="mt-2">
+                                      <span className="text-xs font-medium text-foreground">Photos:</span>
+                                      <div className="flex flex-wrap gap-2 mt-1">
+                                        {cloudPhotos.map((photo) => (
+                                          <a key={photo.id} href={photo.cloudUrl} target="_blank" rel="noopener noreferrer">
+                                            <img
+                                              src={photo.cloudUrl}
+                                              alt="Session photo"
+                                              className="h-16 w-16 rounded object-cover border border-border hover:ring-2 hover:ring-primary transition-all"
+                                            />
+                                          </a>
+                                        ))}
+                                        {deviceOnlyCount > 0 && (
+                                          <div className="h-16 px-3 rounded border border-dashed border-border flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            <ImageOff className="h-3.5 w-3.5" />
+                                            {deviceOnlyCount} on device only
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {sIdx < (task.sessions || []).length - 1 && (
+                                    <div className="border-b border-border/50 pt-2" />
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  </CollapsibleContent>
+                </>
+              </Collapsible>
             );
           })}
         </TableBody>

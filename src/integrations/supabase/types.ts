@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_sync: {
+        Row: {
+          data: Json
+          sync_id: string
+          updated_at: string
+        }
+        Insert: {
+          data?: Json
+          sync_id: string
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          sync_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_portals: {
         Row: {
           access_code: string | null

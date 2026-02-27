@@ -1,6 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
+import { appSyncService, SyncData } from '@/services/appSyncService';
 import { Client, Vehicle, Task, Settings } from '@/types';
+
+// Global debounce timer for cloud push
+let pushTimer: ReturnType<typeof setTimeout> | null = null;
+let latestSnapshot: Partial<SyncData> = {};
+
+const debouncedPushToCloud = (partial: Partial<SyncData>) => {
+  latestSnapshot = { ...latestSnapshot, ...partial };
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    const snapshot = latestSnapshot;
+    // Only push if we have all 4 pieces
+    if (snapshot.clients && snapshot.vehicles && snapshot.tasks && snapshot.settings) {
+      try {
+        await appSyncService.pushToCloud(snapshot as SyncData);
+      } catch (err) {
+        console.error('[CloudSync] Push failed:', err);
+      }
+    }
+  }, 3000);
+};
+
+// Event-based sync trigger so pages can force a pull
+export const cloudSyncEvents = {
+  listeners: [] as Array<() => void>,
+  onPull(cb: () => void) {
+    this.listeners.push(cb);
+    return () => { this.listeners = this.listeners.filter(l => l !== cb); };
+  },
+  triggerPull() {
+    this.listeners.forEach(cb => cb());
+  },
+};
 
 export const useClients = () => {
   const [clients, setClientsState] = useState<Client[]>([]);
@@ -17,31 +50,24 @@ export const useClients = () => {
           let phone = client.phone;
           let email = client.email;
           
-          // Fix phone if it's an object (from contact picker bug)
           if (phone && typeof phone === 'object') {
             const phoneObj = phone as any;
             phone = phoneObj.number || undefined;
             needsRepair = true;
-            console.log(`[Storage] Repairing client ${client.name}: phone was object, extracted "${phone}"`);
           } else if (phone && typeof phone !== 'string') {
             phone = undefined;
             needsRepair = true;
-            console.log(`[Storage] Repairing client ${client.name}: phone was invalid type, cleared`);
           }
           
-          // Fix email if it's not a string
           if (email && typeof email !== 'string') {
             email = undefined;
             needsRepair = true;
-            console.log(`[Storage] Repairing client ${client.name}: email was invalid type, cleared`);
           }
           
           return { ...client, phone, email };
         });
         
-        // Persist repaired data
         if (needsRepair) {
-          console.log('[Storage] Persisting repaired client data...');
           await capacitorStorage.setClients(sanitizedClients);
         }
         
@@ -59,6 +85,8 @@ export const useClients = () => {
     try {
       await capacitorStorage.setClients(clients);
       setClientsState(clients);
+      latestSnapshot.clients = clients;
+      debouncedPushToCloud({ clients });
     } catch (error) {
       console.error('Failed to save clients:', error);
     }
@@ -79,7 +107,12 @@ export const useClients = () => {
     await setClients(updated);
   };
 
-  return { clients, setClients, addClient, updateClient, deleteClient, loading };
+  const replaceAll = (newClients: Client[]) => {
+    setClientsState(newClients);
+    capacitorStorage.setClients(newClients);
+  };
+
+  return { clients, setClients, addClient, updateClient, deleteClient, replaceAll, loading };
 };
 
 export const useVehicles = () => {
@@ -104,6 +137,8 @@ export const useVehicles = () => {
     try {
       await capacitorStorage.setVehicles(vehicles);
       setVehiclesState(vehicles);
+      latestSnapshot.vehicles = vehicles;
+      debouncedPushToCloud({ vehicles });
     } catch (error) {
       console.error('Failed to save vehicles:', error);
     }
@@ -124,7 +159,12 @@ export const useVehicles = () => {
     await setVehicles(updated);
   };
 
-  return { vehicles, setVehicles, addVehicle, updateVehicle, deleteVehicle, loading };
+  const replaceAll = (newVehicles: Vehicle[]) => {
+    setVehiclesState(newVehicles);
+    capacitorStorage.setVehicles(newVehicles);
+  };
+
+  return { vehicles, setVehicles, addVehicle, updateVehicle, deleteVehicle, replaceAll, loading };
 };
 
 export const useTasks = () => {
@@ -149,34 +189,32 @@ export const useTasks = () => {
     try {
       await capacitorStorage.setTasks(newTasks);
       setTasksState(newTasks);
+      latestSnapshot.tasks = newTasks;
+      debouncedPushToCloud({ tasks: newTasks });
     } catch (error) {
       console.error('Failed to save tasks:', error);
     }
   };
 
   const addTask = async (task: Task) => {
-    // Get fresh data from storage to avoid stale state
     const currentTasks = await capacitorStorage.getTasks();
     const updated = [...currentTasks, task];
     await setTasks(updated);
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
-    // Get fresh data from storage to avoid stale state
     const currentTasks = await capacitorStorage.getTasks();
     const updated = currentTasks.map(t => t.id === id ? { ...t, ...updates } : t);
     await setTasks(updated);
   };
 
   const deleteTask = async (id: string) => {
-    // Get fresh data from storage to avoid stale state
     const currentTasks = await capacitorStorage.getTasks();
     const updated = currentTasks.filter(t => t.id !== id);
     await setTasks(updated);
   };
 
   const batchUpdateTasks = async (updates: Array<{ id: string; updates: Partial<Task> }>) => {
-    // Get fresh data from storage to avoid stale state
     const currentTasks = await capacitorStorage.getTasks();
     const updated = currentTasks.map(task => {
       const update = updates.find(u => u.id === task.id);
@@ -185,7 +223,12 @@ export const useTasks = () => {
     await setTasks(updated);
   };
 
-  return { tasks, setTasks, addTask, updateTask, deleteTask, batchUpdateTasks, loading };
+  const replaceAll = (newTasks: Task[]) => {
+    setTasksState(newTasks);
+    capacitorStorage.setTasks(newTasks);
+  };
+
+  return { tasks, setTasks, addTask, updateTask, deleteTask, batchUpdateTasks, replaceAll, loading };
 };
 
 export const useSettings = () => {
@@ -210,10 +253,85 @@ export const useSettings = () => {
     try {
       await capacitorStorage.setSettings(settings);
       setSettingsState(settings);
+      latestSnapshot.settings = settings;
+      debouncedPushToCloud({ settings });
     } catch (error) {
       console.error('Failed to save settings:', error);
     }
   };
 
-  return { settings, setSettings, loading };
+  const replaceAll = (newSettings: Settings) => {
+    setSettingsState(newSettings);
+    capacitorStorage.setSettings(newSettings);
+  };
+
+  return { settings, setSettings, replaceAll, loading };
+};
+
+// Hook for cloud sync - pull on mount, provide refresh
+export const useCloudSync = (deps: {
+  clients: { replaceAll: (c: Client[]) => void };
+  vehicles: { replaceAll: (v: Vehicle[]) => void };
+  tasks: { replaceAll: (t: Task[]) => void };
+  settings: { replaceAll: (s: Settings) => void };
+}) => {
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const hasSynced = useRef(false);
+
+  const pullAndApply = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const result = await appSyncService.pullFromCloud();
+      if (result && result.data) {
+        const d = result.data;
+        if (d.clients) deps.clients.replaceAll(d.clients);
+        if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
+        if (d.tasks) deps.tasks.replaceAll(d.tasks);
+        if (d.settings) deps.settings.replaceAll(d.settings);
+        appSyncService.setLocalUpdatedAt(result.updatedAt);
+        setLastSyncAt(result.updatedAt);
+        // Update latestSnapshot so subsequent pushes include cloud data
+        latestSnapshot = {
+          clients: d.clients,
+          vehicles: d.vehicles,
+          tasks: d.tasks,
+          settings: d.settings,
+        };
+        console.log('[CloudSync] Applied remote data');
+      }
+    } catch (err) {
+      console.error('[CloudSync] Pull failed:', err);
+    } finally {
+      setSyncing(false);
+    }
+  }, [deps]);
+
+  // Auto-sync on mount
+  useEffect(() => {
+    if (hasSynced.current) return;
+    hasSynced.current = true;
+
+    const syncOnMount = async () => {
+      try {
+        const remoteTs = await appSyncService.getRemoteUpdatedAt();
+        if (appSyncService.isRemoteNewer(remoteTs)) {
+          await pullAndApply();
+        } else if (!remoteTs) {
+          // No remote data - push local as seed
+          const localClients = await capacitorStorage.getClients();
+          const localVehicles = await capacitorStorage.getVehicles();
+          const localTasks = await capacitorStorage.getTasks();
+          const localSettings = await capacitorStorage.getSettings();
+          latestSnapshot = { clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings };
+          await appSyncService.pushToCloud(latestSnapshot as SyncData);
+        }
+      } catch (err) {
+        console.error('[CloudSync] Mount sync failed:', err);
+      }
+    };
+    syncOnMount();
+  }, [pullAndApply]);
+
+  return { syncing, lastSyncAt, refresh: pullAndApply };
 };

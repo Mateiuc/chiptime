@@ -685,15 +685,12 @@ export const EditTaskDialog = ({
   // ============ DESKTOP LAYOUT ============
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-5xl w-[92%] max-h-[90vh] p-0 rounded-lg flex flex-col overflow-hidden">
-        {/* Header with left color stripe */}
-        <div className="flex border-b">
-          <div className={`w-1.5 shrink-0 ${colorScheme.gradient} rounded-tl-lg`} />
-          <div className="flex-1 px-6 py-4">
-            <DialogHeader className="p-0 border-0">
-              <DialogTitle className="text-xl">Edit Task</DialogTitle>
-            </DialogHeader>
-          </div>
+      <DialogContent className="inset-0 w-full h-full max-w-none max-h-none p-0 rounded-none border-none flex flex-col overflow-hidden">
+        {/* Colorful header */}
+        <div className={`px-6 py-4 shrink-0 ${colorScheme.gradient}`}>
+          <DialogHeader className="p-0 border-0">
+            <DialogTitle className="text-xl text-white drop-shadow-sm">Edit Task</DialogTitle>
+          </DialogHeader>
         </div>
 
         {/* Body — scrollable session list */}
@@ -703,7 +700,7 @@ export const EditTaskDialog = ({
             const formattedDate = getSessionDate(session);
 
             return (
-              <div key={session.id} className="bg-card border rounded-lg shadow-sm">
+              <div key={session.id} className={`rounded-lg shadow-sm border ${sessionColorScheme.session}`}>
                 {/* Session header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b">
                   <div className="flex items-center gap-3">
@@ -727,7 +724,7 @@ export const EditTaskDialog = ({
 
                     {/* Period rows — flat horizontal layout */}
                     {session.periods.map((period, periodIndex) => (
-                      <div key={period.id} className="flex items-center gap-3 border rounded-md px-4 py-2.5 bg-background">
+                      <div key={period.id} className={`flex items-center gap-3 border rounded-md px-4 py-2.5 ${sessionColorScheme.period}`}>
                         <span className="text-sm font-medium text-muted-foreground w-16 shrink-0">Period {periodIndex + 1}</span>
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <span className="text-xs text-muted-foreground shrink-0">Start</span>
@@ -784,7 +781,7 @@ export const EditTaskDialog = ({
                     {(session.parts || []).length > 0 && (
                       <div className="border rounded-md overflow-hidden">
                         {/* Parts table header */}
-                        <div className="grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <div className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
                           <span>Name</span>
                           <span>Qty</span>
                           <span>Price</span>
@@ -793,7 +790,7 @@ export const EditTaskDialog = ({
                           <span></span>
                         </div>
                         {(session.parts || []).map((part, partIndex) => (
-                          <div key={partIndex} className="grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 items-center border-t">
+                          <div key={partIndex} className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
                             <Input type="text" value={part.name} onChange={e => {
                               setSessions(prev => prev.map(s => {
                                 if (s.id === session.id) {

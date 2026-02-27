@@ -50,7 +50,9 @@ const DialogContent = React.forwardRef<
       ref={ref}
       aria-describedby={undefined}
       className={cn(
-        "absolute inset-0 z-50 grid w-full h-full gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out sm:rounded-none",
+        "absolute z-50 grid gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
+        // Default to fullscreen if no positioning classes are passed
+        className?.includes("left-1/2") || className?.includes("inset-0") ? "" : "inset-0 w-full h-full sm:rounded-none",
         className,
       )}
       {...props}

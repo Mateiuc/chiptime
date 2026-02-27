@@ -447,8 +447,8 @@ export const EditTaskDialog = ({
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={isMobile 
-        ? "w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col" 
-        : "max-w-4xl max-h-[85vh] p-0 rounded-lg flex flex-col overflow-hidden"
+        ? "w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col inset-0" 
+        : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-4xl w-[90%] max-h-[85vh] p-0 rounded-lg flex flex-col overflow-hidden"
       }>
         <DialogHeader className={`${d ? 'px-6 py-4' : 'px-4 py-3'} border-b ${colorScheme.gradient}`}>
           <DialogTitle className={d ? 'text-xl' : ''}>

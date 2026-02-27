@@ -1,22 +1,34 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw, Upload, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Plus, Users, Search, Car, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { TaskCard } from '@/components/TaskCard';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { ManageClientsDialog } from '@/components/ManageClientsDialog';
+import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { Task, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { getVehicleColorScheme } from '@/lib/vehicleColors';
+import { formatDuration, formatCurrency } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
 import { SyncData } from '@/services/appSyncService';
+
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  'pending': { label: 'Pending', variant: 'outline' },
+  'in-progress': { label: 'In Progress', variant: 'default' },
+  'paused': { label: 'Paused', variant: 'secondary' },
+  'completed': { label: 'Completed', variant: 'secondary' },
+  'billed': { label: 'Billed', variant: 'default' },
+  'paid': { label: 'Paid', variant: 'default' },
+};
 
 const DesktopDashboard = () => {
   const clientsHook = useClients();
@@ -238,55 +250,162 @@ const DesktopDashboard = () => {
   const billedTasks = filteredTasks.filter(t => t.status === 'billed');
   const paidTasks = filteredTasks.filter(t => t.status === 'paid');
 
-  const groupByClient = (taskList: Task[]) => {
-    return taskList.reduce((acc, task) => {
-      if (!acc[task.clientId]) acc[task.clientId] = [];
-      acc[task.clientId].push(task);
-      return acc;
-    }, {} as Record<string, Task[]>);
+  // Photo thumbnails state
+  const [taskPhotos, setTaskPhotos] = useState<Record<string, string[]>>({});
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Load photo thumbnails for visible tasks
+  useEffect(() => {
+    const loadPhotos = async () => {
+      setPhotosLoading(true);
+      const photoMap: Record<string, string[]> = {};
+      
+      for (const task of filteredTasks) {
+        const allPhotos = (task.sessions || []).flatMap(s => s.photos || []);
+        if (allPhotos.length === 0) continue;
+        
+        const urls: string[] = [];
+        for (const photo of allPhotos.slice(0, 3)) {
+          if (photo.cloudUrl) {
+            urls.push(photo.cloudUrl);
+          } else if (photo.filePath) {
+            try {
+              const base64 = await photoStorageService.loadPhoto(photo.filePath);
+              if (base64) urls.push(`data:image/jpeg;base64,${base64}`);
+            } catch { /* skip */ }
+          }
+        }
+        if (urls.length > 0) photoMap[task.id] = urls;
+      }
+      
+      setTaskPhotos(photoMap);
+      setPhotosLoading(false);
+    };
+    
+    loadPhotos();
+  }, [filteredTasks]);
+
+  const getTaskCost = (task: Task) => {
+    const client = clients.find(c => c.id === task.clientId);
+    const rate = client?.hourlyRate || settings.defaultHourlyRate;
+    const laborCost = (task.totalTime / 3600) * rate;
+    const partsCost = (task.sessions || []).reduce((sum, s) => 
+      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
+    );
+    return laborCost + partsCost;
   };
 
-  const renderTaskGroup = (taskList: Task[]) => {
-    const grouped = groupByClient(taskList);
-    if (Object.keys(grouped).length === 0) {
+  const getPhotoCount = (task: Task) => 
+    (task.sessions || []).reduce((sum, s) => sum + (s.photos?.length || 0), 0);
+
+  const isAllClients = selectedClientId === null;
+
+  const renderTaskTable = (taskList: Task[]) => {
+    if (taskList.length === 0) {
       return <div className="text-center py-12 text-muted-foreground">No tasks in this category.</div>;
     }
-    return Object.entries(grouped).map(([clientId, clientTasks]) => {
-      const client = clients.find(c => c.id === clientId);
-      return (
-        <div key={clientId} className="rounded-lg p-4 bg-muted/30 space-y-3">
-          <div className="mb-2">
-            <h2 className="text-lg font-bold text-foreground">
-              {client?.name || 'Unknown Client'}
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                ({vehicles.filter(v => v.clientId === clientId).length} vehicles)
-              </span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-            {clientTasks.map(task => {
-              const vehicle = vehicles.find(v => v.id === task.vehicleId);
-              const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
-              return (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  client={client}
-                  vehicle={vehicle}
-                  settings={settings}
-                  onMarkBilled={handleMarkBilled}
-                  onMarkPaid={handleMarkPaid}
-                  onRestartTimer={handleRestartTimer}
-                  onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
-                  onDelete={handleDelete}
-                  vehicleColorScheme={colorScheme}
-                />
-              );
-            })}
-          </div>
-        </div>
-      );
-    });
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {isAllClients && <TableHead>Client</TableHead>}
+            <TableHead>Vehicle</TableHead>
+            <TableHead>VIN</TableHead>
+            <TableHead>Photos</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Time</TableHead>
+            <TableHead className="text-right">Cost</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {taskList.map(task => {
+            const client = clients.find(c => c.id === task.clientId);
+            const vehicle = vehicles.find(v => v.id === task.vehicleId);
+            const vehicleLabel = vehicle 
+              ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown'
+              : 'Unknown';
+            const vinShort = (vehicle?.vin || task.carVin || '').slice(0, 8);
+            const photos = taskPhotos[task.id] || [];
+            const photoCount = getPhotoCount(task);
+            const status = statusConfig[task.status] || statusConfig['pending'];
+            const cost = getTaskCost(task);
+
+            return (
+              <TableRow 
+                key={task.id} 
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => setEditingTask(task)}
+              >
+                {isAllClients && (
+                  <TableCell className="font-medium">{client?.name || 'Unknown'}</TableCell>
+                )}
+                <TableCell className="font-medium">{vehicleLabel}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{vinShort}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    {photosLoading ? (
+                      <Skeleton className="h-8 w-8 rounded" />
+                    ) : photos.length > 0 ? (
+                      <>
+                        {photos.map((url, i) => (
+                          <img 
+                            key={i} 
+                            src={url} 
+                            alt="Task photo" 
+                            className="h-8 w-8 rounded object-cover border border-border"
+                          />
+                        ))}
+                        {photoCount > 3 && (
+                          <span className="text-xs text-muted-foreground ml-1">+{photoCount - 3}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                  {formatDuration(task.totalTime)}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatCurrency(cost)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTask(task)} title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {task.status === 'completed' && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkBilled(task.id)} title="Mark Billed">
+                        <Receipt className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {task.status === 'billed' && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
+                        <DollarSign className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {['completed', 'billed', 'paid'].includes(task.status) && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestartTimer(task.id)} title="Reactivate">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(task.id)} title="Delete">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
   };
 
   return (
@@ -392,10 +511,10 @@ const DesktopDashboard = () => {
               <TabsTrigger value="paid">Paid ({paidTasks.length})</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="active" className="space-y-4">{renderTaskGroup(activeTasks)}</TabsContent>
-            <TabsContent value="completed" className="space-y-4">{renderTaskGroup(completedTasks)}</TabsContent>
-            <TabsContent value="billed" className="space-y-4">{renderTaskGroup(billedTasks)}</TabsContent>
-            <TabsContent value="paid" className="space-y-4">{renderTaskGroup(paidTasks)}</TabsContent>
+            <TabsContent value="active" className="space-y-4">{renderTaskTable(activeTasks)}</TabsContent>
+            <TabsContent value="completed" className="space-y-4">{renderTaskTable(completedTasks)}</TabsContent>
+            <TabsContent value="billed" className="space-y-4">{renderTaskTable(billedTasks)}</TabsContent>
+            <TabsContent value="paid" className="space-y-4">{renderTaskTable(paidTasks)}</TabsContent>
           </Tabs>
         </main>
       </div>
@@ -445,6 +564,15 @@ const DesktopDashboard = () => {
         onStartWork={handleStartWork}
         onMoveVehicle={handleMoveVehicle}
       />
+      {editingTask && (
+        <EditTaskDialog
+          open={!!editingTask}
+          onOpenChange={(open) => { if (!open) setEditingTask(null); }}
+          task={editingTask}
+          onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTask(null); }}
+          onDelete={(taskId) => { handleDelete(taskId); setEditingTask(null); }}
+        />
+      )}
     </div>
   );
 };

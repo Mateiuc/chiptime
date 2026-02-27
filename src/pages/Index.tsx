@@ -9,7 +9,7 @@ import { AddClientDialog } from '@/components/AddClientDialog';
 import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
-import { useClients, useVehicles, useTasks, useSettings } from '@/hooks/useStorage';
+import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
@@ -22,11 +22,24 @@ import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 
 
 const Index = () => {
-  const { clients, addClient, updateClient, deleteClient } = useClients();
-  const { vehicles, addVehicle, updateVehicle, deleteVehicle } = useVehicles();
-  const { tasks, addTask, updateTask, deleteTask, batchUpdateTasks } = useTasks();
-  const { settings, setSettings } = useSettings();
+  const clientsHook = useClients();
+  const vehiclesHook = useVehicles();
+  const tasksHook = useTasks();
+  const settingsHook = useSettings();
+
+  const { clients, addClient, updateClient, deleteClient } = clientsHook;
+  const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
+  const { tasks, addTask, updateTask, deleteTask, batchUpdateTasks } = tasksHook;
+  const { settings, setSettings } = settingsHook;
   const { toast } = useNotifications();
+
+  // Cloud sync: pull on mount if remote is newer
+  useCloudSync({
+    clients: clientsHook,
+    vehicles: vehiclesHook,
+    tasks: tasksHook,
+    settings: settingsHook,
+  });
 
   // Perform one-time migration from IndexedDB to Capacitor Preferences
   useEffect(() => {

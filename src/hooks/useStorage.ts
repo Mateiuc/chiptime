@@ -5,7 +5,6 @@ import { Client, Vehicle, Task, Settings } from '@/types';
 
 // Global debounce timer for cloud push
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
-let latestSnapshot: Partial<SyncData> = {};
 let cloudPushEnabled = true;
 
 export const setCloudPushEnabled = (enabled: boolean) => {
@@ -13,29 +12,39 @@ export const setCloudPushEnabled = (enabled: boolean) => {
   console.log('[CloudSync] Push enabled:', enabled);
 };
 
-const debouncedPushToCloud = (partial: Partial<SyncData>) => {
-  latestSnapshot = { ...latestSnapshot, ...partial };
+// Build full snapshot from Capacitor storage and push
+const debouncedPushToCloud = () => {
   if (!cloudPushEnabled) return;
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(async () => {
-    const snapshot = latestSnapshot;
-    if (snapshot.clients && snapshot.vehicles && snapshot.tasks && snapshot.settings) {
-      try {
-        await appSyncService.pushToCloud(snapshot as SyncData);
-      } catch (err) {
-        console.error('[CloudSync] Push failed:', err);
-      }
+    try {
+      const [clients, vehicles, tasks, settings] = await Promise.all([
+        capacitorStorage.getClients(),
+        capacitorStorage.getVehicles(),
+        capacitorStorage.getTasks(),
+        capacitorStorage.getSettings(),
+      ]);
+      await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
+    } catch (err) {
+      console.error('[CloudSync] Push failed:', err);
     }
   }, 3000);
 };
 
-export const pushNow = async (): Promise<void> => {
+// For desktop: push current React state directly (passed by caller)
+export const pushNow = async (snapshot?: SyncData): Promise<void> => {
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
-  const snapshot = latestSnapshot;
-  if (snapshot.clients && snapshot.vehicles && snapshot.tasks && snapshot.settings) {
-    await appSyncService.pushToCloud(snapshot as SyncData);
+  if (snapshot) {
+    await appSyncService.pushToCloud(snapshot);
   } else {
-    throw new Error('Snapshot incomplete — save all data types first');
+    // Fallback: read from storage
+    const [clients, vehicles, tasks, settings] = await Promise.all([
+      capacitorStorage.getClients(),
+      capacitorStorage.getVehicles(),
+      capacitorStorage.getTasks(),
+      capacitorStorage.getSettings(),
+    ]);
+    await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
   }
 };
 
@@ -101,8 +110,7 @@ export const useClients = () => {
     try {
       await capacitorStorage.setClients(clients);
       setClientsState(clients);
-      latestSnapshot.clients = clients;
-      debouncedPushToCloud({ clients });
+      debouncedPushToCloud();
     } catch (error) {
       console.error('Failed to save clients:', error);
     }
@@ -153,8 +161,7 @@ export const useVehicles = () => {
     try {
       await capacitorStorage.setVehicles(vehicles);
       setVehiclesState(vehicles);
-      latestSnapshot.vehicles = vehicles;
-      debouncedPushToCloud({ vehicles });
+      debouncedPushToCloud();
     } catch (error) {
       console.error('Failed to save vehicles:', error);
     }
@@ -205,8 +212,7 @@ export const useTasks = () => {
     try {
       await capacitorStorage.setTasks(newTasks);
       setTasksState(newTasks);
-      latestSnapshot.tasks = newTasks;
-      debouncedPushToCloud({ tasks: newTasks });
+      debouncedPushToCloud();
     } catch (error) {
       console.error('Failed to save tasks:', error);
     }
@@ -269,8 +275,7 @@ export const useSettings = () => {
     try {
       await capacitorStorage.setSettings(settings);
       setSettingsState(settings);
-      latestSnapshot.settings = settings;
-      debouncedPushToCloud({ settings });
+      debouncedPushToCloud();
     } catch (error) {
       console.error('Failed to save settings:', error);
     }
@@ -307,13 +312,6 @@ export const useCloudSync = (deps: {
         if (d.settings) deps.settings.replaceAll(d.settings);
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
-        // Update latestSnapshot so subsequent pushes include cloud data
-        latestSnapshot = {
-          clients: d.clients,
-          vehicles: d.vehicles,
-          tasks: d.tasks,
-          settings: d.settings,
-        };
         console.log('[CloudSync] Applied remote data');
       }
     } catch (err) {
@@ -335,12 +333,13 @@ export const useCloudSync = (deps: {
           await pullAndApply();
         } else if (!remoteTs) {
           // No remote data - push local as seed
-          const localClients = await capacitorStorage.getClients();
-          const localVehicles = await capacitorStorage.getVehicles();
-          const localTasks = await capacitorStorage.getTasks();
-          const localSettings = await capacitorStorage.getSettings();
-          latestSnapshot = { clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings };
-          await appSyncService.pushToCloud(latestSnapshot as SyncData);
+          const [localClients, localVehicles, localTasks, localSettings] = await Promise.all([
+            capacitorStorage.getClients(),
+            capacitorStorage.getVehicles(),
+            capacitorStorage.getTasks(),
+            capacitorStorage.getSettings(),
+          ]);
+          await appSyncService.pushToCloud({ clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings });
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);

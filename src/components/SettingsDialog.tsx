@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Settings, Task, Client, Vehicle } from '@/types';
-import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Copy, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Share2, Copy } from 'lucide-react';
 import { appSyncService } from '@/services/appSyncService';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';
@@ -429,28 +429,34 @@ export const SettingsDialog = ({
               )}
 
               <div className="pt-4 border-t space-y-2">
-                <Label>Sync ID</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={appSyncService.getSyncId()}
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(appSyncService.getSyncId());
-                      toast({ title: 'Sync ID Copied' });
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Label>Desktop Sync</Label>
                 <p className="text-xs text-muted-foreground">
-                  Share this ID with your desktop browser to sync data across devices.
+                  Share a link to open on your desktop browser — it will auto-connect to your data.
                 </p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    const syncId = appSyncService.getSyncId();
+                    const url = `${window.location.origin}/chip?sync=${syncId}`;
+                    try {
+                      // Try Capacitor Share first
+                      const { Share } = await import('@capacitor/share');
+                      await Share.share({
+                        title: 'Open on Desktop',
+                        text: 'Open this link on your desktop to sync:',
+                        url,
+                      });
+                    } catch {
+                      // Fallback to clipboard
+                      await navigator.clipboard.writeText(url);
+                      toast({ title: 'Link Copied', description: 'Paste this link in your desktop browser.' });
+                    }
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Desktop Link
+                </Button>
               </div>
 
               {(ocrProvider === 'gemini' || ocrProvider === 'grok' || ocrProvider === 'ocrspace') && (

@@ -16,6 +16,8 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
+import { appSyncService } from '@/services/appSyncService';
+import { Link2 } from 'lucide-react';
 
 const DesktopDashboard = () => {
   const clientsHook = useClients();
@@ -35,12 +37,24 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
+  const [syncIdInput, setSyncIdInput] = useState('');
+  const [currentSyncId, setCurrentSyncId] = useState(appSyncService.getSyncId());
 
   // Desktop: disable auto-push, pull on mount
   useEffect(() => {
     setCloudPushEnabled(false);
     return () => { setCloudPushEnabled(true); };
   }, []);
+
+  const handleLinkSyncId = async () => {
+    const trimmed = syncIdInput.trim();
+    if (!trimmed) return;
+    appSyncService.setSyncId(trimmed);
+    setCurrentSyncId(trimmed);
+    setSyncIdInput('');
+    await refresh();
+    toast({ title: 'Linked & Reloaded', description: 'Now using sync ID from your phone.' });
+  };
 
   const handleSaveToCloud = async () => {
     setSaving(true);
@@ -286,7 +300,23 @@ const DesktopDashboard = () => {
       {/* Header */}
       <header className="border-b bg-primary/10 backdrop-blur-sm shadow-sm flex-shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-primary">Auto-Tracker Desktop</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-primary">Auto-Tracker Desktop</h1>
+            <div className="flex items-center gap-1 ml-2">
+              <Input
+                value={syncIdInput}
+                onChange={e => setSyncIdInput(e.target.value)}
+                placeholder="Paste Sync ID from phone"
+                className="h-8 w-56 text-xs font-mono"
+              />
+              <Button variant="outline" size="sm" className="h-8 px-2" onClick={handleLinkSyncId} disabled={!syncIdInput.trim()}>
+                <Link2 className="h-3.5 w-3.5 mr-1" /> Link
+              </Button>
+            </div>
+            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]" title={currentSyncId}>
+              ID: {currentSyncId.slice(0, 8)}…
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

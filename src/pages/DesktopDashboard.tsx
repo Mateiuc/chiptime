@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Plus, Users, Search, Car, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign, ChevronDown, ImageOff } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Search, Car, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign, ChevronDown, ImageOff, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,18 +7,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AddVehicleDialog } from '@/components/AddVehicleDialog';
-import { AddClientDialog } from '@/components/AddClientDialog';
-import { SettingsDialog } from '@/components/SettingsDialog';
-import { ManageClientsDialog } from '@/components/ManageClientsDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
+import { DesktopClientsView } from '@/components/DesktopClientsView';
+import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
-import { contactsService } from '@/services/contactsService';
 import { SyncData } from '@/services/appSyncService';
 
 const DesktopDashboard = () => {
@@ -72,10 +69,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [showAddClient, setShowAddClient] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showManageClients, setShowManageClients] = useState(false);
+  const [desktopView, setDesktopView] = useState<'tasks' | 'clients' | 'settings'>('tasks');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -122,52 +116,6 @@ const DesktopDashboard = () => {
     const newClient: Client = { ...clientData, id: crypto.randomUUID(), createdAt: new Date() };
     addClient(newClient);
     toast({ title: 'Client Added' });
-  };
-
-  const handleAddVehicle = async (vehicleData: Omit<Vehicle, 'id'>, clientName?: string, phoneContact?: any) => {
-    try {
-      let finalClientId = vehicleData.clientId;
-      let clientForTask: Client | undefined;
-
-      if (clientName && vehicleData.clientId === 'pending') {
-        const bestPhone = phoneContact?.phoneNumbers
-          ? contactsService.getBestPhoneNumber(phoneContact.phoneNumbers)
-          : null;
-        const newClient: Client = {
-          id: crypto.randomUUID(),
-          name: clientName,
-          phone: bestPhone || undefined,
-          email: phoneContact?.emails?.[0] || undefined,
-          createdAt: new Date(),
-        };
-        await addClient(newClient);
-        finalClientId = newClient.id;
-        clientForTask = newClient;
-      } else {
-        clientForTask = clients.find(c => c.id === finalClientId);
-      }
-
-      const newVehicle: Vehicle = { ...vehicleData, id: crypto.randomUUID(), clientId: finalClientId };
-      await addVehicle(newVehicle);
-
-      const newTask: Task = {
-        id: crypto.randomUUID(),
-        clientId: finalClientId,
-        vehicleId: newVehicle.id,
-        customerName: clientForTask?.name || clientName || 'Unknown',
-        carVin: newVehicle.vin,
-        status: 'pending',
-        totalTime: 0,
-        needsFollowUp: false,
-        sessions: [],
-        createdAt: new Date(),
-      };
-      await addTask(newTask);
-      toast({ title: 'Vehicle Added' });
-    } catch (error) {
-      console.error('Failed to add vehicle:', error);
-      toast({ title: 'Error', description: 'Failed to save vehicle.', variant: 'destructive' });
-    }
   };
 
   const handleUpdateClient = (id: string, updates: Partial<Client>) => updateClient(id, updates);
@@ -516,13 +464,10 @@ const DesktopDashboard = () => {
               <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
               Save to Cloud
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowManageClients(true)}>
+            <Button variant={desktopView === 'clients' ? 'default' : 'outline'} size="sm" onClick={() => setDesktopView(desktopView === 'clients' ? 'tasks' : 'clients')}>
               <Users className="h-4 w-4 mr-1" /> Clients
             </Button>
-            <Button variant="default" size="sm" onClick={() => setShowAddVehicle(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Vehicle
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="h-9 w-9">
+            <Button variant={desktopView === 'settings' ? 'default' : 'ghost'} size="icon" onClick={() => setDesktopView(desktopView === 'settings' ? 'tasks' : 'settings')} className="h-9 w-9">
               <SettingsIcon className="h-4 w-4" />
             </Button>
           </div>
@@ -573,68 +518,43 @@ const DesktopDashboard = () => {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <Tabs defaultValue="active" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="active">Active ({activeTasks.length})</TabsTrigger>
-              <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
-              <TabsTrigger value="billed">Billed ({billedTasks.length})</TabsTrigger>
-              <TabsTrigger value="paid">Paid ({paidTasks.length})</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="active" className="space-y-4">{renderTaskTable(activeTasks)}</TabsContent>
-            <TabsContent value="completed" className="space-y-4">{renderTaskTable(completedTasks)}</TabsContent>
-            <TabsContent value="billed" className="space-y-4">{renderTaskTable(billedTasks)}</TabsContent>
-            <TabsContent value="paid" className="space-y-4">{renderTaskTable(paidTasks)}</TabsContent>
-          </Tabs>
+        <main className="flex-1 overflow-y-auto">
+          {desktopView === 'tasks' && (
+            <div className="p-6">
+              <Tabs defaultValue="active" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="active">Active ({activeTasks.length})</TabsTrigger>
+                  <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
+                  <TabsTrigger value="billed">Billed ({billedTasks.length})</TabsTrigger>
+                  <TabsTrigger value="paid">Paid ({paidTasks.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="active" className="space-y-4">{renderTaskTable(activeTasks)}</TabsContent>
+                <TabsContent value="completed" className="space-y-4">{renderTaskTable(completedTasks)}</TabsContent>
+                <TabsContent value="billed" className="space-y-4">{renderTaskTable(billedTasks)}</TabsContent>
+                <TabsContent value="paid" className="space-y-4">{renderTaskTable(paidTasks)}</TabsContent>
+              </Tabs>
+            </div>
+          )}
+          {desktopView === 'clients' && (
+            <DesktopClientsView
+              clients={clients}
+              vehicles={vehicles}
+              tasks={tasks}
+              settings={settings}
+              onUpdateClient={handleUpdateClient}
+              onDeleteClient={handleDeleteClient}
+              onUpdateVehicle={handleUpdateVehicle}
+              onDeleteVehicle={handleDeleteVehicle}
+              onMoveVehicle={handleMoveVehicle}
+            />
+          )}
+          {desktopView === 'settings' && (
+            <DesktopSettingsView settings={settings} onSave={setSettings} />
+          )}
         </main>
       </div>
 
       {/* Dialogs */}
-      <AddVehicleDialog
-        open={showAddVehicle}
-        onOpenChange={setShowAddVehicle}
-        clients={clients}
-        tasks={tasks}
-        settings={settings}
-        onAddClient={() => { setShowAddVehicle(false); setShowAddClient(true); }}
-        onSave={handleAddVehicle}
-      />
-      <AddClientDialog open={showAddClient} onOpenChange={setShowAddClient} onSave={handleAddClient} />
-      <SettingsDialog
-        open={showSettings}
-        onOpenChange={setShowSettings}
-        settings={settings}
-        onSave={setSettings}
-        tasks={tasks}
-        clients={clients}
-        vehicles={vehicles}
-        onMarkBilled={handleMarkBilled}
-        onMarkPaid={handleMarkPaid}
-        onRestartTimer={handleRestartTimer}
-        onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
-        onDelete={handleDelete}
-        onUpdateClient={handleUpdateClient}
-        onDeleteClient={handleDeleteClient}
-        onUpdateVehicle={handleUpdateVehicle}
-        onDeleteVehicle={handleDeleteVehicle}
-        onStartWork={handleStartWork}
-        onMoveVehicle={handleMoveVehicle}
-      />
-      <ManageClientsDialog
-        open={showManageClients}
-        onOpenChange={setShowManageClients}
-        clients={clients}
-        vehicles={vehicles}
-        tasks={tasks}
-        settings={settings}
-        onUpdateClient={handleUpdateClient}
-        onDeleteClient={handleDeleteClient}
-        onUpdateVehicle={handleUpdateVehicle}
-        onDeleteVehicle={handleDeleteVehicle}
-        onStartWork={handleStartWork}
-        onMoveVehicle={handleMoveVehicle}
-      />
       {editingTask && (
         <EditTaskDialog
           open={!!editingTask}

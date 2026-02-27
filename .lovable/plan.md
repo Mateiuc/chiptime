@@ -1,40 +1,32 @@
 
 
-# Desktop: Table View with Photos (Keep Client Sidebar)
+# Desktop Table: Remove Status, Add Expandable Details with Photos
 
-Replace the card grid in the main content area with a table layout, including photo thumbnails.
+## Problem
+- Status column is redundant (tabs already separate by status)
+- No way to see work details (sessions, parts, descriptions) without opening the edit dialog
+- Photos taken on phone aren't visible on desktop (photos are stored locally on phone; only `cloudUrl` works on desktop)
 
 ## Changes — `src/pages/DesktopDashboard.tsx`
 
-### Replace `renderTaskGroup` with table rendering
+### 1. Remove Status column
+- Remove the Status `<TableHead>` and `<TableCell>` with the Badge from `renderTaskTable`
 
-- Import `Table, TableHeader, TableBody, TableRow, TableHead, TableCell` from UI
-- Import `Badge` for status, photo loading utilities from `photoStorageService`
+### 2. Add expandable row details
+- Import `ChevronDown` from lucide and `Collapsible, CollapsibleTrigger, CollapsibleContent` from UI
+- Add state `expandedTaskIds: Set<string>` to track which rows are expanded
+- Add an expand/collapse chevron button as the first cell in each row
+- When expanded, render a full-width detail row below with:
+  - **Sessions list**: Each session with its description, date, duration (sum of periods), and parts
+  - **Parts per session**: Name, quantity, price in a small sub-table
+  - **Photos**: Show all `cloudUrl` photos from each session (not local filePath — desktop can't access phone filesystem). Display as a grid of thumbnails (64×64px). If no `cloudUrl`, show placeholder text "Photo on device only"
+  - **Work periods**: Start/end times for each period within a session
 
-### Table columns
-
-| Client (when "All") | Vehicle | VIN | Photos | Status | Time | Cost | Actions |
-|---|---|---|---|---|---|---|---|
-
-- **Photos column**: Show small thumbnails (32×32px) of session photos. Collect all `SessionPhoto` entries from `task.sessions`, load their URLs via `photoStorageService.getPhotoUrl()` on mount (or use `cloudUrl` if available). Show up to 3 thumbnails with a "+N" badge if more exist. Clicking opens a lightbox or the edit dialog.
-- **Vehicle**: Year Make Model
-- **VIN**: Truncated to 8 chars
-- **Status**: Colored badge
-- **Time**: Formatted HH:MM:SS
-- **Cost**: (totalTime/3600) × hourlyRate + sum of parts prices
-- **Actions**: Contextual buttons (Edit, Bill, Paid, Reactivate, Delete)
-
-### Photo loading
-
-- Add a `useEffect` that iterates all visible tasks, collects photo references from sessions, and resolves their display URLs (prefer `cloudUrl`, fallback to `photoStorageService.getPhotoUrl(filePath)`)
-- Store in a `Record<string, string[]>` keyed by task ID
-- Photos load asynchronously; show skeleton placeholders while loading
-
-### Row interaction
-
-- Clicking "Edit" or the row opens `EditTaskDialog` (existing component) for full detail editing
-- Add `editingTask` state to manage which task's dialog is open
+### 3. Fix photo display for desktop
+- In the photo thumbnail column and expanded details, only use `photo.cloudUrl` (skip `photoStorageService.loadPhoto` which only works on the device that took the photo)
+- Update the `useEffect` photo loader to only collect `cloudUrl` entries
+- In expanded details, show all photos (not just 3) using `cloudUrl`
 
 ### Files changed
-- `src/pages/DesktopDashboard.tsx` — replace card grid with table, add photo thumbnails, add edit dialog state
+- `src/pages/DesktopDashboard.tsx` — remove status column, add expandable detail rows, fix photo source to cloudUrl only
 

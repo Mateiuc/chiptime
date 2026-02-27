@@ -1,32 +1,40 @@
 
 
-# Desktop Table: Remove Status, Add Expandable Details with Photos
+# Auto-Upload Photos to Cloud on Capture
 
 ## Problem
-- Status column is redundant (tabs already separate by status)
-- No way to see work details (sessions, parts, descriptions) without opening the edit dialog
-- Photos taken on phone aren't visible on desktop (photos are stored locally on phone; only `cloudUrl` works on desktop)
+The `uploadPhotoToCloud` method exists in `photoStorageService` but is never called. When a photo is captured on the phone, it's saved locally only — `cloudUrl` is never set. The desktop dashboard then shows "on device only" for every photo.
 
-## Changes — `src/pages/DesktopDashboard.tsx`
+## Fix
 
-### 1. Remove Status column
-- Remove the Status `<TableHead>` and `<TableCell>` with the Badge from `renderTaskTable`
+### `src/components/TaskCard.tsx` — Upload to cloud after local save
 
-### 2. Add expandable row details
-- Import `ChevronDown` from lucide and `Collapsible, CollapsibleTrigger, CollapsibleContent` from UI
-- Add state `expandedTaskIds: Set<string>` to track which rows are expanded
-- Add an expand/collapse chevron button as the first cell in each row
-- When expanded, render a full-width detail row below with:
-  - **Sessions list**: Each session with its description, date, duration (sum of periods), and parts
-  - **Parts per session**: Name, quantity, price in a small sub-table
-  - **Photos**: Show all `cloudUrl` photos from each session (not local filePath — desktop can't access phone filesystem). Display as a grid of thumbnails (64×64px). If no `cloudUrl`, show placeholder text "Photo on device only"
-  - **Work periods**: Start/end times for each period within a session
+In `handleCapturePhoto`, after saving the photo locally and creating the `newPhoto` object, trigger a background cloud upload:
 
-### 3. Fix photo display for desktop
-- In the photo thumbnail column and expanded details, only use `photo.cloudUrl` (skip `photoStorageService.loadPhoto` which only works on the device that took the photo)
-- Update the `useEffect` photo loader to only collect `cloudUrl` entries
-- In expanded details, show all photos (not just 3) using `cloudUrl`
+1. After `photoStorageService.savePhoto(...)` returns the `filePath`, also call `photoStorageService.uploadPhotoToCloud(base64, taskId, photoId)`
+2. On success, set `cloudUrl` on the photo and update the task again
+3. Do this in a fire-and-forget pattern (don't block the UI) — upload happens in background after the photo is saved locally
+4. If upload fails, log a warning but don't show an error toast (photo is still saved locally)
+
+```typescript
+// After saving locally and updating the task:
+// Background cloud upload
+photoStorageService.uploadPhotoToCloud(photo.base64String, task.id, photoId)
+  .then(cloudUrl => {
+    // Update the photo with cloudUrl
+    const taskWithCloudUrl = { ...updatedTask };
+    taskWithCloudUrl.sessions = taskWithCloudUrl.sessions.map(session =>
+      session.id === freshTask.activeSessionId
+        ? { ...session, photos: session.photos?.map(p => 
+            p.id === photoId ? { ...p, cloudUrl } : p
+          )}
+        : session
+    );
+    onUpdateTask?.(taskWithCloudUrl);
+  })
+  .catch(err => console.warn('[TaskCard] Cloud upload failed:', err));
+```
 
 ### Files changed
-- `src/pages/DesktopDashboard.tsx` — remove status column, add expandable detail rows, fix photo source to cloudUrl only
+- `src/components/TaskCard.tsx` — add background cloud upload after photo capture
 

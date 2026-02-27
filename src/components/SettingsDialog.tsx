@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Settings, Task, Client, Vehicle } from '@/types';
-import { ChevronLeft, ChevronRight, Download, Upload, Cloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Copy, Check } from 'lucide-react';
+import { appSyncService } from '@/services/appSyncService';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';
 import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/xmlConverter';
@@ -426,6 +427,31 @@ export const SettingsDialog = ({
                   </p>
                 </div>
               )}
+
+              <div className="pt-4 border-t space-y-2">
+                <Label>Sync ID</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={appSyncService.getSyncId()}
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(appSyncService.getSyncId());
+                      toast({ title: 'Sync ID Copied' });
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Share this ID with your desktop browser to sync data across devices.
+                </p>
+              </div>
 
               {(ocrProvider === 'gemini' || ocrProvider === 'grok' || ocrProvider === 'ocrspace') && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">

@@ -1,57 +1,70 @@
 
 
-# Desktop Dashboard at `/chip` Route
+# Bidirectional Cloud Sync Between Mobile App and Desktop `/chip`
 
-## Overview
-Create a new `/chip` route that renders the same data (clients, vehicles, tasks, settings) in a desktop-friendly layout without the phone frame. No timer start/stop/pause functionality — only data viewing and editing (edit tasks, mark billed/paid, manage clients/vehicles, settings).
+## Problem
+The mobile app and desktop `/chip` dashboard both use `capacitorStorage` (Capacitor Preferences), which falls back to localStorage in the browser. Data is isolated per device — changes on mobile don't appear on desktop and vice versa.
 
-## Architecture
+## Approach
+Store the full app state (clients, vehicles, tasks, settings) as a JSON blob in a Lovable Cloud table. Both the mobile app and desktop dashboard push on every save and pull on load. A unique `sync_id` (generated once, stored locally) scopes the data.
 
-The `/chip` route will render a new `DesktopDashboard` page component that:
-- Reuses existing hooks (`useClients`, `useVehicles`, `useTasks`, `useSettings`)
-- Reuses existing components (`TaskCard`, `EditTaskDialog`, `SettingsDialog`, `ManageClientsDialog`, `AddVehicleDialog`, `AddClientDialog`)
-- Removes timer controls (start, pause, stop, auto-pause logic)
-- Uses a wide desktop layout with sidebar or multi-column design
+## Changes
 
-## Files
+### 1. Database Migration — Create `app_sync` table
+```sql
+CREATE TABLE public.app_sync (
+  sync_id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-### 1. New: `src/pages/DesktopDashboard.tsx`
-- Full-width layout (no phone frame), responsive for PC browsers
-- Sidebar with client list + search/filter
-- Main content area showing tasks grouped by client, with tabs (Active / Completed / Billed / Paid)
-- Header with settings gear, add vehicle/client buttons
-- All CRUD: edit tasks, mark billed/paid, delete, manage clients/vehicles
-- No `handleStartTimer`, `handlePauseTimer`, `handleStopTimer`, `handleCompleteWork` — removes all timer logic
-- Keep: `handleMarkBilled`, `handleMarkPaid`, `handleDelete`, `handleAddClient`, `handleAddVehicle`, `handleUpdateClient`, `handleDeleteClient`, `handleUpdateVehicle`, `handleDeleteVehicle`, `handleMoveVehicle`, `handleRestartTimer` (for resuming completed tasks back to active)
-- TaskCard rendered without `onPauseTimer`/`onStopTimer` props (hides timer buttons)
+ALTER TABLE public.app_sync ENABLE ROW LEVEL SECURITY;
 
-### 2. Update: `src/App.tsx`
-- Add route: `<Route path="/chip" element={<DesktopDashboard />} />` alongside the portal routes (outside phone frame)
-
-### Layout Design
-```text
-┌──────────────────────────────────────────────────┐
-│  Header: Auto-Tracker Desktop  [+Vehicle] [⚙]   │
-├────────────┬─────────────────────────────────────┤
-│  Clients   │  Tasks for Selected Client          │
-│  ────────  │  [Active] [Completed] [Billed] [Paid]│
-│  • Client1 │                                     │
-│  • Client2 │  TaskCard  TaskCard  TaskCard        │
-│  • Client3 │  TaskCard  TaskCard                  │
-│            │                                     │
-└────────────┴─────────────────────────────────────┘
+-- Public read/write (no auth in this app, sync_id acts as access key)
+CREATE POLICY "Anyone can read app_sync" ON public.app_sync FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert app_sync" ON public.app_sync FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update app_sync" ON public.app_sync FOR UPDATE USING (true);
 ```
 
-- Left sidebar: scrollable client list with vehicle count, click to filter
-- Main area: task cards in a responsive grid (2-3 columns on wide screens)
-- All 4 status tabs: Active, Completed, Billed, Paid
-- "All Clients" option to see everything
+### 2. New: `src/services/appSyncService.ts`
+- `getSyncId()`: reads from localStorage, generates UUID if missing
+- `pushToCloud(clients, vehicles, tasks, settings)`: upserts full state to `app_sync` table by `sync_id`
+- `pullFromCloud()`: fetches data by `sync_id`, returns `{ clients, vehicles, tasks, settings }`
+- `getRemoteUpdatedAt()`: returns the `updated_at` timestamp for conflict detection
+- Uses the existing Supabase client
 
-### Key Differences from Mobile Index
-- No phone frame wrapper
-- No timer start/pause/stop buttons on cards
-- No `CompleteWorkDialog`
-- Multi-column grid layout for task cards
-- Sidebar for client navigation
-- All status tabs visible (not just Active/Completed)
+### 3. Update: `src/hooks/useStorage.ts`
+- After every `setClients`, `setVehicles`, `setTasks`, `setSettings` call, debounce-push all data to cloud (5s delay to batch rapid changes)
+- On initial load, compare local `updated_at` vs remote `updated_at`:
+  - If remote is newer → pull from cloud and overwrite local
+  - If local is newer → push to cloud
+  - If no remote data exists → push local data as initial seed
+
+### 4. Update: `src/pages/DesktopDashboard.tsx`
+- On mount, trigger a cloud pull before rendering data (show loading state)
+- Add a "Refresh" button in the header to manually re-pull from cloud
+- Optionally subscribe to Supabase Realtime on the `app_sync` table for live updates
+
+### 5. Update: `src/pages/Index.tsx`
+- On mount (after migration), trigger cloud sync check (pull if remote is newer)
+
+## Sync Flow
+```text
+Mobile App                    Cloud (app_sync table)                Desktop /chip
+───────────                   ─────────────────────                 ─────────────
+  save data ──push──────────▶  { sync_id, data, updated_at }
+                                                                    ◀──pull── load page
+                                                                    edit data ──push──▶
+  open app ──pull if newer──◀  { sync_id, data, updated_at }
+```
+
+### Conflict Resolution
+Simple "last write wins" using `updated_at`. No merge — the most recent full snapshot replaces older data. This is acceptable because mobile and desktop are typically not used simultaneously.
+
+### Files Changed
+- **New**: `src/services/appSyncService.ts`
+- **Modified**: `src/hooks/useStorage.ts` (add cloud push/pull)
+- **Modified**: `src/pages/DesktopDashboard.tsx` (pull on mount, refresh button)
+- **Modified**: `src/pages/Index.tsx` (sync check on mount)
+- **Database**: New `app_sync` table
 

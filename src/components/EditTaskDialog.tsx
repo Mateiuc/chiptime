@@ -443,34 +443,33 @@ export const EditTaskDialog = ({
     });
     onOpenChange(false);
   };
+  const d = !isMobile; // desktop shorthand
+
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={isMobile 
         ? "w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col" 
-        : "max-w-4xl max-h-[85vh] p-0 rounded-lg flex flex-col"
+        : "max-w-4xl max-h-[85vh] p-0 rounded-lg flex flex-col overflow-hidden"
       }>
-        <DialogHeader className={`px-4 py-3 border-b ${colorScheme.gradient}`}>
-          <DialogTitle>Edit</DialogTitle>
+        <DialogHeader className={`${d ? 'px-6 py-4' : 'px-4 py-3'} border-b ${colorScheme.gradient}`}>
+          <DialogTitle className={d ? 'text-xl' : ''}>
+            Edit Task
+          </DialogTitle>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
+        <div className={`flex-1 overflow-y-auto ${d ? 'px-6 py-4 space-y-4' : 'px-2 py-1 space-y-1'}`}>
           {sessions.map((session, sessionIndex) => {
-            // Get unique color scheme for THIS session
             const sessionColorScheme = getSessionColorScheme(session.id);
             
-            // Get session date with robust validation and fallback
             let sessionDate: Date;
             if (session.periods.length > 0 && session.periods[0].startTime) {
               sessionDate = session.periods[0].startTime;
             } else if (session.createdAt) {
               sessionDate = session.createdAt;
             } else {
-              sessionDate = new Date(); // Fallback to current date
+              sessionDate = new Date();
             }
             
-            // Validate the date is valid
             const isValidDate = sessionDate instanceof Date && !isNaN(sessionDate.getTime());
-            
-            // If still invalid, use current date as fallback
             if (!isValidDate) {
               console.warn('Invalid session date detected, using current date as fallback');
               sessionDate = new Date();
@@ -483,48 +482,54 @@ export const EditTaskDialog = ({
               day: 'numeric'
             }).format(sessionDate);
             
-            return <div key={session.id} className={`${sessionColorScheme.session} border rounded p-1 space-y-1`}>
-              <div className="flex items-center justify-between">
-              <h4 className="font-bold text-base">Session {sessionIndex + 1}</h4>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground">{formattedDate}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6" 
-                    onClick={() => handleDeleteSession(session.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+            return <div key={session.id} className={`${sessionColorScheme.session} border rounded-lg ${d ? 'p-4 space-y-4' : 'p-1 space-y-1'}`}>
+              {/* Session Header */}
+              <div className={`flex items-center justify-between ${d ? 'pb-3 border-b border-border/50' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <h4 className={`font-bold ${d ? 'text-lg' : 'text-base'}`}>Session {sessionIndex + 1}</h4>
+                  <span className={`${d ? 'text-sm bg-muted px-2.5 py-0.5 rounded-full' : 'text-xs'} text-muted-foreground`}>{formattedDate}</span>
                 </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={d ? "h-8 w-8" : "h-6 w-6"} 
+                  onClick={() => handleDeleteSession(session.id)}
+                >
+                  <Trash2 className={d ? "h-4 w-4" : "h-3 w-3"} />
+                </Button>
               </div>
               
               {/* Periods */}
-              <div className="space-y-1">
+              <div className={d ? "space-y-3" : "space-y-1"}>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Work Periods:</Label>
+                  <Label className={d ? "text-sm font-semibold" : "text-xs"}>Work Periods</Label>
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-6 gap-1"
+                    className={d ? "h-8 gap-1.5" : "h-6 gap-1"}
                     onClick={() => handleAddPeriodToSession(session.id)}
                   >
-                    <Plus className="h-3 w-3" />
-                    <span className="text-xs">Add Period</span>
+                    <Plus className={d ? "h-4 w-4" : "h-3 w-3"} />
+                    <span className={d ? "text-sm" : "text-xs"}>Add Period</span>
                   </Button>
                 </div>
                 
-                {session.periods.map((period, periodIndex) => <div key={period.id} className={`${sessionColorScheme.period} border p-1 rounded space-y-1`}>
-                    <div className="flex items-center justify-between px-1 py-0.5">
-                      <div className="font-semibold text-sm">Period {periodIndex + 1}: {formatDuration(period.duration)}</div>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
-                        <Trash2 className="h-3 w-3" />
+                {session.periods.map((period, periodIndex) => <div key={period.id} className={`${sessionColorScheme.period} border rounded-md ${d ? 'p-4 space-y-3' : 'p-1 space-y-1'}`}>
+                    <div className={`flex items-center justify-between ${d ? 'px-0' : 'px-1 py-0.5'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold ${d ? 'text-base' : 'text-sm'}`}>Period {periodIndex + 1}</span>
+                        <span className={`${d ? 'bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-sm font-medium' : 'text-sm'}`}>
+                          {formatDuration(period.duration)}
+                        </span>
+                      </div>
+                      <Button variant="ghost" size="icon" className={d ? "h-8 w-8" : "h-6 w-6"} onClick={() => handleDeletePeriod(session.id, period.id)}>
+                        <Trash2 className={d ? "h-4 w-4" : "h-3 w-3"} />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-1 px-1">
-                      <div>
-                        <Label className="text-xs font-semibold uppercase tracking-wide">Start</Label>
-                        <div className="flex gap-1">
+                    <div className={`grid grid-cols-2 ${d ? 'gap-6 px-0' : 'gap-1 px-1'}`}>
+                      <div className={d ? "space-y-1.5" : ""}>
+                        <Label className={`${d ? 'text-sm' : 'text-xs'} font-semibold uppercase tracking-wide`}>Start</Label>
+                        <div className={`flex ${d ? 'gap-2' : 'gap-1'}`}>
                           <Input 
                             type="date" 
                             value={
@@ -536,7 +541,7 @@ export const EditTaskDialog = ({
                             }
                             onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'date', e.target.value, period)}
                             onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium flex-1 min-w-0" 
+                            className={`${d ? 'h-10 text-sm' : 'h-9 text-sm'} font-medium flex-1 min-w-0`} 
                           />
                           <Input 
                             type="time" 
@@ -549,13 +554,13 @@ export const EditTaskDialog = ({
                             }
                             onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'time', e.target.value, period)}
                             onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium w-20" 
+                            className={`${d ? 'h-10 text-sm w-28' : 'h-9 text-sm w-20'} font-medium`} 
                           />
                         </div>
                       </div>
-                      <div>
-                        <Label className="text-xs font-semibold uppercase tracking-wide">End</Label>
-                        <div className="flex gap-1">
+                      <div className={d ? "space-y-1.5" : ""}>
+                        <Label className={`${d ? 'text-sm' : 'text-xs'} font-semibold uppercase tracking-wide`}>End</Label>
+                        <div className={`flex ${d ? 'gap-2' : 'gap-1'}`}>
                           <Input 
                             type="date" 
                             value={
@@ -567,7 +572,7 @@ export const EditTaskDialog = ({
                             }
                             onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}
                             onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium flex-1 min-w-0" 
+                            className={`${d ? 'h-10 text-sm' : 'h-9 text-sm'} font-medium flex-1 min-w-0`} 
                           />
                           <Input 
                             type="time" 
@@ -580,7 +585,7 @@ export const EditTaskDialog = ({
                             }
                             onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'time', e.target.value, period)}
                             onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium w-20" 
+                            className={`${d ? 'h-10 text-sm w-28' : 'h-9 text-sm w-20'} font-medium`} 
                           />
                         </div>
                       </div>
@@ -589,21 +594,21 @@ export const EditTaskDialog = ({
               </div>
 
               {/* Parts */}
-              <div className="space-y-1">
+              <div className={d ? "space-y-3" : "space-y-1"}>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Parts:</Label>
+                  <Label className={d ? "text-sm font-semibold" : "text-xs"}>Parts</Label>
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-6 gap-1"
+                    className={d ? "h-8 gap-1.5" : "h-6 gap-1"}
                     onClick={() => handleAddPart(session.id)}
                   >
-                    <Plus className="h-3 w-3" />
-                    <span className="text-xs">Add Part</span>
+                    <Plus className={d ? "h-4 w-4" : "h-3 w-3"} />
+                    <span className={d ? "text-sm" : "text-xs"}>Add Part</span>
                   </Button>
                 </div>
                 
-                {(session.parts || []).map((part, partIndex) => <div key={partIndex} className={`${sessionColorScheme.part} border p-1 rounded space-y-1`}>
+                {(session.parts || []).map((part, partIndex) => <div key={partIndex} className={`${sessionColorScheme.part} border rounded-md ${d ? 'p-4 space-y-3' : 'p-1 space-y-1'}`}>
                     <div className="flex items-center justify-between">
                       <Input 
                         type="text" 
@@ -618,54 +623,57 @@ export const EditTaskDialog = ({
                             return s;
                           }));
                         }}
-                        className="h-6 text-xs flex-1"
+                        className={d ? "h-10 text-sm flex-1" : "h-6 text-xs flex-1"}
                         placeholder="Part name"
                       />
-                      <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
-                        <Trash2 className="h-3 w-3" />
+                      <Button variant="ghost" size="icon" className={`${d ? 'h-8 w-8' : 'h-6 w-6'} ml-1`} onClick={() => handleDeletePart(session.id, partIndex)}>
+                        <Trash2 className={d ? "h-4 w-4" : "h-3 w-3"} />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      <div>
-                        <Label className="text-[10px]">Quantity</Label>
-                        <Input type="number" min="1" value={part.quantity} onChange={e => handleUpdatePartQuantity(session.id, partIndex, parseInt(e.target.value) || 1)} className="h-7 text-xs" />
+                    <div className={`grid ${d ? 'grid-cols-3 gap-4' : 'grid-cols-2 gap-1'}`}>
+                      <div className={d ? "space-y-1.5" : ""}>
+                        <Label className={d ? "text-sm" : "text-[10px]"}>Quantity</Label>
+                        <Input type="number" min="1" value={part.quantity} onChange={e => handleUpdatePartQuantity(session.id, partIndex, parseInt(e.target.value) || 1)} className={d ? "h-10 text-sm" : "h-7 text-xs"} />
                       </div>
-                      <div>
-                        <Label className="text-[10px]">Price</Label>
-                        <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="h-7 text-xs" />
+                      <div className={d ? "space-y-1.5" : ""}>
+                        <Label className={d ? "text-sm" : "text-[10px]"}>Price</Label>
+                        <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={d ? "h-10 text-sm" : "h-7 text-xs"} />
+                      </div>
+                      <div className={d ? "space-y-1.5" : ""}>
+                        <Label className={d ? "text-sm" : "text-[10px]"}>Description</Label>
+                        <Input 
+                          type="text" 
+                          value={part.description || ''} 
+                          onChange={e => {
+                            setSessions(prev => prev.map(s => {
+                              if (s.id === session.id) {
+                                const updatedParts = [...(s.parts || [])];
+                                updatedParts[partIndex] = { 
+                                  ...updatedParts[partIndex], 
+                                  description: e.target.value 
+                                };
+                                return { ...s, parts: updatedParts };
+                              }
+                              return s;
+                            }));
+                          }}
+                          className={d ? "h-10 text-sm" : "h-7 text-xs"}
+                          placeholder="Optional description"
+                        />
                       </div>
                     </div>
-                    <div>
-                      <Label className="text-[10px]">Description (optional)</Label>
-                      <Input 
-                        type="text" 
-                        value={part.description || ''} 
-                        onChange={e => {
-                          setSessions(prev => prev.map(s => {
-                            if (s.id === session.id) {
-                              const updatedParts = [...(s.parts || [])];
-                              updatedParts[partIndex] = { 
-                                ...updatedParts[partIndex], 
-                                description: e.target.value 
-                              };
-                              return { ...s, parts: updatedParts };
-                            }
-                            return s;
-                          }));
-                        }}
-                        className="h-7 text-xs"
-                        placeholder="Optional part description"
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className={d 
+                      ? "text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-md inline-block" 
+                      : "text-xs text-muted-foreground"
+                    }>
                       Total: {formatCurrency(part.price * part.quantity)}
                     </div>
                   </div>)}
               </div>
 
               {/* Work Description */}
-              <div className="space-y-1">
-                <Label className="text-xs">Work Description:</Label>
+              <div className={d ? "space-y-2" : "space-y-1"}>
+                <Label className={d ? "text-sm font-semibold" : "text-xs"}>Work Description</Label>
                 <Textarea
                   value={session.description || ''}
                   onChange={(e) => {
@@ -677,19 +685,19 @@ export const EditTaskDialog = ({
                     }));
                   }}
                   placeholder="Describe the work performed..."
-                  rows={3}
-                  className="text-xs resize-none"
+                  rows={d ? 4 : 3}
+                  className={d ? "text-sm resize-none" : "text-xs resize-none"}
                 />
               </div>
             </div>;
           })}
         </div>
 
-        <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm flex justify-center items-center gap-3">
+        <DialogFooter className={`${d ? 'px-6 py-4' : 'px-4 py-3'} border-t bg-card/80 backdrop-blur-sm flex justify-center items-center gap-3`}>
           {onDelete && !showDeleteConfirm && (
             <Button 
               variant="destructive" 
-              size="sm"
+              size={d ? "default" : "sm"}
               onClick={() => setShowDeleteConfirm(true)}
               className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
             >
@@ -724,7 +732,7 @@ export const EditTaskDialog = ({
             <>
               <Button 
                 variant="secondary" 
-                size="sm"
+                size={d ? "default" : "sm"}
                 onClick={handleAddNewSession}
                 className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
               >
@@ -732,14 +740,13 @@ export const EditTaskDialog = ({
               </Button>
               <Button 
                 variant="outline" 
-                size="sm" 
+                size={d ? "default" : "sm"}
                 onClick={() => onOpenChange(false)}
-                className="flex items-center justify-center"
               >
                 Cancel
               </Button>
               <Button 
-                size="sm" 
+                size={d ? "default" : "sm"}
                 onClick={handleSave}
                 className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
               >

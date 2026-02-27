@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Client, Vehicle, Task, Settings } from '@/types';
 
-const SYNC_ID_KEY = 'app_sync_id';
+const FIXED_SYNC_ID = 'chiptime-default';
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
 
 export interface SyncData {
@@ -13,16 +13,7 @@ export interface SyncData {
 
 export const appSyncService = {
   getSyncId(): string {
-    let syncId = localStorage.getItem(SYNC_ID_KEY);
-    if (!syncId) {
-      syncId = crypto.randomUUID();
-      localStorage.setItem(SYNC_ID_KEY, syncId);
-    }
-    return syncId;
-  },
-
-  setSyncId(id: string) {
-    localStorage.setItem(SYNC_ID_KEY, id);
+    return FIXED_SYNC_ID;
   },
 
   getLocalUpdatedAt(): string | null {

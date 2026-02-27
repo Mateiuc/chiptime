@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +17,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
-import { appSyncService } from '@/services/appSyncService';
-import { Link2 } from 'lucide-react';
+import { appSyncService, SyncData } from '@/services/appSyncService';
 
 const DesktopDashboard = () => {
   const clientsHook = useClients();
@@ -37,8 +37,7 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
-  const [syncIdInput, setSyncIdInput] = useState('');
-  const [currentSyncId, setCurrentSyncId] = useState(appSyncService.getSyncId());
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Desktop: disable auto-push, pull on mount
   useEffect(() => {
@@ -46,20 +45,27 @@ const DesktopDashboard = () => {
     return () => { setCloudPushEnabled(true); };
   }, []);
 
-  const handleLinkSyncId = async () => {
-    const trimmed = syncIdInput.trim();
-    if (!trimmed) return;
-    appSyncService.setSyncId(trimmed);
-    setCurrentSyncId(trimmed);
-    setSyncIdInput('');
-    await refresh();
-    toast({ title: 'Linked & Reloaded', description: 'Now using sync ID from your phone.' });
-  };
+  // Auto-link via ?sync= URL param
+  useEffect(() => {
+    const syncParam = searchParams.get('sync');
+    if (syncParam) {
+      appSyncService.setSyncId(syncParam);
+      // Clean URL
+      searchParams.delete('sync');
+      setSearchParams(searchParams, { replace: true });
+      // Pull data with new sync ID
+      refresh().then(() => {
+        toast({ title: 'Linked & Loaded', description: 'Connected to your phone\'s data.' });
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveToCloud = async () => {
     setSaving(true);
     try {
-      await pushNow();
+      // Build snapshot from current React state
+      const snapshot: SyncData = { clients, vehicles, tasks, settings };
+      await pushNow(snapshot);
       toast({ title: 'Saved to Cloud' });
     } catch (err: any) {
       toast({ title: 'Save Failed', description: err.message, variant: 'destructive' });
@@ -302,20 +308,6 @@ const DesktopDashboard = () => {
         <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-primary">Auto-Tracker Desktop</h1>
-            <div className="flex items-center gap-1 ml-2">
-              <Input
-                value={syncIdInput}
-                onChange={e => setSyncIdInput(e.target.value)}
-                placeholder="Paste Sync ID from phone"
-                className="h-8 w-56 text-xs font-mono"
-              />
-              <Button variant="outline" size="sm" className="h-8 px-2" onClick={handleLinkSyncId} disabled={!syncIdInput.trim()}>
-                <Link2 className="h-3.5 w-3.5 mr-1" /> Link
-              </Button>
-            </div>
-            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]" title={currentSyncId}>
-              ID: {currentSyncId.slice(0, 8)}…
-            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative w-64">

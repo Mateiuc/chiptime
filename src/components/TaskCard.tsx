@@ -1013,6 +1013,24 @@ export const TaskCard = ({
           title: 'Photo Captured',
           description: `Photo added to Session ${sessionIndex + 1}`,
         });
+
+        // Background cloud upload (fire-and-forget)
+        photoStorageService.uploadPhotoToCloud(photo.base64String!, task.id, photoId)
+          .then(cloudUrl => {
+            const taskWithCloudUrl = {
+              ...updatedTask,
+              sessions: updatedTask.sessions.map(session =>
+                session.id === freshTask.activeSessionId
+                  ? { ...session, photos: session.photos?.map(p =>
+                      p.id === photoId ? { ...p, cloudUrl } : p
+                    )}
+                  : session
+              ),
+            };
+            onUpdateTask?.(taskWithCloudUrl);
+            console.log('[TaskCard] Photo uploaded to cloud:', cloudUrl);
+          })
+          .catch(err => console.warn('[TaskCard] Cloud upload failed:', err));
       }
     } catch (error) {
       // User cancelled or camera error

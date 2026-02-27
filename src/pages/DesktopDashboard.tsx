@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +9,7 @@ import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { ManageClientsDialog } from '@/components/ManageClientsDialog';
-import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
+import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { Task, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
@@ -28,12 +28,36 @@ const DesktopDashboard = () => {
   const { tasks, addTask, updateTask, deleteTask } = tasksHook;
   const { settings, setSettings } = settingsHook;
 
-  const { syncing, refresh } = useCloudSync({
+  const { syncing, lastSyncAt, refresh } = useCloudSync({
     clients: clientsHook,
     vehicles: vehiclesHook,
     tasks: tasksHook,
     settings: settingsHook,
   });
+  const [saving, setSaving] = useState(false);
+
+  // Desktop: disable auto-push, pull on mount
+  useEffect(() => {
+    setCloudPushEnabled(false);
+    return () => { setCloudPushEnabled(true); };
+  }, []);
+
+  const handleSaveToCloud = async () => {
+    setSaving(true);
+    try {
+      await pushNow();
+      toast({ title: 'Saved to Cloud' });
+    } catch (err: any) {
+      toast({ title: 'Save Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReloadFromCloud = async () => {
+    await refresh();
+    toast({ title: 'Reloaded from Cloud' });
+  };
 
   const { toast } = useNotifications();
 
@@ -276,11 +300,21 @@ const DesktopDashboard = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { refresh(); toast({ title: 'Syncing...' }); }}
+              onClick={handleReloadFromCloud}
               disabled={syncing}
             >
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-              Sync
+              <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+              Reload
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveToCloud}
+              disabled={saving}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
+              Save to Cloud
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowManageClients(true)}>
               <Users className="h-4 w-4 mr-1" /> Clients

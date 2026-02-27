@@ -6,13 +6,19 @@ import { Client, Vehicle, Task, Settings } from '@/types';
 // Global debounce timer for cloud push
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let latestSnapshot: Partial<SyncData> = {};
+let cloudPushEnabled = true;
+
+export const setCloudPushEnabled = (enabled: boolean) => {
+  cloudPushEnabled = enabled;
+  console.log('[CloudSync] Push enabled:', enabled);
+};
 
 const debouncedPushToCloud = (partial: Partial<SyncData>) => {
   latestSnapshot = { ...latestSnapshot, ...partial };
+  if (!cloudPushEnabled) return;
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(async () => {
     const snapshot = latestSnapshot;
-    // Only push if we have all 4 pieces
     if (snapshot.clients && snapshot.vehicles && snapshot.tasks && snapshot.settings) {
       try {
         await appSyncService.pushToCloud(snapshot as SyncData);
@@ -21,6 +27,16 @@ const debouncedPushToCloud = (partial: Partial<SyncData>) => {
       }
     }
   }, 3000);
+};
+
+export const pushNow = async (): Promise<void> => {
+  if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+  const snapshot = latestSnapshot;
+  if (snapshot.clients && snapshot.vehicles && snapshot.tasks && snapshot.settings) {
+    await appSyncService.pushToCloud(snapshot as SyncData);
+  } else {
+    throw new Error('Snapshot incomplete — save all data types first');
+  }
 };
 
 // Event-based sync trigger so pages can force a pull

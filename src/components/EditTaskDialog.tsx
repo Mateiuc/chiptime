@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
+import { useIsMobile } from '@/hooks/use-mobile';
 interface EditTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +27,7 @@ export const EditTaskDialog = ({
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useNotifications();
+  const isMobile = useIsMobile();
   // Get vehicle color scheme
   const colorScheme = getVehicleColorScheme(task.vehicleId);
   // Ensure all dates are properly converted to Date objects with fallbacks
@@ -442,7 +444,10 @@ export const EditTaskDialog = ({
     onOpenChange(false);
   };
   return <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col">
+      <DialogContent className={isMobile 
+        ? "w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col" 
+        : "max-w-4xl max-h-[85vh] p-0 rounded-lg flex flex-col"
+      }>
         <DialogHeader className={`px-4 py-3 border-b ${colorScheme.gradient}`}>
           <DialogTitle>Edit</DialogTitle>
         </DialogHeader>
@@ -686,10 +691,9 @@ export const EditTaskDialog = ({
               variant="destructive" 
               size="sm"
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center"
+              className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
             >
-              <span className="text-xs">Delete</span>
-              <span className="text-xs">Car</span>
+              {isMobile ? <><span className="text-xs">Delete</span><span className="text-xs">Car</span></> : "Delete Car"}
             </Button>
           )}
           
@@ -722,10 +726,9 @@ export const EditTaskDialog = ({
                 variant="secondary" 
                 size="sm"
                 onClick={handleAddNewSession}
-                className="flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center"
+                className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
               >
-                <span className="text-xs">Add</span>
-                <span className="text-xs">Session</span>
+                {isMobile ? <><span className="text-xs">Add</span><span className="text-xs">Session</span></> : "Add Session"}
               </Button>
               <Button 
                 variant="outline" 
@@ -738,10 +741,9 @@ export const EditTaskDialog = ({
               <Button 
                 size="sm" 
                 onClick={handleSave}
-                className="flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center"
+                className={isMobile ? "flex flex-col items-center justify-center py-2 px-3 h-auto leading-tight text-center" : ""}
               >
-                <span className="text-xs">Save</span>
-                <span className="text-xs">Changes</span>
+                {isMobile ? <><span className="text-xs">Save</span><span className="text-xs">Changes</span></> : "Save Changes"}
               </Button>
             </>
           )}

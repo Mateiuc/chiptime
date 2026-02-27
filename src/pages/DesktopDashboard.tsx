@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Settings as SettingsIcon, Plus, Users, Search, Car } from 'lucide-react';
+import { Settings as SettingsIcon, Plus, Users, Search, Car, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +9,7 @@ import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { ManageClientsDialog } from '@/components/ManageClientsDialog';
-import { useClients, useVehicles, useTasks, useSettings } from '@/hooks/useStorage';
+import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
 import { Task, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
@@ -18,10 +18,23 @@ import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { contactsService } from '@/services/contactsService';
 
 const DesktopDashboard = () => {
-  const { clients, addClient, updateClient, deleteClient } = useClients();
-  const { vehicles, addVehicle, updateVehicle, deleteVehicle } = useVehicles();
-  const { tasks, addTask, updateTask, deleteTask } = useTasks();
-  const { settings, setSettings } = useSettings();
+  const clientsHook = useClients();
+  const vehiclesHook = useVehicles();
+  const tasksHook = useTasks();
+  const settingsHook = useSettings();
+
+  const { clients, addClient, updateClient, deleteClient } = clientsHook;
+  const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
+  const { tasks, addTask, updateTask, deleteTask } = tasksHook;
+  const { settings, setSettings } = settingsHook;
+
+  const { syncing, refresh } = useCloudSync({
+    clients: clientsHook,
+    vehicles: vehiclesHook,
+    tasks: tasksHook,
+    settings: settingsHook,
+  });
+
   const { toast } = useNotifications();
 
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -66,7 +79,6 @@ const DesktopDashboard = () => {
   };
 
   const handleRestartTimer = (taskId: string) => {
-    // In desktop mode, restart just sets the task back to pending (no actual timer)
     updateTask(taskId, { status: 'pending', startTime: undefined, activeSessionId: undefined });
     toast({ title: 'Task Reactivated' });
   };
@@ -165,7 +177,6 @@ const DesktopDashboard = () => {
     });
   };
 
-  // No-op for desktop (timer not supported)
   const handleStartWork = (_vehicleId: string) => {
     toast({ title: 'Timer not available', description: 'Use the mobile app to start timers.' });
   };
@@ -262,6 +273,15 @@ const DesktopDashboard = () => {
                 className="pl-9 h-9"
               />
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { refresh(); toast({ title: 'Syncing...' }); }}
+              disabled={syncing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+              Sync
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowManageClients(true)}>
               <Users className="h-4 w-4 mr-1" /> Clients
             </Button>

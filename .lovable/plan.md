@@ -1,36 +1,28 @@
 
 
-# Desktop: Remove +Vehicle, Desktop-Native Settings & Clients Views
+# Desktop: Fix Mobile-Style Dialogs and Simplify Settings
 
-## Changes — `src/pages/DesktopDashboard.tsx`
+## Changes
 
-### 1. Remove "+Vehicle" button
-- Remove the `<Button>` with `Plus` icon and "Vehicle" text from the header (line 522-524)
-- Remove `showAddVehicle` state, `AddVehicleDialog` import and usage, and `handleAddVehicle` handler (vehicles are added from mobile only)
+### 1. `src/components/DesktopSettingsView.tsx` — Strip to essentials only
+- Remove General card (hourly rate), OCR Provider card, Data Management card (export/import XML)
+- Keep only: Popup Notifications toggle + Backup & Restore (BackupView with cloud sync)
+- Remove unused imports/state: `hourlyRate`, `googleApiKey`, `grokApiKey`, `ocrSpaceApiKey`, `ocrProvider`, `fileInputRef`, `indexedDB`, `exportToXML`, `downloadXML`, `parseXMLFile`, `validateXMLData`, `RadioGroup`, `RadioGroupItem`, `Download`, `Upload`
+- Simplify `handleSave` to only save `notificationsEnabled`, preserving all other settings
 
-### 2. Replace dialog-based menus with inline desktop views
-- Add a `desktopView` state: `'tasks' | 'clients' | 'settings'` (default `'tasks'`)
-- Header buttons for "Clients" and Settings gear switch `desktopView` instead of opening dialogs
-- When `desktopView` is not `'tasks'`, render the corresponding content in the main area instead of the table tabs
+### 2. `src/pages/DesktopDashboard.tsx` — Hide client sidebar when not on tasks view
+- Wrap the `<aside>` (lines 479-518) with `{desktopView === 'tasks' && (...)}`
+- Clients and Settings views then use the full width
 
-### 3. Inline Clients Management view
-- When `desktopView === 'clients'`, render a desktop-friendly client management panel directly in `<main>`:
-  - Two-column layout: client list on left, selected client details on right
-  - Client details include: editable name/email/phone/hourlyRate fields, vehicle list with edit/delete, PDF report button, portal link, move vehicle
-  - Reuse existing handler functions (`handleUpdateClient`, `handleDeleteClient`, etc.)
-  - Remove `ManageClientsDialog` import and usage
-
-### 4. Inline Settings view  
-- When `desktopView === 'settings'`, render settings form directly in `<main>`:
-  - Card-based layout with sections: Hourly Rate, Notifications toggle, OCR Provider + API keys, Data Management (Export/Import XML, Backup & Restore)
-  - Reuse existing settings state and save logic from `SettingsDialog`
-  - Remove `SettingsDialog` import and usage
-
-### 5. Header updates
-- "Clients" button toggles `desktopView` to `'clients'` (highlighted when active)
-- Settings gear toggles `desktopView` to `'settings'` (highlighted when active)  
-- Clicking either again (or a "Back" action) returns to `'tasks'`
+### 3. `src/components/EditTaskDialog.tsx` — Desktop-friendly layout
+- The dialog currently uses fullscreen mobile styling: `w-full h-full m-0 p-0 rounded-none max-w-none max-h-none`
+- Detect desktop via `useIsMobile()` hook
+- On desktop: use `max-w-4xl max-h-[85vh]` with proper padding and rounded corners instead of fullscreen
+- On desktop: use a multi-column layout for periods (start/end side by side with more space)
+- Footer buttons: display text normally (not stacked "Delete\nCar") on desktop
 
 ### Files changed
-- `src/pages/DesktopDashboard.tsx` — remove +Vehicle, replace dialog triggers with inline view switching, add desktop client management and settings panels
+- `src/components/DesktopSettingsView.tsx` — strip to notifications + cloud sync only
+- `src/pages/DesktopDashboard.tsx` — hide sidebar on non-tasks views
+- `src/components/EditTaskDialog.tsx` — responsive dialog sizing for desktop
 

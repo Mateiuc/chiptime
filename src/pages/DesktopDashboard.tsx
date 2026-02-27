@@ -475,7 +475,8 @@ const DesktopDashboard = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar - only on tasks view */}
+        {desktopView === 'tasks' && (
         <aside className="w-60 border-r bg-card flex-shrink-0 flex flex-col">
           <div className="p-3 border-b">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Clients</h2>
@@ -516,6 +517,7 @@ const DesktopDashboard = () => {
             </div>
           </ScrollArea>
         </aside>
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">

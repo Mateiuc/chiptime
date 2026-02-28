@@ -8,7 +8,7 @@ import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
-import { EditVehicleDialog } from '@/components/EditVehicleDialog';
+
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -103,9 +103,10 @@ const DesktopDashboard = () => {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [addVehicleClientId, setAddVehicleClientId] = useState<string | null>(null);
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
 
   // Expand all clients by default
   useEffect(() => {
@@ -544,7 +545,10 @@ const DesktopDashboard = () => {
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingVehicle(vehicle)} title="Edit Vehicle">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                setEditingVehicleId(vehicle.id);
+                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '' });
+                              }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               {/* Move vehicle dropdown — simple select */}
@@ -566,6 +570,43 @@ const DesktopDashboard = () => {
                               </Button>
                             </div>
                           </div>
+
+                          {/* Inline vehicle edit form */}
+                          {editingVehicleId === vehicle.id && (
+                            <div className="px-4 py-2.5 bg-card/50 border-b flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                              <Input className="w-56 h-8 text-sm font-mono" placeholder="VIN (17 chars)" maxLength={17} value={vehicleEditData.vin} onChange={e => setVehicleEditData(p => ({ ...p, vin: e.target.value.toUpperCase() }))} />
+                              <Input className="w-36 h-8 text-sm" placeholder="Make" value={vehicleEditData.make} onChange={e => setVehicleEditData(p => ({ ...p, make: e.target.value }))} />
+                              <Input className="w-36 h-8 text-sm" placeholder="Model" value={vehicleEditData.model} onChange={e => setVehicleEditData(p => ({ ...p, model: e.target.value }))} />
+                              <Input className="w-20 h-8 text-sm" placeholder="Year" type="number" value={vehicleEditData.year} onChange={e => setVehicleEditData(p => ({ ...p, year: e.target.value }))} />
+                              <Input className="w-28 h-8 text-sm" placeholder="Color" value={vehicleEditData.color} onChange={e => setVehicleEditData(p => ({ ...p, color: e.target.value }))} />
+                              <Button size="sm" className="h-8" onClick={() => {
+                                const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
+                                if (!trimmedVin || trimmedVin.length !== 17) {
+                                  toast({ title: 'Invalid VIN', description: 'VIN must be 17 characters', variant: 'destructive' });
+                                  return;
+                                }
+                                const duplicate = vehicles.find(v => v.id !== vehicle.id && v.vin === trimmedVin);
+                                if (duplicate) {
+                                  toast({ title: 'Duplicate VIN', description: 'This VIN already exists', variant: 'destructive' });
+                                  return;
+                                }
+                                const updates: Partial<Vehicle> = {
+                                  vin: trimmedVin,
+                                  make: vehicleEditData.make.trim() || undefined,
+                                  model: vehicleEditData.model.trim() || undefined,
+                                  year: vehicleEditData.year ? parseInt(vehicleEditData.year) : undefined,
+                                  color: vehicleEditData.color.trim() || undefined,
+                                };
+                                updateVehicle(vehicle.id, updates);
+                                if (updates.vin) {
+                                  tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: updates.vin! }));
+                                }
+                                setEditingVehicleId(null);
+                                toast({ title: 'Vehicle Updated' });
+                              }}><Save className="h-3.5 w-3.5 mr-1" />Save</Button>
+                              <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditingVehicleId(null)}><X className="h-3.5 w-3.5" /></Button>
+                            </div>
+                          )}
 
                           {/* Vehicle body — tasks/sessions */}
                           {isVExpanded && (
@@ -807,28 +848,6 @@ const DesktopDashboard = () => {
         onSave={handleAddVehicleSave}
       />
 
-      {/* Edit Vehicle Dialog */}
-      {editingVehicle && (
-        <EditVehicleDialog
-          open={!!editingVehicle}
-          onOpenChange={(open) => { if (!open) setEditingVehicle(null); }}
-          vehicle={editingVehicle}
-          client={clients.find(c => c.id === editingVehicle.clientId)}
-          vehicles={vehicles}
-          settings={settings}
-          onSave={(vehicleId, updates) => {
-            updateVehicle(vehicleId, updates);
-            // Update tasks with new VIN if changed
-            if (updates.vin) {
-              tasks.filter(t => t.vehicleId === vehicleId).forEach(t => {
-                updateTask(t.id, { carVin: updates.vin! });
-              });
-            }
-            setEditingVehicle(null);
-            toast({ title: 'Vehicle Updated' });
-          }}
-        />
-      )}
     </div>
   );
 };

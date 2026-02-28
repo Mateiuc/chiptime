@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { EditTaskDialog } from '@/components/EditTaskDialog';
+import { TaskInlineEditor } from '@/components/TaskInlineEditor';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
@@ -97,7 +97,7 @@ const DesktopDashboard = () => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Dialog state
   const [showAddClient, setShowAddClient] = useState(false);
@@ -636,7 +636,7 @@ const DesktopDashboard = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTask(task)} title="Edit">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         {task.status === 'completed' && (
@@ -675,8 +675,16 @@ const DesktopDashboard = () => {
                                       </div>
                                     </div>
 
-                                    {/* Sessions inline */}
-                                    {(task.sessions || []).map((session, sIdx) => {
+                                    {/* Inline task editor */}
+                                    {editingTaskId === task.id && (
+                                      <TaskInlineEditor
+                                        task={task}
+                                        onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTaskId(null); }}
+                                        onCancel={() => setEditingTaskId(null)}
+                                        onDelete={(taskId) => { handleDelete(taskId); setEditingTaskId(null); }}
+                                      />
+                                    )}
+                                    {editingTaskId !== task.id && (task.sessions || []).map((session, sIdx) => {
                                       const sDur = getSessionDuration(session);
                                       return (
                                         <div key={session.id} className={`rounded-md border px-3 py-2 mt-2 ${sessionColor.period}`}>
@@ -816,21 +824,6 @@ const DesktopDashboard = () => {
         </div>
       )}
 
-      {/* Edit Task Dialog */}
-      {editingTask && (
-        <EditTaskDialog
-          open={!!editingTask}
-          onOpenChange={(open) => { if (!open) setEditingTask(null); }}
-          task={editingTask}
-          onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTask(null); }}
-          onDelete={(taskId) => { handleDelete(taskId); setEditingTask(null); }}
-          clientName={clients.find(c => c.id === editingTask.clientId)?.name}
-          vehicleInfo={(() => {
-            const v = vehicles.find(v => v.id === editingTask.vehicleId);
-            return v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : undefined;
-          })()}
-        />
-      )}
 
       {/* Add Client Dialog */}
       <AddClientDialog

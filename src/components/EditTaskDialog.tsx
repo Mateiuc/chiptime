@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash2, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Trash2, Plus, ChevronDown } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -17,17 +19,33 @@ interface EditTaskDialogProps {
   task: Task;
   onSave: (updatedTask: Task) => void;
   onDelete?: (taskId: string) => void;
+  clientName?: string;
+  vehicleInfo?: string;
 }
+const statusConfig: Record<string, { label: string; className: string }> = {
+  'pending': { label: 'Pending', className: 'bg-muted text-muted-foreground' },
+  'in-progress': { label: 'In Progress', className: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+  'paused': { label: 'Paused', className: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  'completed': { label: 'Completed', className: 'bg-green-500/20 text-green-300 border-green-500/40' },
+  'billed': { label: 'Billed', className: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+  'paid': { label: 'Paid', className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+};
+
 export const EditTaskDialog = ({
   open,
   onOpenChange,
   task,
   onSave,
-  onDelete
+  onDelete,
+  clientName,
+  vehicleInfo
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useNotifications();
   const isMobile = useIsMobile();
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
+    new Set((task.sessions || []).map(s => s.id))
+  );
   // Get vehicle color scheme
   const colorScheme = getVehicleColorScheme(task.vehicleId);
   // Ensure all dates are properly converted to Date objects with fallbacks
@@ -689,7 +707,21 @@ export const EditTaskDialog = ({
         {/* Colorful header */}
         <div className={`px-6 py-4 shrink-0 ${colorScheme.gradient}`}>
           <DialogHeader className="p-0 border-0">
-            <DialogTitle className="text-xl text-white drop-shadow-sm">Edit Task</DialogTitle>
+            <div className="flex items-center gap-3 flex-wrap">
+              <DialogTitle className="text-xl text-white drop-shadow-sm">Edit Task</DialogTitle>
+              {(clientName || task.customerName) && (
+                <span className="text-white/80 text-sm font-medium">— {clientName || task.customerName}</span>
+              )}
+              {vehicleInfo && (
+                <span className="text-white/70 text-sm">· {vehicleInfo}</span>
+              )}
+              {task.carVin && (
+                <span className="text-white/60 text-xs font-mono">· VIN: {task.carVin.length > 11 ? task.carVin.slice(0, 11) + '…' : task.carVin}</span>
+              )}
+              <Badge className={`${statusConfig[task.status]?.className || 'bg-muted'} text-xs border`}>
+                {statusConfig[task.status]?.label || task.status}
+              </Badge>
+            </div>
           </DialogHeader>
         </div>
 
@@ -700,144 +732,165 @@ export const EditTaskDialog = ({
             const formattedDate = getSessionDate(session);
 
             return (
-              <div key={session.id} className={`rounded-lg shadow-sm border ${sessionColorScheme.session}`}>
-                {/* Session header */}
+              <Collapsible
+                key={session.id}
+                open={expandedSessions.has(session.id)}
+                onOpenChange={(isOpen) => {
+                  setExpandedSessions(prev => {
+                    const next = new Set(prev);
+                    if (isOpen) next.add(session.id);
+                    else next.delete(session.id);
+                    return next;
+                  });
+                }}
+                className={`rounded-lg shadow-sm border ${sessionColorScheme.session}`}
+              >
+                {/* Session header — collapsible trigger */}
                 <div className="flex items-center justify-between px-5 py-3 border-b">
-                  <div className="flex items-center gap-3">
+                  <CollapsibleTrigger className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-80 transition-opacity">
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${expandedSessions.has(session.id) ? '' : '-rotate-90'}`} />
                     <h4 className="font-semibold text-base">Session {sessionIndex + 1}</h4>
                     <span className="text-sm text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{formattedDate}</span>
-                  </div>
+                    {/* Collapsed summary */}
+                    {!expandedSessions.has(session.id) && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {formatDuration(session.periods.reduce((sum, p) => sum + p.duration, 0))}
+                        {(session.parts || []).length > 0 && ` · ${session.parts.length} part${session.parts.length !== 1 ? 's' : ''}`}
+                        {(session.parts || []).length > 0 && ` · ${formatCurrency(session.parts.reduce((sum, p) => sum + p.price * p.quantity, 0))}`}
+                      </span>
+                    )}
+                  </CollapsibleTrigger>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
 
-                <div className="p-5 space-y-5">
-                  {/* Periods section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">Work Periods</Label>
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleAddPeriodToSession(session.id)}>
-                        <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Period</span>
-                      </Button>
-                    </div>
-
-                    {/* Period rows — flat horizontal layout */}
-                    {session.periods.map((period, periodIndex) => (
-                      <div key={period.id} className={`flex items-center gap-3 border rounded-md px-4 py-2.5 ${sessionColorScheme.period}`}>
-                        <span className="text-sm font-medium text-muted-foreground w-16 shrink-0">Period {periodIndex + 1}</span>
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-xs text-muted-foreground shrink-0">Start</span>
-                          <Input
-                            type="date"
-                            value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.dateValue : formatDateForInput(period.startTime)}
-                            onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'date', e.target.value, period)}
-                            onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium flex-1 min-w-0"
-                          />
-                          <Input
-                            type="time"
-                            value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.timeValue : formatTimeForInput(period.startTime)}
-                            onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'time', e.target.value, period)}
-                            onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm w-28 font-medium"
-                          />
-                          <span className="text-muted-foreground mx-1">→</span>
-                          <span className="text-xs text-muted-foreground shrink-0">End</span>
-                          <Input
-                            type="date"
-                            value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.dateValue : formatDateForInput(period.endTime)}
-                            onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}
-                            onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm font-medium flex-1 min-w-0"
-                          />
-                          <Input
-                            type="time"
-                            value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.timeValue : formatTimeForInput(period.endTime)}
-                            onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'time', e.target.value, period)}
-                            onBlur={handlePeriodTimeBlur}
-                            className="h-9 text-sm w-28 font-medium"
-                          />
-                        </div>
-                        <span className="text-sm font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full shrink-0">
-                          {formatDuration(period.duration)}
-                        </span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
-                          <Trash2 className="h-4 w-4" />
+                <CollapsibleContent>
+                  <div className="p-5 space-y-5">
+                    {/* Periods section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Work Periods</Label>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleAddPeriodToSession(session.id)}>
+                          <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Period</span>
                         </Button>
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Parts section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">Parts</Label>
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleAddPart(session.id)}>
-                        <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Part</span>
-                      </Button>
+                      {session.periods.map((period, periodIndex) => (
+                        <div key={period.id} className={`flex items-center gap-3 border rounded-md px-4 py-2.5 ${sessionColorScheme.period}`}>
+                          <span className="text-sm font-medium text-muted-foreground w-16 shrink-0">Period {periodIndex + 1}</span>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-xs text-muted-foreground shrink-0">Start</span>
+                            <Input
+                              type="date"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.dateValue : formatDateForInput(period.startTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'date', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-9 text-sm font-medium flex-1 min-w-0"
+                            />
+                            <Input
+                              type="time"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.timeValue : formatTimeForInput(period.startTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'time', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-9 text-sm w-28 font-medium"
+                            />
+                            <span className="text-muted-foreground mx-1">→</span>
+                            <span className="text-xs text-muted-foreground shrink-0">End</span>
+                            <Input
+                              type="date"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.dateValue : formatDateForInput(period.endTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-9 text-sm font-medium flex-1 min-w-0"
+                            />
+                            <Input
+                              type="time"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.timeValue : formatTimeForInput(period.endTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'time', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-9 text-sm w-28 font-medium"
+                            />
+                          </div>
+                          <span className="text-sm font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full shrink-0">
+                            {formatDuration(period.duration)}
+                          </span>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
 
-                    {(session.parts || []).length > 0 && (
-                      <div className="border rounded-md overflow-hidden">
-                        {/* Parts table header */}
-                        <div className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
-                          <span>Name</span>
-                          <span>Qty</span>
-                          <span>Price</span>
-                          <span>Total</span>
-                          <span>Description</span>
-                          <span></span>
-                        </div>
-                        {(session.parts || []).map((part, partIndex) => (
-                          <div key={partIndex} className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
-                            <Input type="text" value={part.name} onChange={e => {
-                              setSessions(prev => prev.map(s => {
-                                if (s.id === session.id) {
-                                  const updatedParts = [...(s.parts || [])];
-                                  updatedParts[partIndex] = { ...updatedParts[partIndex], name: e.target.value };
-                                  return { ...s, parts: updatedParts };
-                                }
-                                return s;
-                              }));
-                            }} className="h-9 text-sm" placeholder="Part name" />
-                            <Input type="number" min="1" value={part.quantity} onChange={e => handleUpdatePartQuantity(session.id, partIndex, parseInt(e.target.value) || 1)} className="h-9 text-sm" />
-                            <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="h-9 text-sm" />
-                            <span className="text-sm font-medium">{formatCurrency(part.price * part.quantity)}</span>
-                            <Input type="text" value={part.description || ''} onChange={e => {
-                              setSessions(prev => prev.map(s => {
-                                if (s.id === session.id) {
-                                  const updatedParts = [...(s.parts || [])];
-                                  updatedParts[partIndex] = { ...updatedParts[partIndex], description: e.target.value };
-                                  return { ...s, parts: updatedParts };
-                                }
-                                return s;
-                              }));
-                            }} className="h-9 text-sm" placeholder="Optional" />
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
+                    {/* Parts section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Parts</Label>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleAddPart(session.id)}>
+                          <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Part</span>
+                        </Button>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Description */}
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold">Work Description</Label>
-                    <Textarea
-                      value={session.description || ''}
-                      onChange={(e) => {
-                        setSessions(prev => prev.map(s => s.id === session.id ? { ...s, description: e.target.value } : s));
-                      }}
-                      placeholder="Describe the work performed..."
-                      rows={3}
-                      className="text-sm resize-none"
-                    />
+                      {(session.parts || []).length > 0 && (
+                        <div className="border rounded-md overflow-hidden">
+                          <div className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
+                            <span>Name</span>
+                            <span>Qty</span>
+                            <span>Price</span>
+                            <span>Total</span>
+                            <span>Description</span>
+                            <span></span>
+                          </div>
+                          {(session.parts || []).map((part, partIndex) => (
+                            <div key={partIndex} className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
+                              <Input type="text" value={part.name} onChange={e => {
+                                setSessions(prev => prev.map(s => {
+                                  if (s.id === session.id) {
+                                    const updatedParts = [...(s.parts || [])];
+                                    updatedParts[partIndex] = { ...updatedParts[partIndex], name: e.target.value };
+                                    return { ...s, parts: updatedParts };
+                                  }
+                                  return s;
+                                }));
+                              }} className="h-9 text-sm" placeholder="Part name" />
+                              <Input type="number" min="1" value={part.quantity} onChange={e => handleUpdatePartQuantity(session.id, partIndex, parseInt(e.target.value) || 1)} className="h-9 text-sm" />
+                              <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="h-9 text-sm" />
+                              <span className="text-sm font-medium">{formatCurrency(part.price * part.quantity)}</span>
+                              <Input type="text" value={part.description || ''} onChange={e => {
+                                setSessions(prev => prev.map(s => {
+                                  if (s.id === session.id) {
+                                    const updatedParts = [...(s.parts || [])];
+                                    updatedParts[partIndex] = { ...updatedParts[partIndex], description: e.target.value };
+                                    return { ...s, parts: updatedParts };
+                                  }
+                                  return s;
+                                }));
+                              }} className="h-9 text-sm" placeholder="Optional" />
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-semibold">Work Description</Label>
+                      <Textarea
+                        value={session.description || ''}
+                        onChange={(e) => {
+                          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, description: e.target.value } : s));
+                        }}
+                        placeholder="Describe the work performed..."
+                        rows={3}
+                        className="text-sm resize-none"
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </div>

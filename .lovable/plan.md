@@ -1,48 +1,35 @@
 
 
-# Inline Task Editing — Replace Dialog with In-Place Expand
+# Import XLS Work History per Client — Desktop Only
 
-## What changes
+## What the file contains
+The XLS has rows with: **Date | Start time | End time | Description**. Each row represents a work period. These need to be imported as tasks with sessions/periods for the selected client.
 
-When you click the pencil icon on a task in the desktop tree, instead of opening a fullscreen dialog, the task card itself expands to reveal the full editing UI (sessions, periods, parts, description) directly below the task header. Same pattern already used for inline client and vehicle editing.
+## Approach
 
-## Files
+### Import logic
+- Each row becomes **one task** with **one session** containing **one work period** (start→end from the file)
+- The description column becomes the session description
+- A placeholder vehicle is created (or reused) called "Imported — Edit Later" since vehicle info isn't in the file
+- Tasks are created with status `completed` and `totalTime` calculated from start/end
 
-### 1. New: `src/components/TaskInlineEditor.tsx`
-Extract the desktop editing UI from `EditTaskDialog.tsx` into a standalone component — no Dialog wrapper. Includes:
-- All state: `sessions`, `editingPeriod`, `expandedSessions`
-- All handlers: period time changes, add/delete period, add/delete part, update part price/quantity, add/delete session, save
-- Collapse All / Expand All toggle (already built)
-- Collapsible session cards with periods table, parts table, description textarea
-- Save / Cancel footer row
-- Props: `task`, `onSave`, `onCancel`, `onDelete`, `clientName?`, `vehicleInfo?`
+### Parse XLS
+- Use the browser's `FileReader` to read the uploaded `.xls` file
+- Since we don't have an XLS parsing library, we'll add **`xlsx`** (SheetJS) package to parse `.xls/.xlsx` files
+- Extract rows as `[Date, Start time, End time, Description]`
 
-### 2. Edit: `src/pages/DesktopDashboard.tsx`
-- Replace `editingTask: Task | null` state with `editingTaskId: string | null`
-- Remove the `EditTaskDialog` render block (lines 819-832)
-- Inside the task card (line 623), when `editingTaskId === task.id`, render `<TaskInlineEditor>` below the task header row
-- Pencil button toggles `editingTaskId` instead of `setEditingTask`
-- On save: call `updateTask`, clear `editingTaskId`
-- On cancel: clear `editingTaskId`
+### UI — `src/pages/DesktopDashboard.tsx`
+- Add an **Upload** button (file icon) in the client header row, next to the existing Edit/Add Vehicle/Delete buttons (~line 491)
+- Hidden `<input type="file" accept=".xls,.xlsx">` triggered by the button
+- On file select: parse with SheetJS, create a placeholder vehicle for the client, batch-create tasks
 
-### 3. Keep: `src/components/EditTaskDialog.tsx`
-No changes — still used for mobile editing.
+### New utility — `src/lib/xlsImporter.ts`
+- `parseWorkHistoryXls(file: File)` → returns array of `{ date: string, startTime: string, endTime: string, description: string }`
+- Handles date/time parsing (combines Date + Start time → JS Date, Date + End time → JS Date)
+- Calculates duration in seconds
 
-## Layout sketch
-
-```text
-┌─ Task Card ─────────────────────────────────────────┐
-│ Task 1 · Jan 9 · in-progress · 01:12:00 · $45.00  ✏│  ← clicking ✏ expands below
-│                                                      │
-│ ┌─ Inline Editor ──────────────────────────────────┐ │
-│ │ [Collapse All]                                    │ │
-│ │ ▼ Session 1 · Jan 9                          [🗑] │ │
-│ │   Period 1: [date][time] → [date][time]  00:30   │ │
-│ │   Parts: brake pad ×2 = $30.00                   │ │
-│ │   Description: [textarea]                        │ │
-│ │                                                   │ │
-│ │ [+ Add Session]         [Cancel]  [Save Changes] │ │
-│ └───────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────┘
-```
+### Files changed
+- **Install**: `xlsx` package (SheetJS)
+- **New**: `src/lib/xlsImporter.ts` — XLS parsing utility
+- **Edit**: `src/pages/DesktopDashboard.tsx` — add import button + handler that creates vehicle + tasks
 

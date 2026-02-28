@@ -1,11 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
+import { AddClientDialog } from '@/components/AddClientDialog';
+import { AddVehicleDialog } from '@/components/AddVehicleDialog';
+import { EditVehicleDialog } from '@/components/EditVehicleDialog';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -16,6 +19,8 @@ import { SyncData } from '@/services/appSyncService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PhoneContact } from '@/services/contactsService';
+import jsPDF from 'jspdf';
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
 
@@ -94,10 +99,129 @@ const DesktopDashboard = () => {
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
+  // Dialog state
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [addVehicleClientId, setAddVehicleClientId] = useState<string | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Client>>({});
+
   // Expand all clients by default
   useEffect(() => {
     setExpandedClients(new Set(clients.map(c => c.id)));
   }, [clients.length]);
+
+  // --- Client inline edit ---
+  const startEditClient = (client: Client) => {
+    setEditingClientId(client.id);
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate });
+  };
+  const saveEditClient = () => {
+    if (!editingClientId || !editFormData.name?.trim()) return;
+    updateClient(editingClientId, editFormData);
+    setEditingClientId(null);
+    toast({ title: 'Client Updated' });
+  };
+  const cancelEditClient = () => setEditingClientId(null);
+
+  // --- Add vehicle for specific client ---
+  const openAddVehicleForClient = (clientId: string) => {
+    setAddVehicleClientId(clientId);
+    setShowAddVehicle(true);
+  };
+
+  // --- Bill PDF generation ---
+  const generateBillPdf = (task: Task, client: Client, vehicle: Vehicle) => {
+    const rate = client.hourlyRate || settings.defaultHourlyRate;
+    const laborCost = (task.totalTime / 3600) * rate;
+    const partsCost = (task.sessions || []).reduce((sum, s) =>
+      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
+    const total = laborCost + partsCost;
+
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text('INVOICE', 105, 20, { align: 'center' });
+    doc.setFontSize(11);
+    doc.text(`Client: ${client.name}`, 20, 40);
+    if (client.email) doc.text(`Email: ${client.email}`, 20, 47);
+    if (client.phone) doc.text(`Phone: ${client.phone}`, 20, 54);
+    const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
+    doc.text(`Vehicle: ${vehicleLabel}`, 20, 64);
+    doc.text(`VIN: ${vehicle.vin}`, 20, 71);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 81);
+
+    let y = 95;
+    doc.setFontSize(12);
+    doc.text('Labor', 20, y);
+    doc.setFontSize(10);
+    y += 8;
+    doc.text(`${formatDuration(task.totalTime)} @ ${formatCurrency(rate)}/hr = ${formatCurrency(laborCost)}`, 25, y);
+
+    const allParts = (task.sessions || []).flatMap(s => s.parts || []);
+    if (allParts.length > 0) {
+      y += 12;
+      doc.setFontSize(12);
+      doc.text('Parts', 20, y);
+      doc.setFontSize(10);
+      allParts.forEach(p => {
+        y += 7;
+        doc.text(`${p.name} x${p.quantity} = ${formatCurrency(p.price * p.quantity)}`, 25, y);
+      });
+    }
+
+    y += 15;
+    doc.setFontSize(14);
+    doc.text(`Total: ${formatCurrency(total)}`, 20, y);
+
+    doc.save(`invoice-${client.name}-${vehicle.vin}.pdf`);
+    toast({ title: 'Bill PDF Generated' });
+  };
+
+  const handleGenerateBillAndMarkBilled = (task: Task) => {
+    const client = clients.find(c => c.id === task.clientId);
+    const vehicle = vehicles.find(v => v.id === task.vehicleId);
+    if (client && vehicle) {
+      generateBillPdf(task, client, vehicle);
+      handleMarkBilled(task.id);
+    }
+  };
+
+  const handlePreviewBill = (task: Task) => {
+    const client = clients.find(c => c.id === task.clientId);
+    const vehicle = vehicles.find(v => v.id === task.vehicleId);
+    if (client && vehicle) generateBillPdf(task, client, vehicle);
+  };
+
+  const handleAddVehicleSave = (vehicleData: Omit<Vehicle, 'id'>, clientName?: string, phoneContact?: PhoneContact) => {
+    let finalClientId = vehicleData.clientId;
+    if (finalClientId === 'pending' && clientName) {
+      const newClient: Omit<Client, 'id' | 'createdAt'> = {
+        name: clientName,
+        email: phoneContact?.emails?.[0] as string | undefined,
+        phone: phoneContact?.phoneNumbers?.[0]?.number,
+      };
+      const id = crypto.randomUUID();
+      addClient({ ...newClient, id, createdAt: new Date() } as any);
+      finalClientId = id;
+    }
+    const vid = crypto.randomUUID();
+    addVehicle({ ...vehicleData, id: vid, clientId: finalClientId } as any);
+    const newClient = clients.find(c => c.id === finalClientId) || { name: clientName || 'Unknown' };
+    addTask({
+      id: crypto.randomUUID(),
+      clientId: finalClientId,
+      vehicleId: vid,
+      customerName: newClient.name || clientName || '',
+      carVin: vehicleData.vin,
+      status: 'pending',
+      totalTime: 0,
+      needsFollowUp: false,
+      sessions: [],
+      createdAt: new Date(),
+    } as any);
+    toast({ title: 'Vehicle & Task Created' });
+  };
 
   // --- Handlers ---
   const handleMarkBilled = (taskId: string) => {
@@ -253,16 +377,24 @@ const DesktopDashboard = () => {
       <header className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 shadow-lg shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-primary-foreground">ChipTime Desktop</h1>
-          <div className="flex items-center gap-3">
-            <div className="relative w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/60" />
-              <Input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search clients, vehicles, VINs..."
-                className="pl-9 h-9 w-80 bg-primary-foreground/15 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/50 focus-visible:ring-primary-foreground/30"
-              />
-            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/60" />
+                <Input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search clients, vehicles, VINs..."
+                  className="pl-9 h-9 w-80 bg-primary-foreground/15 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/50 focus-visible:ring-primary-foreground/30"
+                />
+              </div>
+              <Button size="sm" onClick={() => setShowAddClient(true)}
+                className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
+                <UserPlus className="h-4 w-4 mr-1" /> Client
+              </Button>
+              <Button size="sm" onClick={() => { setAddVehicleClientId(null); setShowAddVehicle(true); }}
+                className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
+                <Plus className="h-4 w-4 mr-1" /> Vehicle
+              </Button>
             <Button variant="outline" size="sm" onClick={handleReloadFromCloud} disabled={syncing}
               className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
               <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
@@ -332,27 +464,54 @@ const DesktopDashboard = () => {
                   <div className="flex items-center gap-4">
                     {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                     <h2 className="text-lg font-bold">{client.name}</h2>
-                    {client.email && (
-                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Mail className="h-3.5 w-3.5" /> {client.email}
-                      </span>
+                    {editingClientId !== client.id && (
+                      <>
+                        {client.email && (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Mail className="h-3.5 w-3.5" /> {client.email}
+                          </span>
+                        )}
+                        {client.phone && (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Phone className="h-3.5 w-3.5" /> {client.phone}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
+                          <CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr
+                        </span>
+                      </>
                     )}
-                    {client.phone && (
-                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Phone className="h-3.5 w-3.5" /> {client.phone}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
-                      <CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr
-                    </span>
                   </div>
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <Badge variant="secondary" className="text-xs">{clientVehicles.length} vehicles</Badge>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditClient(client)} title="Edit Client">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAddVehicleForClient(client.id)} title="Add Vehicle">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    {client.portalId && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId}`, '_blank')} title="Client Portal">
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </div>
+
+                {/* Inline client edit form */}
+                {editingClientId === client.id && (
+                  <div className="px-5 py-3 bg-card/50 border-b flex items-center gap-3 flex-wrap" onClick={e => e.stopPropagation()}>
+                    <Input className="w-48 h-8 text-sm" placeholder="Name" value={editFormData.name || ''} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} />
+                    <Input className="w-48 h-8 text-sm" placeholder="Email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} />
+                    <Input className="w-40 h-8 text-sm" placeholder="Phone" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} />
+                    <Input className="w-28 h-8 text-sm" type="number" placeholder="Rate" value={editFormData.hourlyRate ?? ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined }))} />
+                    <Button size="sm" className="h-8" onClick={saveEditClient}><Save className="h-3.5 w-3.5 mr-1" />Save</Button>
+                    <Button size="sm" variant="ghost" className="h-8" onClick={cancelEditClient}><X className="h-3.5 w-3.5" /></Button>
+                  </div>
+                )}
 
                 {/* Client body — vehicles */}
                 {isExpanded && (
@@ -385,6 +544,9 @@ const DesktopDashboard = () => {
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingVehicle(vehicle)} title="Edit Vehicle">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
                               {/* Move vehicle dropdown — simple select */}
                               {clients.length > 1 && (
                                 <select
@@ -437,13 +599,33 @@ const DesktopDashboard = () => {
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         {task.status === 'completed' && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkBilled(task.id)} title="Mark Billed">
-                                            <Receipt className="h-3.5 w-3.5" />
-                                          </Button>
+                                          <>
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Preview Bill">
+                                              <FileText className="h-3.5 w-3.5 mr-1" />Bill
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleGenerateBillAndMarkBilled(task)} title="Generate Bill & Mark Billed">
+                                              <Receipt className="h-3.5 w-3.5 mr-1" />Bill & Mark
+                                            </Button>
+                                          </>
                                         )}
                                         {task.status === 'billed' && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
-                                            <DollarSign className="h-3.5 w-3.5" />
+                                          <>
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Re-generate Bill">
+                                              <FileText className="h-3.5 w-3.5 mr-1" />Bill
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
+                                              <DollarSign className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </>
+                                        )}
+                                        {task.status === 'paid' && (
+                                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Print Detail">
+                                            <FileText className="h-3.5 w-3.5 mr-1" />Detail
+                                          </Button>
+                                        )}
+                                        {client.portalId && (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`/client/${client.portalId}`, '_blank')} title="Client Portal">
+                                            <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(task.id)} title="Delete">
@@ -601,6 +783,50 @@ const DesktopDashboard = () => {
           task={editingTask}
           onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTask(null); }}
           onDelete={(taskId) => { handleDelete(taskId); setEditingTask(null); }}
+        />
+      )}
+
+      {/* Add Client Dialog */}
+      <AddClientDialog
+        open={showAddClient}
+        onOpenChange={setShowAddClient}
+        onSave={(clientData) => {
+          addClient({ ...clientData, id: crypto.randomUUID(), createdAt: new Date() } as any);
+          toast({ title: 'Client Added' });
+        }}
+      />
+
+      {/* Add Vehicle Dialog */}
+      <AddVehicleDialog
+        open={showAddVehicle}
+        onOpenChange={setShowAddVehicle}
+        clients={addVehicleClientId ? clients.filter(c => c.id === addVehicleClientId) : clients}
+        tasks={tasks}
+        settings={settings}
+        onAddClient={() => setShowAddClient(true)}
+        onSave={handleAddVehicleSave}
+      />
+
+      {/* Edit Vehicle Dialog */}
+      {editingVehicle && (
+        <EditVehicleDialog
+          open={!!editingVehicle}
+          onOpenChange={(open) => { if (!open) setEditingVehicle(null); }}
+          vehicle={editingVehicle}
+          client={clients.find(c => c.id === editingVehicle.clientId)}
+          vehicles={vehicles}
+          settings={settings}
+          onSave={(vehicleId, updates) => {
+            updateVehicle(vehicleId, updates);
+            // Update tasks with new VIN if changed
+            if (updates.vin) {
+              tasks.filter(t => t.vehicleId === vehicleId).forEach(t => {
+                updateTask(t.id, { carVin: updates.vin! });
+              });
+            }
+            setEditingVehicle(null);
+            toast({ title: 'Vehicle Updated' });
+          }}
         />
       )}
     </div>

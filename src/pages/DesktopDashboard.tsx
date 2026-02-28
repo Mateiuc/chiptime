@@ -824,6 +824,11 @@ const DesktopDashboard = () => {
           task={editingTask}
           onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTask(null); }}
           onDelete={(taskId) => { handleDelete(taskId); setEditingTask(null); }}
+          clientName={clients.find(c => c.id === editingTask.clientId)?.name}
+          vehicleInfo={(() => {
+            const v = vehicles.find(v => v.id === editingTask.vehicleId);
+            return v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : undefined;
+          })()}
         />
       )}
 

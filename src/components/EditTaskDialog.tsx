@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -724,6 +724,30 @@ export const EditTaskDialog = ({
             </div>
           </DialogHeader>
         </div>
+
+        {/* Toolbar — collapse/expand toggle */}
+        {sessions.length > 1 && (
+          <div className="flex justify-end px-6 pt-3 pb-0 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (expandedSessions.size === 0) {
+                  setExpandedSessions(new Set(sessions.map(s => s.id)));
+                } else {
+                  setExpandedSessions(new Set());
+                }
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+            >
+              {expandedSessions.size === 0 ? (
+                <><ChevronsUpDown className="h-3.5 w-3.5" /> Expand All</>
+              ) : (
+                <><ChevronsDownUp className="h-3.5 w-3.5" /> Collapse All</>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Body — scrollable session list */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">

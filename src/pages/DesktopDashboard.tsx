@@ -15,6 +15,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
+import { parseWorkHistoryXls } from '@/lib/xlsImporter';
 import { SyncData } from '@/services/appSyncService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
@@ -107,6 +108,73 @@ const DesktopDashboard = () => {
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
+  const [importingClientId, setImportingClientId] = useState<string | null>(null);
+
+  // --- XLS Import handler ---
+  const handleImportXls = async (file: File, clientId: string) => {
+    try {
+      const rows = await parseWorkHistoryXls(file);
+      if (rows.length === 0) {
+        toast({ title: 'No data found', description: 'The file contained no valid work rows.', variant: 'destructive' });
+        return;
+      }
+
+      const client = clients.find(c => c.id === clientId);
+      const clientName = client?.name || 'Unknown';
+
+      // Find or create placeholder vehicle
+      const placeholderVin = 'IMPORT-EDIT-LATER';
+      let placeholderVehicle = vehicles.find(v => v.clientId === clientId && v.vin === placeholderVin);
+      if (!placeholderVehicle) {
+        placeholderVehicle = {
+          id: crypto.randomUUID(),
+          clientId,
+          vin: placeholderVin,
+          make: 'Imported',
+          model: 'Edit Later',
+        };
+        await vehiclesHook.addVehicle(placeholderVehicle);
+      }
+
+      // Create one completed task per row
+      for (const row of rows) {
+        const periodId = crypto.randomUUID();
+        const sessionId = crypto.randomUUID();
+        const task: Task = {
+          id: crypto.randomUUID(),
+          clientId,
+          vehicleId: placeholderVehicle.id,
+          customerName: clientName,
+          carVin: placeholderVin,
+          status: 'completed',
+          totalTime: row.durationSeconds,
+          needsFollowUp: false,
+          createdAt: row.date,
+          sessions: [{
+            id: sessionId,
+            createdAt: row.startTime,
+            completedAt: row.endTime,
+            description: row.description || undefined,
+            periods: [{
+              id: periodId,
+              startTime: row.startTime,
+              endTime: row.endTime,
+              duration: row.durationSeconds,
+            }],
+            parts: [],
+          }],
+        };
+        await addTask(task);
+      }
+
+      toast({ title: `Imported ${rows.length} tasks`, description: `Added to ${clientName}` });
+    } catch (err: any) {
+      console.error('XLS import failed:', err);
+      toast({ title: 'Import failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setImportingClientId(null);
+    }
+  };
 
   // Expand all clients by default
   useEffect(() => {
@@ -491,6 +559,24 @@ const DesktopDashboard = () => {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAddVehicleForClient(client.id)} title="Add Vehicle">
                       <Plus className="h-4 w-4" />
                     </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                      setImportingClientId(client.id);
+                      const input = document.getElementById(`xls-import-${client.id}`) as HTMLInputElement;
+                      input?.click();
+                    }} title="Import XLS Work History">
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                    <input
+                      id={`xls-import-${client.id}`}
+                      type="file"
+                      accept=".xls,.xlsx"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImportXls(file, client.id);
+                        e.target.value = '';
+                      }}
+                    />
                     {client.portalId && (
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId}`, '_blank')} title="Client Portal">
                         <ExternalLink className="h-4 w-4" />

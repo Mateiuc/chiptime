@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, RotateCcw, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -132,10 +132,6 @@ const DesktopDashboard = () => {
     toast({ title: 'Task Deleted' });
   };
 
-  const handleRestartTimer = (taskId: string) => {
-    updateTask(taskId, { status: 'pending', startTime: undefined, activeSessionId: undefined });
-    toast({ title: 'Task Reactivated' });
-  };
 
   const handleDeleteClient = (id: string) => {
     const clientTasks = tasks.filter(t => t.clientId === id);
@@ -450,11 +446,6 @@ const DesktopDashboard = () => {
                                             <DollarSign className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
-                                        {['completed', 'billed', 'paid'].includes(task.status) && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRestartTimer(task.id)} title="Reactivate">
-                                            <RotateCcw className="h-3.5 w-3.5" />
-                                          </Button>
-                                        )}
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(task.id)} title="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>
@@ -525,6 +516,50 @@ const DesktopDashboard = () => {
               </div>
             );
           })}
+
+          {/* Expected Gain — shown on completed filter */}
+          {filter === 'completed' && filteredTree.length > 0 && (() => {
+            const clientGains = filteredTree.map(({ client, vehicles: cvs }) => {
+              const completedTasks = cvs.flatMap(v => v.tasks);
+              const gain = completedTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+              return { client, taskCount: completedTasks.length, gain };
+            }).filter(c => c.taskCount > 0);
+            const totalGain = clientGains.reduce((sum, c) => sum + c.gain, 0);
+            const totalTasks = clientGains.reduce((sum, c) => sum + c.taskCount, 0);
+            return (
+              <div className="rounded-xl border-2 p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border-amber-300 dark:border-amber-700 mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <h3 className="font-bold text-lg">Expected Gain</h3>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-amber-300/50 dark:border-amber-700/50">
+                      <th className="text-left py-2 font-semibold">Client</th>
+                      <th className="text-center py-2 font-semibold">Completed Tasks</th>
+                      <th className="text-right py-2 font-semibold">Expected Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientGains.map(({ client, taskCount, gain }) => (
+                      <tr key={client.id} className="border-b border-amber-200/40 dark:border-amber-800/40">
+                        <td className="py-2 font-medium">{client.name}</td>
+                        <td className="py-2 text-center">{taskCount}</td>
+                        <td className="py-2 text-right font-mono font-semibold text-amber-700 dark:text-amber-400">{formatCurrency(gain)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-amber-400 dark:border-amber-600">
+                      <td className="py-2 font-bold">Total</td>
+                      <td className="py-2 text-center font-bold">{totalTasks}</td>
+                      <td className="py-2 text-right font-mono font-bold text-amber-800 dark:text-amber-300 text-base">{formatCurrency(totalGain)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })()}
 
           {/* Revenue Charts — shown on paid filter */}
           {filter === 'paid' && revenueChartData.length > 0 && (

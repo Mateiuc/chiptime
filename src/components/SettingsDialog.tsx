@@ -176,7 +176,8 @@ export const SettingsDialog = ({
     
     return clientTasks.reduce((total, task) => {
       // Labor cost
-      const laborCost = task.totalTime / 3600 * hourlyRate;
+      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
+      const laborCost = effectiveTime / 3600 * hourlyRate;
       
       // Parts cost
       const partsCost = (task.sessions || []).reduce((sessionTotal, session) => {

@@ -124,7 +124,8 @@ export const ManageClientsDialog = ({
     let totalTime = 0;
     
     clientTasks.forEach(task => {
-      const laborCost = (task.totalTime / 3600) * hourlyRate;
+      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
+      const laborCost = (effectiveTime / 3600) * hourlyRate;
       totalLaborCost += laborCost;
       totalTime += task.totalTime;
       
@@ -156,7 +157,8 @@ export const ManageClientsDialog = ({
     let totalTime = 0;
     
     vehicleTasks.forEach(task => {
-      const laborCost = (task.totalTime / 3600) * hourlyRate;
+      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
+      const laborCost = (effectiveTime / 3600) * hourlyRate;
       totalLaborCost += laborCost;
       totalTime += task.totalTime;
       

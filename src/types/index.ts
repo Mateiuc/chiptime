@@ -67,6 +67,7 @@ export interface Task {
   createdAt: Date;
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
+  chargeMinimumHour?: boolean; // Bill minimum 1 hour even if work < 1 hour
 }
 
 export interface BackupSettings {

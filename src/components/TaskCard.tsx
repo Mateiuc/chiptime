@@ -1063,7 +1063,8 @@ export const TaskCard = ({
     }
   };
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const laborCost = task.totalTime / 3600 * hourlyRate;
+  const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
+  const laborCost = effectiveTime / 3600 * hourlyRate;
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);
   }, 0);

@@ -77,7 +77,8 @@ export const DesktopClientsView = ({
     const rate = client?.hourlyRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     clientTasks.forEach(task => {
-      totalLaborCost += (task.totalTime / 3600) * rate;
+      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
+      totalLaborCost += (effectiveTime / 3600) * rate;
       totalTime += task.totalTime;
       task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));
     });

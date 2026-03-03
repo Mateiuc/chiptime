@@ -12,13 +12,14 @@ import { Part } from '@/types';
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean) => void;
 }
 
 export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteWorkDialogProps) => {
   const [description, setDescription] = useState('');
   const [parts, setParts] = useState<Part[]>([]);
   const [needsFollowUp, setNeedsFollowUp] = useState(false);
+  const [chargeMinimumHour, setChargeMinimumHour] = useState(false);
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',
@@ -57,11 +58,12 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteW
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp);
+    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '' });
     setNeedsFollowUp(false);
+    setChargeMinimumHour(false);
     onOpenChange(false);
   };
 
@@ -102,6 +104,23 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteW
                 <Switch
                   checked={needsFollowUp}
                   onCheckedChange={setNeedsFollowUp}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Charge minimum 1 hour</Label>
+                  <p className="text-xs text-muted-foreground">
+                    If total work is less than 1 hour, bill for a full hour
+                  </p>
+                </div>
+                <Switch
+                  checked={chargeMinimumHour}
+                  onCheckedChange={setChargeMinimumHour}
                 />
               </div>
             </CardContent>

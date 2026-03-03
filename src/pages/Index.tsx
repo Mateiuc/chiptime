@@ -277,7 +277,7 @@ const Index = () => {
     setShowCompleteWork(true);
   };
 
-  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean) => {
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean) => {
     const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
@@ -299,6 +299,7 @@ const Index = () => {
       startTime: undefined,
       activeSessionId: undefined,
       needsFollowUp,
+      chargeMinimumHour,
     });
 
     setShowCompleteWork(false);

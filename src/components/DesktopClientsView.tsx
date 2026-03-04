@@ -76,6 +76,7 @@ export const DesktopClientsView = ({
     const client = clients.find(c => c.id === clientId);
     const rate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     clientTasks.forEach(task => {
       task.sessions.forEach(session => {
@@ -83,6 +84,7 @@ export const DesktopClientsView = ({
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
         let sessionCost = (effectiveTime / 3600) * rate;
         if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
         totalLaborCost += sessionCost;
       });
       totalTime += task.totalTime;
@@ -98,7 +100,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
   };
 
   const handleSaveClientEdit = (clientId: string) => {
@@ -235,6 +237,7 @@ export const DesktopClientsView = ({
                 <div className="space-y-2"><Label>Phone</Label><Input type="tel" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
                 <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>

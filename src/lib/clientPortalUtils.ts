@@ -81,6 +81,7 @@ export function calculateClientCosts(
 ): ClientCostSummary {
   const hourlyRate = client.hourlyRate || defaultHourlyRate;
   const cloningRate = client.cloningRate || defaultCloningRate || 0;
+  const programmingRate = client.programmingRate || 0;
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
   
   let grandTotalLabor = 0;
@@ -99,6 +100,7 @@ export function calculateClientCosts(
         const effectiveDuration = (session.chargeMinimumHour && duration < 3600) ? 3600 : duration;
         let laborCost = (effectiveDuration / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) laborCost += cloningRate;
+        if (session.isProgramming && programmingRate > 0) laborCost += programmingRate;
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
         totalLabor += laborCost;

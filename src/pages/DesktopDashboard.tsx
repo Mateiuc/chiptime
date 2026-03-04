@@ -184,7 +184,7 @@ const DesktopDashboard = () => {
   // --- Client inline edit ---
   const startEditClient = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
   };
   const saveEditClient = () => {
     if (!editingClientId || !editFormData.name?.trim()) return;
@@ -204,11 +204,13 @@ const DesktopDashboard = () => {
   const generateBillPdf = (task: Task, client: Client, vehicle: Vehicle) => {
     const rate = client.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client.programmingRate || settings.defaultProgrammingRate || 0;
     const laborCost = (task.sessions || []).reduce((total, session) => {
       const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
       const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
       let sessionCost = (effectiveTime / 3600) * rate;
       if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+      if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
       return total + sessionCost;
     }, 0);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
@@ -371,11 +373,13 @@ const DesktopDashboard = () => {
     const client = clients.find(c => c.id === task.clientId);
     const rate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     const laborCost = (task.sessions || []).reduce((total, session) => {
       const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
       const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
       let sessionCost = (effectiveTime / 3600) * rate;
       if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+      if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
       return total + sessionCost;
     }, 0);
     const partsCost = (task.sessions || []).reduce((sum, s) =>

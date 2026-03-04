@@ -119,7 +119,7 @@ export const ManageClientsDialog = ({
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     let totalLaborCost = 0;
     let totalPartsCost = 0;
     let totalTime = 0;
@@ -131,6 +131,7 @@ export const ManageClientsDialog = ({
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
         let sessionCost = (effectiveTime / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
         totalLaborCost += sessionCost;
       });
       
@@ -157,7 +158,7 @@ export const ManageClientsDialog = ({
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     let totalLaborCost = 0;
     let totalPartsCost = 0;
     let totalTime = 0;
@@ -168,6 +169,7 @@ export const ManageClientsDialog = ({
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
         let sessionCost = (effectiveTime / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
         totalLaborCost += sessionCost;
       });
       totalTime += task.totalTime;
@@ -340,6 +342,7 @@ export const ManageClientsDialog = ({
       phone: client.phone,
       hourlyRate: client.hourlyRate,
       cloningRate: client.cloningRate,
+      programmingRate: client.programmingRate,
     });
   };
 
@@ -523,6 +526,16 @@ export const ManageClientsDialog = ({
                                 placeholder="Leave empty for default"
                                 value={editFormData.cloningRate || ''}
                                 onChange={(e) => setEditFormData(prev => ({ ...prev, cloningRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Programming Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.programmingRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, programmingRate: parseFloat(e.target.value) || undefined }))}
                                 className="h-9 text-sm bg-background"
                               />
                             </div>

@@ -18,6 +18,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [phone, setPhone] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
   const [cloningRate, setCloningRate] = useState('');
+  const [programmingRate, setProgrammingRate] = useState('');
   const { toast } = useNotifications();
 
   const handleSave = () => {
@@ -36,6 +37,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       phone: phone.trim() || undefined,
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
       cloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
+      programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
     });
 
     // Reset form
@@ -44,6 +46,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setPhone('');
     setHourlyRate('');
     setCloningRate('');
+    setProgrammingRate('');
     onOpenChange(false);
   };
 
@@ -104,6 +107,18 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
               type="number"
               value={cloningRate} 
               onChange={(e) => setCloningRate(e.target.value)}
+              placeholder="Leave empty to use default"
+              min={0}
+              step={0.01}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Programming Rate</Label>
+            <Input 
+              type="number"
+              value={programmingRate} 
+              onChange={(e) => setProgrammingRate(e.target.value)}
               placeholder="Leave empty to use default"
               min={0}
               step={0.01}

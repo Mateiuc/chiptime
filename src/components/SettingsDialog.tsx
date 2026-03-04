@@ -63,6 +63,7 @@ export const SettingsDialog = ({
   const [currentView, setCurrentView] = useState<DialogView>('menu');
   const [hourlyRate, setHourlyRate] = useState(settings.defaultHourlyRate.toString());
   const [cloningRate, setCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
+  const [programmingRate, setProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
   const [showManageClients, setShowManageClients] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useNotifications();
@@ -70,6 +71,7 @@ export const SettingsDialog = ({
   useEffect(() => {
     setHourlyRate(settings.defaultHourlyRate.toString());
     setCloningRate(settings.defaultCloningRate?.toString() || '');
+    setProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
   }, [settings]);
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export const SettingsDialog = ({
     onSave({
       defaultHourlyRate: parseFloat(hourlyRate) || 75,
       defaultCloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
+      defaultProgrammingRate: programmingRate ? parseFloat(programmingRate) : undefined,
       googleApiKey: googleApiKey.trim() || undefined,
       grokApiKey: grokApiKey.trim() || undefined,
       ocrSpaceApiKey: ocrSpaceApiKey.trim() || undefined,
@@ -177,6 +180,7 @@ export const SettingsDialog = ({
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     
     return clientTasks.reduce((total, task) => {
       // Labor cost - per session
@@ -185,6 +189,7 @@ export const SettingsDialog = ({
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
         let sessionCost = (effectiveTime / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
         return sessionTotal + sessionCost;
       }, 0);
       
@@ -331,6 +336,21 @@ export const SettingsDialog = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   This rate is added per session when marked as "Cloning"
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default Programming Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={programmingRate}
+                  onChange={(e) => setProgrammingRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "Programming"
                 </p>
               </div>
 

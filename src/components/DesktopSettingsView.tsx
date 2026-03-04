@@ -18,10 +18,12 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   const { toast } = useNotifications();
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
   const [defaultCloningRate, setDefaultCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
+  const [defaultProgrammingRate, setDefaultProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
 
   useEffect(() => {
     setNotificationsEnabled(settings.notificationsEnabled !== false);
     setDefaultCloningRate(settings.defaultCloningRate?.toString() || '');
+    setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
   }, [settings]);
 
   const handleSave = () => {
@@ -29,6 +31,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       ...settings,
       notificationsEnabled,
       defaultCloningRate: defaultCloningRate ? parseFloat(defaultCloningRate) : undefined,
+      defaultProgrammingRate: defaultProgrammingRate ? parseFloat(defaultProgrammingRate) : undefined,
     });
     toast({ title: 'Settings Saved' });
   };
@@ -69,6 +72,27 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
                 step={0.01}
               />
               <p className="text-xs text-muted-foreground">Added per session when marked as "Cloning"</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default Programming Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default Programming Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultProgrammingRate}
+                onChange={(e) => setDefaultProgrammingRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "Programming"</p>
             </div>
           </CardContent>
         </Card>

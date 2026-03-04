@@ -78,20 +78,26 @@ export const DesktopClientsView = ({
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
+    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
     clientTasks.forEach(task => {
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        let sessionCost = (effectiveTime / 3600) * rate;
-        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
-        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
-        totalLaborCost += sessionCost;
+        const baseCost = (sessionDuration / 3600) * rate;
+        let minAdj = 0, cloneCost = 0, progCost = 0;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
+        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
+        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost;
+        totalMinHourAdj += minAdj;
+        totalCloning += cloneCost;
+        totalProgramming += progCost;
       });
       totalTime += task.totalTime;
       task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));
     });
     return {
       totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
+      totalMinHourAdj, totalCloning, totalProgramming,
       completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
       activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
       totalTasks: clientTasks.length,
@@ -145,6 +151,12 @@ export const DesktopClientsView = ({
     doc.text(`Total Tasks: ${financials.totalTasks}`, 25, y); y += 6;
     doc.text(`Total Vehicles: ${clientVehicles.length}`, 25, y); y += 6;
     doc.text(`Total Labor: ${formatDuration(financials.totalTime)}`, 25, y); y += 6;
+    const baseLab = financials.totalLaborCost - (financials.totalMinHourAdj || 0) - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, y); y += 6;
+    if (financials.totalMinHourAdj > 0) { doc.text(`Min 1 Hour adjustments: ${formatCurrency(financials.totalMinHourAdj)}`, 25, y); y += 6; }
+    if (financials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, y); y += 6; }
+    if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, y); y += 6; }
+    doc.text(`Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, y); y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, y); y += 12;
     const sanitizedName = client.name.replace(/[^a-zA-Z0-9]/g, '_');

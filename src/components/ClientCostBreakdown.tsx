@@ -87,12 +87,18 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
         : vehicleSummary.sessions;
       const totalLabor = sessions.reduce((sum, s) => sum + s.laborCost, 0);
       const totalParts = sessions.reduce((sum, s) => sum + s.partsCost, 0);
-      return { ...vehicleSummary, sessions, totalLabor, totalParts, vehicleTotal: totalLabor + totalParts };
+      const totalCloning = sessions.reduce((sum, s) => sum + (s.cloningCost || 0), 0);
+      const totalProgramming = sessions.reduce((sum, s) => sum + (s.programmingCost || 0), 0);
+      const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, vehicleTotal: totalLabor + totalParts };
     })
     .filter((v) => v.sessions.length > 0);
 
   const grandTotalLabor = filteredVehicles.reduce((sum, v) => sum + v.totalLabor, 0);
   const grandTotalParts = filteredVehicles.reduce((sum, v) => sum + v.totalParts, 0);
+  const grandTotalCloning = filteredVehicles.reduce((sum, v) => sum + v.totalCloning, 0);
+  const grandTotalProgramming = filteredVehicles.reduce((sum, v) => sum + v.totalProgramming, 0);
+  const grandTotalMinHourAdj = filteredVehicles.reduce((sum, v) => sum + v.totalMinHourAdj, 0);
   const grandTotal = grandTotalLabor + grandTotalParts;
 
   const monthlyData = useMemo(() => {
@@ -177,16 +183,23 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                       </Badge>
                     </div>
 
-                    <div className="flex gap-4 text-xs md:text-sm">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         {formatDuration(session.duration)}
                       </span>
                       <span className="flex items-center gap-1 font-semibold text-foreground">
                         <DollarSign className="h-3 w-3" />
-                        Labor: {formatCurrency(session.laborCost)}
+                        Labor: {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0))}
                       </span>
                     </div>
+                    {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0) && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] md:text-xs text-muted-foreground mt-0.5">
+                        {(session.minHourAdj || 0) > 0 && <span>🚩 Min 1hr: {formatCurrency(session.minHourAdj)}</span>}
+                        {(session.cloningCost || 0) > 0 && <span>📋 Cloning: {formatCurrency(session.cloningCost)}</span>}
+                        {(session.programmingCost || 0) > 0 && <span>💻 Programming: {formatCurrency(session.programmingCost)}</span>}
+                      </div>
+                    )}
 
                     {/* Photo gallery */}
                     {session.photoUrls && session.photoUrls.length > 0 && (
@@ -236,8 +249,26 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 <div className="p-3 md:p-4 bg-muted/50 text-xs md:text-sm space-y-0.5">
                   <div className="flex justify-between">
                     <span>Vehicle Labor:</span>
-                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor)}</span>
+                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj)}</span>
                   </div>
+                  {vehicleSummary.totalMinHourAdj > 0 && (
+                    <div className="flex justify-between">
+                      <span>Min 1 Hour:</span>
+                      <span className="font-semibold">{formatCurrency(vehicleSummary.totalMinHourAdj)}</span>
+                    </div>
+                  )}
+                  {vehicleSummary.totalCloning > 0 && (
+                    <div className="flex justify-between">
+                      <span>Cloning:</span>
+                      <span className="font-semibold">{formatCurrency(vehicleSummary.totalCloning)}</span>
+                    </div>
+                  )}
+                  {vehicleSummary.totalProgramming > 0 && (
+                    <div className="flex justify-between">
+                      <span>Programming:</span>
+                      <span className="font-semibold">{formatCurrency(vehicleSummary.totalProgramming)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Vehicle Parts:</span>
                     <span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span>
@@ -265,8 +296,26 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           <CardContent className="p-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span>Total Labor:</span>
-              <span className="font-semibold">{formatCurrency(grandTotalLabor)}</span>
+              <span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj)}</span>
             </div>
+            {grandTotalMinHourAdj > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Min 1 Hour:</span>
+                <span className="font-semibold">{formatCurrency(grandTotalMinHourAdj)}</span>
+              </div>
+            )}
+            {grandTotalCloning > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Cloning:</span>
+                <span className="font-semibold">{formatCurrency(grandTotalCloning)}</span>
+              </div>
+            )}
+            {grandTotalProgramming > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Programming:</span>
+                <span className="font-semibold">{formatCurrency(grandTotalProgramming)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span>Total Parts:</span>
               <span className="font-semibold">{formatCurrency(grandTotalParts)}</span>

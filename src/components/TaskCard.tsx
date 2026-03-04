@@ -278,8 +278,20 @@ export const TaskCard = ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     yPos += 8;
-    doc.text(`Labor (${formatDuration(task.totalTime)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(laborCost)}`, 20, yPos);
+    doc.text(`Labor (${formatDuration(task.totalTime)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(baseLabor)}`, 20, yPos);
     yPos += 7;
+    if (totalMinHourAdj > 0) {
+      doc.text(`Min 1 Hour adjustment (×${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
+      yPos += 7;
+    }
+    if (totalCloning > 0) {
+      doc.text(`Cloning (×${cloningCount}): ${formatCurrency(totalCloning)}`, 20, yPos);
+      yPos += 7;
+    }
+    if (totalProgramming > 0) {
+      doc.text(`Programming (×${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
+      yPos += 7;
+    }
     doc.text(`Parts: ${formatCurrency(partsCost)}`, 20, yPos);
     yPos += 10;
     doc.setFontSize(12);
@@ -392,6 +404,23 @@ export const TaskCard = ({
         
         yPos += 8;
       });
+
+      // Billing option line items
+      if (totalMinHourAdj > 0) {
+        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalCloning > 0) {
+        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalProgramming > 0) {
+        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
 
       // Table rows - Parts
       if (parts.length > 0) {
@@ -686,6 +715,23 @@ export const TaskCard = ({
         
         yPos += 8;
       });
+
+      // Billing option line items
+      if (totalMinHourAdj > 0) {
+        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalCloning > 0) {
+        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalProgramming > 0) {
+        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
 
       if (parts.length > 0) {
         doc.setFontSize(11);
@@ -1065,14 +1111,16 @@ export const TaskCard = ({
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
   const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
   const programmingRate = client?.programmingRate || (settings as any).defaultProgrammingRate || 0;
-  const laborCost = (task.sessions || []).reduce((total, session) => {
-    const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-    const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-    let sessionCost = (effectiveTime / 3600) * hourlyRate;
-    if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
-    if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
-    return total + sessionCost;
-  }, 0);
+  let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
+  let minHourCount = 0, cloningCount = 0, programmingCount = 0;
+  (task.sessions || []).forEach(session => {
+    const dur = session.periods.reduce((sum, p) => sum + p.duration, 0);
+    baseLabor += (dur / 3600) * hourlyRate;
+    if (session.chargeMinimumHour && dur < 3600) { totalMinHourAdj += ((3600 - dur) / 3600) * hourlyRate; minHourCount++; }
+    if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
+    if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
+  });
+  const laborCost = baseLabor + totalMinHourAdj + totalCloning + totalProgramming;
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);
   }, 0);
@@ -1254,6 +1302,13 @@ export const TaskCard = ({
                     <div className="text-xs font-semibold mb-1">
                       Session {sessionIndex + 1} ({formatDuration(sessionDuration)})
                     </div>
+                    {(session.chargeMinimumHour || session.isCloning || session.isProgramming) && (
+                      <div className="flex gap-1 mb-1 flex-wrap">
+                        {session.chargeMinimumHour && <Badge variant="outline" className="text-[9px] px-1.5 py-0">🚩 Min 1hr</Badge>}
+                        {session.isCloning && <Badge variant="outline" className="text-[9px] px-1.5 py-0">📋 Cloning</Badge>}
+                        {session.isProgramming && <Badge variant="outline" className="text-[9px] px-1.5 py-0">💻 Programming</Badge>}
+                      </div>
+                    )}
                     
                     {/* Timeline events */}
                     <div className="ml-2 mb-1 space-y-0.5">
@@ -1296,6 +1351,15 @@ export const TaskCard = ({
                     )}
                   </div>;
             })}
+            </div>
+            {/* Cost Summary */}
+            <div className="mt-2 pt-2 border-t space-y-0.5 text-xs">
+              <div className="flex justify-between"><span>Base Labor:</span><span>{formatCurrency(baseLabor)}</span></div>
+              {totalMinHourAdj > 0 && <div className="flex justify-between"><span>Min 1 Hour (×{minHourCount}):</span><span>{formatCurrency(totalMinHourAdj)}</span></div>}
+              {totalCloning > 0 && <div className="flex justify-between"><span>Cloning (×{cloningCount}):</span><span>{formatCurrency(totalCloning)}</span></div>}
+              {totalProgramming > 0 && <div className="flex justify-between"><span>Programming (×{programmingCount}):</span><span>{formatCurrency(totalProgramming)}</span></div>}
+              <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
+              <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
             </div>
           </div>
         </CollapsibleContent>

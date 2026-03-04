@@ -20,7 +20,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-  if (raw.length < 2) return [];
+  if (raw.length === 0) return [];
 
   // Find column indices by header name
   const headers = raw[0].map((h: any) => (h ?? '').toString().trim().toLowerCase());
@@ -29,21 +29,25 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
     return idx;
   };
 
-  const dateCol = col('date');
-  const startCol = col('start');
-  const endCol = col('end time') !== -1 ? col('end time') : col('end');
-  const relDurCol = col('rel.');
-  const descCol = col('description');
-  const tagsCol = col('tags');
-  const breaksDescCol = col('breaks desc');
+  let dateCol = col('date');
+  let startCol = col('start');
+  let endCol = col('end time') !== -1 ? col('end time') : col('end');
+  let relDurCol = col('rel.');
+  let descCol = col('description');
+  let tagsCol = col('tags');
+  let breaksDescCol = col('breaks desc');
 
+  // Headerless fallback: assume standard column order
+  let dataStart = 1;
   if (dateCol === -1 || startCol === -1 || endCol === -1) {
-    throw new Error('Missing required columns: Date, Start time, End time');
+    dateCol = 0; startCol = 1; endCol = 2; relDurCol = 4;
+    descCol = 5; tagsCol = 6; breaksDescCol = 8;
+    dataStart = 0;
   }
 
   const results: ImportedSession[] = [];
 
-  for (let i = 1; i < raw.length; i++) {
+  for (let i = dataStart; i < raw.length; i++) {
     const row = raw[i];
     if (!row || row.length < 3) continue;
 
@@ -60,7 +64,16 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
         endTime.setDate(endTime.getDate() + 1);
       }
 
-      const description = descCol !== -1 ? (row[descCol] ?? '').toString().trim() : '';
+      let description = '';
+      if (descCol !== -1 && row[descCol] != null) {
+        const rawDesc = row[descCol];
+        // Guard against Excel fractional day numbers leaking into description
+        if (typeof rawDesc === 'number' && rawDesc >= 0 && rawDesc <= 1) {
+          description = '';
+        } else {
+          description = rawDesc.toString().trim();
+        }
+      }
       const tagsRaw = tagsCol !== -1 ? (row[tagsCol] ?? '').toString().trim() : '';
       const breaksDescRaw = breaksDescCol !== -1 ? (row[breaksDescCol] ?? '').toString().trim() : '';
 
@@ -174,8 +187,8 @@ interface BreakInterval {
 function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
   if (!raw) return [];
 
-  // Split on comma or <br/> or newline
-  const segments = raw.split(/,|<br\s*\/?>|\n/).map(s => s.trim()).filter(Boolean);
+  // Split on <br/> or newline only — NOT comma (commas appear inside full date strings)
+  const segments = raw.split(/<br\s*\/?>|\n/).map(s => s.replace(/^[,\s]+|[,\s]+$/g, '')).filter(Boolean);
   const breaks: BreakInterval[] = [];
 
   for (const seg of segments) {

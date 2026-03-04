@@ -1,50 +1,97 @@
 import * as XLSX from 'xlsx';
 
-export interface ImportedWorkRow {
+export interface ImportedSession {
+  tag: string;
   date: Date;
   startTime: Date;
   endTime: Date;
   description: string;
-  durationSeconds: number;
+  relDurationSeconds: number;
+  periods: { startTime: Date; endTime: Date; duration: number }[];
 }
 
 /**
- * Parse an XLS/XLSX file with columns: Date | Start time | End time | Description
- * Returns structured rows ready to be turned into tasks.
+ * Parse an XLS/XLSX file with columns:
+ * Date | Start time | End time | Duration | rel. Duration | Description | Tags | Breaks | Breaks Description
  */
-export const parseWorkHistoryXls = async (file: File): Promise<ImportedWorkRow[]> => {
+export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]> => {
   const data = await file.arrayBuffer();
   const workbook = XLSX.read(data, { type: 'array' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-  // Skip header row
-  const rows = raw.slice(1).filter(r => r && r.length >= 3);
+  if (raw.length < 2) return [];
 
-  const results: ImportedWorkRow[] = [];
+  // Find column indices by header name
+  const headers = raw[0].map((h: any) => (h ?? '').toString().trim().toLowerCase());
+  const col = (name: string) => {
+    const idx = headers.findIndex(h => h.includes(name));
+    return idx;
+  };
 
-  for (const row of rows) {
+  const dateCol = col('date');
+  const startCol = col('start');
+  const endCol = col('end time') !== -1 ? col('end time') : col('end');
+  const relDurCol = col('rel.');
+  const descCol = col('description');
+  const tagsCol = col('tags');
+  const breaksDescCol = col('breaks desc');
+
+  if (dateCol === -1 || startCol === -1 || endCol === -1) {
+    throw new Error('Missing required columns: Date, Start time, End time');
+  }
+
+  const results: ImportedSession[] = [];
+
+  for (let i = 1; i < raw.length; i++) {
+    const row = raw[i];
+    if (!row || row.length < 3) continue;
+
     try {
-      const dateRaw = row[0];
-      const startRaw = row[1];
-      const endRaw = row[2];
-      const description = (row[3] ?? '').toString().trim();
-
-      const baseDate = parseExcelDate(dateRaw);
+      const baseDate = parseExcelDate(row[dateCol]);
       if (!baseDate) continue;
 
-      const startTime = combineDateTime(baseDate, startRaw);
-      const endTime = combineDateTime(baseDate, endRaw);
+      const startTime = combineDateTime(baseDate, row[startCol]);
+      const endTime = combineDateTime(baseDate, row[endCol]);
       if (!startTime || !endTime) continue;
 
-      // If end time is before start time, it crossed midnight — add a day
+      // Handle midnight crossing
       if (endTime <= startTime) {
         endTime.setDate(endTime.getDate() + 1);
       }
 
-      const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+      const description = descCol !== -1 ? (row[descCol] ?? '').toString().trim() : '';
+      const tagsRaw = tagsCol !== -1 ? (row[tagsCol] ?? '').toString().trim() : '';
+      const breaksDescRaw = breaksDescCol !== -1 ? (row[breaksDescCol] ?? '').toString().trim() : '';
 
-      results.push({ date: baseDate, startTime, endTime, description, durationSeconds });
+      // Parse rel. Duration (e.g. "7:28:00" or fractional day number)
+      const relDurationSeconds = relDurCol !== -1 ? parseDurationToSeconds(row[relDurCol]) : null;
+
+      // Parse breaks
+      const breaks = parseBreaksDescription(breaksDescRaw, baseDate);
+
+      // Build work periods from start/end with breaks carved out
+      const periods = buildPeriods(startTime, endTime, breaks);
+
+      // Use rel. Duration as authoritative if available
+      const totalWorkSeconds = relDurationSeconds ?? periods.reduce((sum, p) => sum + p.duration, 0);
+
+      // Split tags
+      const tags = tagsRaw
+        ? tagsRaw.split(/,/).map(t => t.trim()).filter(Boolean)
+        : [''];
+
+      for (const tag of tags) {
+        results.push({
+          tag,
+          date: baseDate,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          description,
+          relDurationSeconds: totalWorkSeconds,
+          periods: periods.map(p => ({ ...p })),
+        });
+      }
     } catch {
       // Skip unparseable rows
     }
@@ -56,7 +103,6 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedWorkRow[]
 function parseExcelDate(val: any): Date | null {
   if (val instanceof Date) return val;
   if (typeof val === 'number') {
-    // Excel serial date
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return new Date(d.y, d.m - 1, d.d);
   }
@@ -69,10 +115,8 @@ function parseExcelDate(val: any): Date | null {
 
 function combineDateTime(baseDate: Date, timeVal: any): Date | null {
   if (timeVal == null) return null;
-
   const result = new Date(baseDate);
 
-  // Excel stores times as fractional days (0.5 = noon)
   if (typeof timeVal === 'number') {
     const totalMinutes = Math.round(timeVal * 24 * 60);
     result.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
@@ -80,7 +124,6 @@ function combineDateTime(baseDate: Date, timeVal: any): Date | null {
   }
 
   if (typeof timeVal === 'string') {
-    // Parse "12:36 PM" or "14:25" style
     const match = timeVal.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
     if (!match) return null;
     let hours = parseInt(match[1]);
@@ -98,4 +141,122 @@ function combineDateTime(baseDate: Date, timeVal: any): Date | null {
   }
 
   return null;
+}
+
+function parseDurationToSeconds(val: any): number | null {
+  if (val == null) return null;
+
+  // Excel fractional day (e.g. 0.3125 = 7:30:00)
+  if (typeof val === 'number') {
+    return Math.round(val * 24 * 3600);
+  }
+
+  // String like "7:28:00" or "0:43:00"
+  if (typeof val === 'string') {
+    const match = val.match(/(\d+):(\d{2}):(\d{2})/);
+    if (match) {
+      return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]);
+    }
+    const matchShort = val.match(/(\d+):(\d{2})/);
+    if (matchShort) {
+      return parseInt(matchShort[1]) * 3600 + parseInt(matchShort[2]) * 60;
+    }
+  }
+
+  return null;
+}
+
+interface BreakInterval {
+  start: Date;
+  end: Date;
+}
+
+function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
+  if (!raw) return [];
+
+  // Split on comma or <br/> or newline
+  const segments = raw.split(/,|<br\s*\/?>|\n/).map(s => s.trim()).filter(Boolean);
+  const breaks: BreakInterval[] = [];
+
+  for (const seg of segments) {
+    // Try full date format: "November 18, 2022, 17:02 – November 19, 2022, 00:57"
+    const fullDateMatch = seg.match(/(.+?)\s*[–-]\s*(.+)/);
+    if (!fullDateMatch) continue;
+
+    const startStr = fullDateMatch[1].trim();
+    const endStr = fullDateMatch[2].trim();
+
+    let breakStart: Date | null = null;
+    let breakEnd: Date | null = null;
+
+    // Try as full date string first
+    const startFull = new Date(startStr);
+    const endFull = new Date(endStr);
+
+    if (!isNaN(startFull.getTime()) && !isNaN(endFull.getTime()) && startStr.length > 6) {
+      // Full date format worked
+      breakStart = startFull;
+      breakEnd = endFull;
+    } else {
+      // Try as HH:MM time only
+      breakStart = parseTimeOnly(startStr, baseDate);
+      breakEnd = parseTimeOnly(endStr, baseDate);
+    }
+
+    if (breakStart && breakEnd) {
+      // Handle midnight crossing for breaks
+      if (breakEnd <= breakStart) {
+        breakEnd.setDate(breakEnd.getDate() + 1);
+      }
+      breaks.push({ start: breakStart, end: breakEnd });
+    }
+  }
+
+  // Sort by start time
+  breaks.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return breaks;
+}
+
+function parseTimeOnly(str: string, baseDate: Date): Date | null {
+  const match = str.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const result = new Date(baseDate);
+  result.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
+  return result;
+}
+
+function buildPeriods(
+  startTime: Date,
+  endTime: Date,
+  breaks: BreakInterval[]
+): { startTime: Date; endTime: Date; duration: number }[] {
+  if (breaks.length === 0) {
+    const dur = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+    return [{ startTime: new Date(startTime), endTime: new Date(endTime), duration: dur }];
+  }
+
+  const periods: { startTime: Date; endTime: Date; duration: number }[] = [];
+  let cursor = new Date(startTime);
+
+  for (const brk of breaks) {
+    // Work period before this break
+    if (brk.start.getTime() > cursor.getTime()) {
+      const dur = Math.round((brk.start.getTime() - cursor.getTime()) / 1000);
+      if (dur > 0) {
+        periods.push({ startTime: new Date(cursor), endTime: new Date(brk.start), duration: dur });
+      }
+    }
+    // Advance cursor past break
+    cursor = new Date(brk.end);
+  }
+
+  // Final work period after last break
+  if (endTime.getTime() > cursor.getTime()) {
+    const dur = Math.round((endTime.getTime() - cursor.getTime()) / 1000);
+    if (dur > 0) {
+      periods.push({ startTime: new Date(cursor), endTime: new Date(endTime), duration: dur });
+    }
+  }
+
+  return periods;
 }

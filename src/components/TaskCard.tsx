@@ -1063,10 +1063,13 @@ export const TaskCard = ({
     }
   };
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
+  const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
   const laborCost = (task.sessions || []).reduce((total, session) => {
     const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
     const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-    return total + (effectiveTime / 3600) * hourlyRate;
+    let sessionCost = (effectiveTime / 3600) * hourlyRate;
+    if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+    return total + sessionCost;
   }, 0);
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);

@@ -62,12 +62,14 @@ export const SettingsDialog = ({
 }: SettingsDialogProps) => {
   const [currentView, setCurrentView] = useState<DialogView>('menu');
   const [hourlyRate, setHourlyRate] = useState(settings.defaultHourlyRate.toString());
+  const [cloningRate, setCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
   const [showManageClients, setShowManageClients] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useNotifications();
 
   useEffect(() => {
     setHourlyRate(settings.defaultHourlyRate.toString());
+    setCloningRate(settings.defaultCloningRate?.toString() || '');
   }, [settings]);
 
   useEffect(() => {
@@ -93,6 +95,7 @@ export const SettingsDialog = ({
   const handleSaveSettings = () => {
     onSave({
       defaultHourlyRate: parseFloat(hourlyRate) || 75,
+      defaultCloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       googleApiKey: googleApiKey.trim() || undefined,
       grokApiKey: grokApiKey.trim() || undefined,
       ocrSpaceApiKey: ocrSpaceApiKey.trim() || undefined,
@@ -173,13 +176,16 @@ export const SettingsDialog = ({
   const calculateClientTotalCost = (clientTasks: Task[], clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     
     return clientTasks.reduce((total, task) => {
       // Labor cost - per session
       const laborCost = (task.sessions || []).reduce((sessionTotal, session) => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        return sessionTotal + (effectiveTime / 3600) * hourlyRate;
+        let sessionCost = (effectiveTime / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        return sessionTotal + sessionCost;
       }, 0);
       
       // Parts cost
@@ -310,6 +316,21 @@ export const SettingsDialog = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   This rate will be used unless a custom rate is set for a specific client
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default Cloning Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={cloningRate}
+                  onChange={(e) => setCloningRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "Cloning"
                 </p>
               </div>
 

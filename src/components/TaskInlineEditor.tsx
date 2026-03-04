@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -268,6 +268,15 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   title="Charge minimum 1 hour for this session"
                 >
                   <Flag className="h-3.5 w-3.5" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-7 w-7 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
+                  onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
+                  title="Apply cloning rate to this session"
+                >
+                  <Copy className="h-3.5 w-3.5" fill={session.isCloning ? 'currentColor' : 'none'} />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                   <Trash2 className="h-3.5 w-3.5" />

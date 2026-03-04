@@ -75,12 +75,15 @@ export const DesktopClientsView = ({
     const clientTasks = tasks.filter(t => t.clientId === clientId);
     const client = clients.find(c => c.id === clientId);
     const rate = client?.hourlyRate || 0;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     clientTasks.forEach(task => {
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        totalLaborCost += (effectiveTime / 3600) * rate;
+        let sessionCost = (effectiveTime / 3600) * rate;
+        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        totalLaborCost += sessionCost;
       });
       totalTime += task.totalTime;
       task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));
@@ -95,7 +98,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate });
   };
 
   const handleSaveClientEdit = (clientId: string) => {
@@ -162,7 +165,7 @@ export const DesktopClientsView = ({
       await navigator.clipboard.writeText(url);
       toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
     } catch {
-      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate);
+      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
       const encoded = await encodeClientData(summary, code);
       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
       if (url.length <= 2000) {
@@ -231,6 +234,7 @@ export const DesktopClientsView = ({
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Phone</Label><Input type="tel" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
+                <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>

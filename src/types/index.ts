@@ -4,6 +4,7 @@ export interface Client {
   email?: string;
   phone?: string;
   hourlyRate?: number;
+  cloningRate?: number;
   accessCode?: string;
   portalId?: string;
   createdAt: Date;
@@ -51,6 +52,7 @@ export interface WorkSession {
   parts: Part[];
   photos?: SessionPhoto[];
   chargeMinimumHour?: boolean; // Bill minimum 1 hour for this session
+  isCloning?: boolean; // Apply cloning rate to this session
 }
 
 export type TaskStatus = 'pending' | 'in-progress' | 'paused' | 'completed' | 'billed' | 'paid';
@@ -92,6 +94,7 @@ export interface CloudSyncSettings {
 
 export interface Settings {
   defaultHourlyRate: number;
+  defaultCloningRate?: number;
   googleApiKey?: string;
   grokApiKey?: string;
   ocrSpaceApiKey?: string;

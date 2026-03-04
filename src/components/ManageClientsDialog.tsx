@@ -118,6 +118,7 @@ export const ManageClientsDialog = ({
     const clientTasks = tasks.filter(t => t.clientId === clientId);
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || 0;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     
     let totalLaborCost = 0;
     let totalPartsCost = 0;
@@ -128,7 +129,9 @@ export const ManageClientsDialog = ({
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        totalLaborCost += (effectiveTime / 3600) * hourlyRate;
+        let sessionCost = (effectiveTime / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        totalLaborCost += sessionCost;
       });
       
       task.sessions.forEach(session => {
@@ -153,6 +156,7 @@ export const ManageClientsDialog = ({
     const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
     const client = clients.find(c => c.id === clientId);
     const hourlyRate = client?.hourlyRate || 0;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     
     let totalLaborCost = 0;
     let totalPartsCost = 0;
@@ -162,7 +166,9 @@ export const ManageClientsDialog = ({
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        totalLaborCost += (effectiveTime / 3600) * hourlyRate;
+        let sessionCost = (effectiveTime / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+        totalLaborCost += sessionCost;
       });
       totalTime += task.totalTime;
       
@@ -333,6 +339,7 @@ export const ManageClientsDialog = ({
       email: client.email,
       phone: client.phone,
       hourlyRate: client.hourlyRate,
+      cloningRate: client.cloningRate,
     });
   };
 
@@ -509,6 +516,16 @@ export const ManageClientsDialog = ({
                                 className="h-9 text-sm bg-background"
                               />
                             </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Cloning Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.cloningRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, cloningRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
                             <div className="flex gap-2 pt-1">
                               <Button size="sm" onClick={() => handleSaveClientEdit(client.id)} className="h-8 bg-primary hover:bg-primary/90">
                                 <Save className="h-3 w-3 mr-1" /> Save
@@ -623,7 +640,7 @@ export const ManageClientsDialog = ({
                                   }
 
                                   // Fallback to hash/file method
-                                  const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate);
+                                  const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
                                   const encoded = await encodeClientData(summary, code);
                                   const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
                                   

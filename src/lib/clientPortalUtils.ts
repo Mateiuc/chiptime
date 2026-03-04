@@ -8,6 +8,9 @@ export interface SessionCostDetail {
   date: Date;
   duration: number;
   laborCost: number;
+  cloningCost: number;
+  programmingCost: number;
+  minHourAdj: number;
   parts: Part[];
   partsCost: number;
   status: TaskStatus;
@@ -19,6 +22,9 @@ export interface VehicleCostSummary {
   sessions: SessionCostDetail[];
   totalLabor: number;
   totalParts: number;
+  totalCloning: number;
+  totalProgramming: number;
+  totalMinHourAdj: number;
   vehicleTotal: number;
 }
 
@@ -27,6 +33,9 @@ export interface ClientCostSummary {
   vehicles: VehicleCostSummary[];
   grandTotalLabor: number;
   grandTotalParts: number;
+  grandTotalCloning: number;
+  grandTotalProgramming: number;
+  grandTotalMinHourAdj: number;
   grandTotal: number;
 }
 
@@ -46,6 +55,9 @@ interface SlimSession {
   st: string;
   p: SlimPart[];
   ph?: string[];
+  clc?: number;
+  prc?: number;
+  mha?: number;
 }
 
 interface SlimVehicle {
@@ -58,6 +70,9 @@ interface SlimVehicle {
   tl: number;
   tp: number;
   vt: number;
+  tcl?: number;
+  tpr?: number;
+  tmh?: number;
 }
 
 interface SlimPayload {
@@ -66,6 +81,9 @@ interface SlimPayload {
   tl: number;
   tp: number;
   gt: number;
+  tcl?: number;
+  tpr?: number;
+  tmh?: number;
 }
 
 export function generateAccessCode(): string {
@@ -86,25 +104,35 @@ export function calculateClientCosts(
   
   let grandTotalLabor = 0;
   let grandTotalParts = 0;
+  let grandTotalCloning = 0;
+  let grandTotalProgramming = 0;
+  let grandTotalMinHourAdj = 0;
 
   const vehicleSummaries: VehicleCostSummary[] = clientVehicles.map(vehicle => {
     const vehicleTasks = tasks.filter(t => t.vehicleId === vehicle.id);
     let totalLabor = 0;
     let totalParts = 0;
+    let totalCloning = 0;
+    let totalProgramming = 0;
+    let totalMinHourAdj = 0;
     
     const sessions: SessionCostDetail[] = [];
 
     vehicleTasks.forEach(task => {
       task.sessions.forEach(session => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const effectiveDuration = (session.chargeMinimumHour && duration < 3600) ? 3600 : duration;
-        let laborCost = (effectiveDuration / 3600) * hourlyRate;
-        if (session.isCloning && cloningRate > 0) laborCost += cloningRate;
-        if (session.isProgramming && programmingRate > 0) laborCost += programmingRate;
+        const baseLaborCost = (duration / 3600) * hourlyRate;
+        const minHourAdj = (session.chargeMinimumHour && duration < 3600) ? ((3600 - duration) / 3600) * hourlyRate : 0;
+        const sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
+        const sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
+        const laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost;
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
         totalLabor += laborCost;
         totalParts += partsCost;
+        totalCloning += sessionCloningCost;
+        totalProgramming += sessionProgrammingCost;
+        totalMinHourAdj += minHourAdj;
 
         sessions.push({
           description: session.description || 'Work session',
@@ -114,6 +142,9 @@ export function calculateClientCosts(
                 : session.createdAt),
           duration,
           laborCost,
+          cloningCost: sessionCloningCost,
+          programmingCost: sessionProgrammingCost,
+          minHourAdj,
           parts: session.parts || [],
           partsCost,
           status: task.status,
@@ -126,12 +157,18 @@ export function calculateClientCosts(
 
     grandTotalLabor += totalLabor;
     grandTotalParts += totalParts;
+    grandTotalCloning += totalCloning;
+    grandTotalProgramming += totalProgramming;
+    grandTotalMinHourAdj += totalMinHourAdj;
 
     return {
       vehicle,
       sessions,
       totalLabor,
       totalParts,
+      totalCloning,
+      totalProgramming,
+      totalMinHourAdj,
       vehicleTotal: totalLabor + totalParts,
     };
   });
@@ -141,6 +178,9 @@ export function calculateClientCosts(
     vehicles: vehicleSummaries.filter(v => v.sessions.length > 0),
     grandTotalLabor,
     grandTotalParts,
+    grandTotalCloning,
+    grandTotalProgramming,
+    grandTotalMinHourAdj,
     grandTotal: grandTotalLabor + grandTotalParts,
   };
 }
@@ -164,14 +204,23 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         st: s.status,
         p: s.parts.map(p => ({ n: p.name, q: p.quantity, pr: p.price })),
         ph: s.photoUrls.length > 0 ? s.photoUrls : undefined,
+        clc: s.cloningCost > 0 ? Math.round(s.cloningCost * 100) / 100 : undefined,
+        prc: s.programmingCost > 0 ? Math.round(s.programmingCost * 100) / 100 : undefined,
+        mha: s.minHourAdj > 0 ? Math.round(s.minHourAdj * 100) / 100 : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
       vt: Math.round(vs.vehicleTotal * 100) / 100,
+      tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
+      tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
+      tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,
     })),
     tl: Math.round(data.grandTotalLabor * 100) / 100,
     tp: Math.round(data.grandTotalParts * 100) / 100,
     gt: Math.round(data.grandTotal * 100) / 100,
+    tcl: data.grandTotalCloning > 0 ? Math.round(data.grandTotalCloning * 100) / 100 : undefined,
+    tpr: data.grandTotalProgramming > 0 ? Math.round(data.grandTotalProgramming * 100) / 100 : undefined,
+    tmh: data.grandTotalMinHourAdj > 0 ? Math.round(data.grandTotalMinHourAdj * 100) / 100 : undefined,
   };
 }
 
@@ -194,6 +243,9 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         date: new Date(ss.dt * 1000),
         duration: ss.dur,
         laborCost: ss.lc,
+        cloningCost: ss.clc || 0,
+        programmingCost: ss.prc || 0,
+        minHourAdj: ss.mha || 0,
         parts: ss.p.map(p => ({ name: p.n, quantity: p.q, price: p.pr })),
         partsCost: ss.pc,
         status: ss.st as TaskStatus,
@@ -201,10 +253,16 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,
+      totalCloning: sv.tcl || 0,
+      totalProgramming: sv.tpr || 0,
+      totalMinHourAdj: sv.tmh || 0,
       vehicleTotal: sv.vt,
     })),
     grandTotalLabor: slim.tl,
     grandTotalParts: slim.tp,
+    grandTotalCloning: slim.tcl || 0,
+    grandTotalProgramming: slim.tpr || 0,
+    grandTotalMinHourAdj: slim.tmh || 0,
     grandTotal: slim.gt,
   };
 }
@@ -293,6 +351,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .badge{font-size:9px;padding:2px 8px;border-radius:12px;font-weight:600;background:rgba(124,58,237,0.2);color:#c4b5fd}
 .meta{display:flex;gap:16px;font-size:11px;color:#94a3b8;margin-top:8px}
 .meta b{color:#e2e8f0}
+.extra-line{font-size:11px;color:#94a3b8;margin-top:2px;padding-left:2px}
+.extra-line b{color:#e2e8f0}
 .parts{margin-top:8px}
 .parts-title{font-size:11px;font-weight:600;margin-bottom:4px}
 table{width:100%;font-size:11px;border-collapse:collapse}
@@ -381,7 +441,11 @@ if(v.vin)h+='<div class="vin">VIN: '+esc(v.vin)+'</div>';
 h+='</div>';
 v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
-h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(ss.lc)+'</b></span></div>';
+var baseLab=ss.lc-(ss.mha||0)-(ss.clc||0)-(ss.prc||0);
+h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(baseLab)+'</b></span></div>';
+if(ss.mha&&ss.mha>0)h+='<div class="extra-line">🚩 Min 1 Hour: <b>'+fmt(ss.mha)+'</b></div>';
+if(ss.clc&&ss.clc>0)h+='<div class="extra-line">📋 Cloning: <b>'+fmt(ss.clc)+'</b></div>';
+if(ss.prc&&ss.prc>0)h+='<div class="extra-line">💻 Programming: <b>'+fmt(ss.prc)+'</b></div>';
 if(ss.ph&&ss.ph.length>0){
 h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
 ss.ph.forEach(function(url){h+='<img src="'+esc(url)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0" loading="lazy">'});
@@ -394,10 +458,20 @@ h+='</table><div style="text-align:right;font-size:11px;font-weight:600;margin-t
 }
 h+='<div style="text-align:right;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:4px;margin-top:8px">Session Total: '+fmt(ss.lc+ss.pc)+'</div></div>';
 });
-h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(v.tl)+'</b></span></div><div class="row"><span>Vehicle Parts:</span><span><b>'+fmt(v.tp)+'</b></span></div><div class="row total"><span>Vehicle Total:</span><span>'+fmt(v.vt)+'</span></div></div></div>';
+var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0);
+h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(vBaseLab)+'</b></span></div>';
+if(v.tmh&&v.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(v.tmh)+'</b></span></div>';
+if(v.tcl&&v.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(v.tcl)+'</b></span></div>';
+if(v.tpr&&v.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(v.tpr)+'</b></span></div>';
+h+='<div class="row"><span>Vehicle Parts:</span><span><b>'+fmt(v.tp)+'</b></span></div><div class="row total"><span>Vehicle Total:</span><span>'+fmt(v.vt)+'</span></div></div></div>';
 });
 if(s.v.length>0){
-h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(s.tl)+'</b></span></div><div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
+var gBaseLab=s.tl-(s.tmh||0)-(s.tcl||0)-(s.tpr||0);
+h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(gBaseLab)+'</b></span></div>';
+if(s.tmh&&s.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(s.tmh)+'</b></span></div>';
+if(s.tcl&&s.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(s.tcl)+'</b></span></div>';
+if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s.tpr)+'</b></span></div>';
+h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
 }
 el.innerHTML=h;
 }

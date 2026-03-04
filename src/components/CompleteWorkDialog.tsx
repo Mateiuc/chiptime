@@ -6,20 +6,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Flag, Copy, Cpu } from 'lucide-react';
 import { Part } from '@/types';
 
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean) => void;
 }
 
 export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteWorkDialogProps) => {
   const [description, setDescription] = useState('');
   const [parts, setParts] = useState<Part[]>([]);
   const [needsFollowUp, setNeedsFollowUp] = useState(false);
+  const [chargeMinimumHour, setChargeMinimumHour] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
+  const [isProgramming, setIsProgramming] = useState(false);
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',
@@ -58,11 +62,14 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteW
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp);
+    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour, isCloning, isProgramming);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '' });
     setNeedsFollowUp(false);
+    setChargeMinimumHour(false);
+    setIsCloning(false);
+    setIsProgramming(false);
     onOpenChange(false);
   };
 
@@ -92,7 +99,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteW
           </Card>
 
           <Card className="bg-gradient-to-r from-accent/20 to-accent/10 border-accent/30">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-semibold">More work needed on this vehicle?</Label>
@@ -104,6 +111,33 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteW
                   checked={needsFollowUp}
                   onCheckedChange={setNeedsFollowUp}
                 />
+              </div>
+
+              <Separator className="bg-accent/30" />
+
+              <div className="space-y-3">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Billing Options</Label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Flag className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">Min 1 Hour</Label>
+                  </div>
+                  <Switch checked={chargeMinimumHour} onCheckedChange={setChargeMinimumHour} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">Cloning</Label>
+                  </div>
+                  <Switch checked={isCloning} onCheckedChange={setIsCloning} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">Programming</Label>
+                  </div>
+                  <Switch checked={isProgramming} onCheckedChange={setIsProgramming} />
+                </div>
               </div>
             </CardContent>
           </Card>

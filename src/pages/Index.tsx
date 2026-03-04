@@ -277,7 +277,7 @@ const Index = () => {
     setShowCompleteWork(true);
   };
 
-  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean) => {
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false) => {
     const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
@@ -291,6 +291,9 @@ const Index = () => {
       targetSession.description = description;
       targetSession.parts = parts;
       targetSession.completedAt = new Date();
+      targetSession.chargeMinimumHour = chargeMinimumHour;
+      targetSession.isCloning = isCloning;
+      targetSession.isProgramming = isProgramming;
     }
 
     updateTask(activeTask.id, {

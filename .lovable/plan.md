@@ -1,69 +1,26 @@
 
 
-# Revamp XLS Importer for New File Format
+# Fix XLS Import — Three Bugs
 
-## Understanding the File
+## Identified Issues
 
-The uploaded XLS has columns: **Date | Start time | End time | Duration | rel. Duration | Description | Tags | Breaks | Breaks Description**
+### Bug 1: Headerless files return empty
+`1row.xls` has no header row. The parser does `if (raw.length < 2) return []` and treats row 0 as headers. With only 1 data row, it returns nothing.
 
-- **Tags** = car model identifier (e.g., "Porsche Panamera", "X5", "650"). Can be blank or contain multiple comma-separated tags (e.g., "1 Series , 5 Series").
-- **Description** = work done in that session
-- **rel. Duration** = actual working time (excludes breaks) — this is the authoritative duration
-- **Breaks Description** = break intervals like `"15:21 – 18:01"` or `"14:42 – 16:39"`, comma/newline separated for multiple breaks
+### Bug 2: Breaks description parsing broken by comma split
+`parseBreaksDescription` splits on commas, which destroys full-date breaks like `"November 18, 2022, 17:02 – November 19, 2022, 00:57"` into unusable fragments. This is why breaks are ignored and only one period is created.
 
-## Import Logic
+### Bug 3: Description shows raw Excel number
+The description field shows `0.4756944444444444` (which is `11:25:00` as an Excel fractional day). This likely comes from a headerless file where column indices are wrong, or from Excel returning a number for what appears to be text.
 
-For each row:
-1. Parse Tags → one vehicle per unique tag string. Blank tags get a placeholder vehicle.
-2. Each row becomes one **session** on that vehicle's task.
-3. **Work periods** are derived from Start time, End time, and Breaks Description:
-   - Work: `startTime → break1Start`
-   - Break: `break1Start → break1End` (skipped, not a period)
-   - Work: `break1End → break2Start`
-   - ... and so on
-   - Work: `lastBreakEnd → endTime`
-4. If no breaks, single period: `startTime → endTime`
-5. Each period's duration is calculated. Total working time validated against `rel. Duration`.
-6. Rows sharing the same Tag are grouped into the **same task** (one task per vehicle), each row as a separate session.
+## Changes — `src/lib/xlsImporter.ts`
 
-For rows with multiple tags (e.g., "Benz C300, X5"), create a session on each vehicle's task (the work description applies to both).
+### 1. Add headerless fallback
+After reading `raw[0]`, check if header detection finds the required columns. If not, assume standard column order `(0=Date, 1=Start, 2=End, 3=Duration, 4=rel.Duration, 5=Description, 6=Tags, 7=Breaks, 8=BreaksDesc)` and set data start to row 0 instead of 1. Also remove the `raw.length < 2` early return (a single-row headerless file is valid).
 
-## Changes
+### 2. Fix breaks description splitting
+Change `parseBreaksDescription` to split on `<br\s*\/?>` and `\n` only — **not comma**. Then trim trailing/leading commas and whitespace from each segment. This preserves full date strings like `"November 18, 2022, 17:02 – November 19, 2022, 00:57"` while still handling multi-break formats like `"23:12 – 23:58 ,<br/>01:49 – 03:24"`.
 
-### 1. Rewrite `src/lib/xlsImporter.ts`
-
-New exported interface and function:
-
-```typescript
-export interface ImportedSession {
-  tag: string;              // vehicle/car model from Tags column
-  date: Date;
-  startTime: Date;
-  endTime: Date;
-  description: string;
-  relDurationSeconds: number; // actual working time
-  periods: { startTime: Date; endTime: Date; duration: number }[];
-}
-
-export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]>
-```
-
-- Read columns by header name (not index) for robustness
-- Parse Breaks Description: split on `,` or `<br/>`, each segment is `"HH:MM – HH:MM"` or full date format like `"March 1, 2024, 19:49 – March 2, 2024, 03:18"`
-- Build periods by sorting breaks chronologically and slicing work time around them
-- Use `rel. Duration` as the authoritative total working time for calibration
-
-### 2. Update `src/pages/DesktopDashboard.tsx` — `handleImportXls`
-
-- Call new parser → get `ImportedSession[]`
-- Group sessions by `tag`
-- For each unique tag:
-  - Create a Vehicle with `make = tag`, `vin = "IMPORT-" + tag` (or placeholder if blank)
-  - Create one Task (status: completed) containing all sessions for that tag
-  - Each session has properly constructed `WorkPeriod[]` from the parsed periods
-  - `totalTime` = sum of all session `relDurationSeconds`
-
-### Files to edit
-- `src/lib/xlsImporter.ts` — full rewrite of parser
-- `src/pages/DesktopDashboard.tsx` — update `handleImportXls` to use new grouped format
+### 3. Force description to string
+Already done with `.toString()`, but add a guard: if the value is a number and looks like an Excel fractional day (0-1 range), skip it and use empty string. This prevents Duration/rel.Duration numbers from leaking into description when columns are misaligned.
 

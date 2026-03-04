@@ -1,22 +1,20 @@
 
 
-# Add "Charge Minimum 1 Hour" Toggle to Inline Task Editor
+# Add "Min 1hr" Toggle to EditTaskDialog
 
-## What changes
+The `EditTaskDialog.tsx` (used from `TaskCard` on both mobile and desktop) is missing the `chargeMinimumHour` toggle. The `TaskInlineEditor` already has it, but `EditTaskDialog` does not.
 
-Add a Switch toggle for `chargeMinimumHour` in the footer area of `TaskInlineEditor.tsx`, so when editing a task inline on desktop, the user can enable/disable the minimum 1-hour billing — same option available in CompleteWorkDialog.
+## Changes — `src/components/EditTaskDialog.tsx`
 
-## Files
+1. **Import `Switch`** from `@/components/ui/switch`
+2. **Add state**: `const [chargeMinimumHour, setChargeMinimumHour] = useState(task.chargeMinimumHour || false)` (after existing state declarations, ~line 43)
+3. **Update `handleSave`** (~line 452): include `chargeMinimumHour` in the saved task object
+4. **Add Switch to `renderFooter`** (~line 578): insert a Switch + label "Min 1hr" inside the `!showDeleteConfirm` block, before the Add Session button
 
-### Edit: `src/components/TaskInlineEditor.tsx`
-- Import `Switch` from `@/components/ui/switch`
-- Add state: `const [chargeMinimumHour, setChargeMinimumHour] = useState(task.chargeMinimumHour || false)`
-- In the footer area (before the Save/Cancel buttons), add a row with a Switch + label "Charge minimum 1 hour"
-- In `handleSave`, include `chargeMinimumHour` in the saved task: `onSave({ ...task, sessions: validSessions, totalTime, chargeMinimumHour })`
-
-### Layout
+### Footer layout after change:
 ```text
-Footer area:
-[Delete Car]     [⬜ Charge min 1hr]  [+ Add Session] [Cancel] [Save]
+[Delete Car]  [⬜ Min 1hr]  [Add Session]  [Cancel]  [Save Changes]
 ```
+
+Single file edit: `src/components/EditTaskDialog.tsx`
 

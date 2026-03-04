@@ -16,11 +16,13 @@ interface DesktopSettingsViewProps {
 
 export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewProps) => {
   const { toast } = useNotifications();
+  const [defaultHourlyRate, setDefaultHourlyRate] = useState(settings.defaultHourlyRate?.toString() || '75');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
   const [defaultCloningRate, setDefaultCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
   const [defaultProgrammingRate, setDefaultProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
 
   useEffect(() => {
+    setDefaultHourlyRate(settings.defaultHourlyRate?.toString() || '75');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
     setDefaultCloningRate(settings.defaultCloningRate?.toString() || '');
     setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
@@ -29,6 +31,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   const handleSave = () => {
     onSave({
       ...settings,
+      defaultHourlyRate: parseFloat(defaultHourlyRate) || 75,
       notificationsEnabled,
       defaultCloningRate: defaultCloningRate ? parseFloat(defaultCloningRate) : undefined,
       defaultProgrammingRate: defaultProgrammingRate ? parseFloat(defaultProgrammingRate) : undefined,
@@ -39,6 +42,27 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="grid grid-cols-2 gap-6">
+        {/* Default Hourly Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default Hourly Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($/hr)</Label>
+              <Input
+                type="number"
+                value={defaultHourlyRate}
+                onChange={(e) => setDefaultHourlyRate(e.target.value)}
+                placeholder="75"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Applied to all sessions unless overridden per client</p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Notifications */}
         <Card>
           <CardHeader>

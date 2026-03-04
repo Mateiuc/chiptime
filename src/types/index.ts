@@ -50,6 +50,7 @@ export interface WorkSession {
   periods: WorkPeriod[];
   parts: Part[];
   photos?: SessionPhoto[];
+  chargeMinimumHour?: boolean; // Bill minimum 1 hour for this session
 }
 
 export type TaskStatus = 'pending' | 'in-progress' | 'paused' | 'completed' | 'billed' | 'paid';
@@ -67,7 +68,7 @@ export interface Task {
   createdAt: Date;
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
-  chargeMinimumHour?: boolean; // Bill minimum 1 hour even if work < 1 hour
+  chargeMinimumHour?: boolean; // @deprecated - use session.chargeMinimumHour instead
 }
 
 export interface BackupSettings {

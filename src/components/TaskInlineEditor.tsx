@@ -4,8 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Switch } from '@/components/ui/switch';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -20,7 +19,6 @@ interface TaskInlineEditorProps {
 
 export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlineEditorProps) => {
   const { toast } = useNotifications();
-  const [chargeMinimumHour, setChargeMinimumHour] = useState(task.chargeMinimumHour || false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
     new Set((task.sessions || []).map(s => s.id))
@@ -206,7 +204,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
   const handleSave = () => {
     const validSessions = sessions.filter(s => s.periods.length > 0 || (s.parts && s.parts.length > 0) || (s.description && s.description.trim().length > 0));
     const totalTime = validSessions.reduce((t, s) => t + s.periods.reduce((sum, p) => sum + p.duration, 0), 0);
-    onSave({ ...task, sessions: validSessions, totalTime, chargeMinimumHour });
+    onSave({ ...task, sessions: validSessions, totalTime });
     toast({ title: "Task updated", description: "Changes saved successfully" });
   };
 
@@ -261,9 +259,20 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   </span>
                 )}
               </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-7 w-7 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
+                  onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
+                  title="Charge minimum 1 hour for this session"
+                >
+                  <Flag className="h-3.5 w-3.5" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
 
             <CollapsibleContent>
@@ -381,10 +390,6 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 mr-2">
-            <Switch id="chargeMinHour" checked={chargeMinimumHour} onCheckedChange={setChargeMinimumHour} />
-            <label htmlFor="chargeMinHour" className="text-xs text-muted-foreground cursor-pointer">Min 1hr</label>
-          </div>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleAddNewSession}>
             <Plus className="h-3 w-3 mr-1" /> Add Session
           </Button>

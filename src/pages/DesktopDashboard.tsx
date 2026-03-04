@@ -113,8 +113,8 @@ const DesktopDashboard = () => {
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
     try {
-      const rows = await parseWorkHistoryXls(file);
-      if (rows.length === 0) {
+      const sessions = await parseWorkHistoryXls(file);
+      if (sessions.length === 0) {
         toast({ title: 'No data found', description: 'The file contained no valid work rows.', variant: 'destructive' });
         return;
       }
@@ -122,52 +122,67 @@ const DesktopDashboard = () => {
       const client = clients.find(c => c.id === clientId);
       const clientName = client?.name || 'Unknown';
 
-      // Find or create placeholder vehicle
-      const placeholderVin = 'IMPORT-EDIT-LATER';
-      let placeholderVehicle = vehicles.find(v => v.clientId === clientId && v.vin === placeholderVin);
-      if (!placeholderVehicle) {
-        placeholderVehicle = {
-          id: crypto.randomUUID(),
-          clientId,
-          vin: placeholderVin,
-          make: 'Imported',
-          model: 'Edit Later',
-        };
-        await vehiclesHook.addVehicle(placeholderVehicle);
+      // Group sessions by tag
+      const byTag = new Map<string, typeof sessions>();
+      for (const s of sessions) {
+        const key = s.tag || '';
+        if (!byTag.has(key)) byTag.set(key, []);
+        byTag.get(key)!.push(s);
       }
 
-      // Create one completed task per row
-      for (const row of rows) {
-        const periodId = crypto.randomUUID();
-        const sessionId = crypto.randomUUID();
+      let totalTasks = 0;
+
+      for (const [tag, tagSessions] of byTag) {
+        const vinSlug = tag ? `IMPORT-${tag.toUpperCase().replace(/\s+/g, '-')}` : 'IMPORT-UNKNOWN';
+
+        // Find or create vehicle for this tag
+        let vehicle = vehicles.find(v => v.clientId === clientId && v.vin === vinSlug);
+        if (!vehicle) {
+          vehicle = {
+            id: crypto.randomUUID(),
+            clientId,
+            vin: vinSlug,
+            make: tag || 'Unknown',
+            model: '',
+          };
+          await vehiclesHook.addVehicle(vehicle);
+        }
+
+        // Build work sessions
+        const workSessions: WorkSession[] = tagSessions.map(s => ({
+          id: crypto.randomUUID(),
+          createdAt: s.startTime,
+          completedAt: s.endTime,
+          description: s.description || undefined,
+          periods: s.periods.map(p => ({
+            id: crypto.randomUUID(),
+            startTime: p.startTime,
+            endTime: p.endTime,
+            duration: p.duration,
+          })),
+          parts: [],
+        }));
+
+        const totalTime = tagSessions.reduce((sum, s) => sum + s.relDurationSeconds, 0);
+
         const task: Task = {
           id: crypto.randomUUID(),
           clientId,
-          vehicleId: placeholderVehicle.id,
+          vehicleId: vehicle.id,
           customerName: clientName,
-          carVin: placeholderVin,
+          carVin: vehicle.vin,
           status: 'completed',
-          totalTime: row.durationSeconds,
+          totalTime,
           needsFollowUp: false,
-          createdAt: row.date,
-          sessions: [{
-            id: sessionId,
-            createdAt: row.startTime,
-            completedAt: row.endTime,
-            description: row.description || undefined,
-            periods: [{
-              id: periodId,
-              startTime: row.startTime,
-              endTime: row.endTime,
-              duration: row.durationSeconds,
-            }],
-            parts: [],
-          }],
+          createdAt: tagSessions[0].date,
+          sessions: workSessions,
         };
+
         await addTask(task);
+        totalTasks++;
       }
 
-      toast({ title: `Imported ${rows.length} tasks`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${totalTasks} tasks (${sessions.length} sessions)`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });

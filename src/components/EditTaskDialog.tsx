@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Switch } from '@/components/ui/switch';
 import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
@@ -41,6 +42,7 @@ export const EditTaskDialog = ({
   vehicleInfo
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [chargeMinimumHour, setChargeMinimumHour] = useState(task.chargeMinimumHour || false);
   const { toast } = useNotifications();
   const isMobile = useIsMobile();
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
@@ -452,7 +454,8 @@ export const EditTaskDialog = ({
     const updatedTask = {
       ...task,
       sessions: validSessions,
-      totalTime
+      totalTime,
+      chargeMinimumHour
     };
     onSave(updatedTask);
     toast({
@@ -577,6 +580,10 @@ export const EditTaskDialog = ({
       )}
       {!showDeleteConfirm && (
         <>
+          <div className="flex items-center gap-1.5 mr-auto">
+            <Switch id="editChargeMinHour" checked={chargeMinimumHour} onCheckedChange={setChargeMinimumHour} />
+            <label htmlFor="editChargeMinHour" className="text-xs text-muted-foreground cursor-pointer">Min 1hr</label>
+          </div>
           <Button
             variant="secondary"
             size={desktop ? "default" : "sm"}

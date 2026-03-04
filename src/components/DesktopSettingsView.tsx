@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -16,15 +17,18 @@ interface DesktopSettingsViewProps {
 export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewProps) => {
   const { toast } = useNotifications();
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
+  const [defaultCloningRate, setDefaultCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
 
   useEffect(() => {
     setNotificationsEnabled(settings.notificationsEnabled !== false);
+    setDefaultCloningRate(settings.defaultCloningRate?.toString() || '');
   }, [settings]);
 
   const handleSave = () => {
     onSave({
       ...settings,
       notificationsEnabled,
+      defaultCloningRate: defaultCloningRate ? parseFloat(defaultCloningRate) : undefined,
     });
     toast({ title: 'Settings Saved' });
   };
@@ -44,6 +48,27 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
                 <p className="text-xs text-muted-foreground">Show confirmation toasts</p>
               </div>
               <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default Cloning Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default Cloning Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultCloningRate}
+                onChange={(e) => setDefaultCloningRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "Cloning"</p>
             </div>
           </CardContent>
         </Card>

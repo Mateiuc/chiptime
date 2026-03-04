@@ -53,7 +53,7 @@ const DesktopDashboard = () => {
 
   const { clients, addClient, updateClient, deleteClient } = clientsHook;
   const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
-  const { tasks, addTask, updateTask, deleteTask } = tasksHook;
+  const { tasks, setTasks, addTask, updateTask, deleteTask } = tasksHook;
   const { settings, setSettings } = settingsHook;
 
   const { syncing, lastSyncAt, refresh } = useCloudSync({
@@ -124,7 +124,8 @@ const DesktopDashboard = () => {
 
       // Vehicle cache for deduplication by tag
       const vehicleCache = new Map<string, Vehicle>();
-      let totalTasks = 0;
+      const newVehicles: Vehicle[] = [];
+      const newTasks: Task[] = [];
 
       for (const s of sessions) {
         const tag = s.tag || '';
@@ -140,7 +141,7 @@ const DesktopDashboard = () => {
             make: tag || 'Unknown',
             model: '',
           };
-          await vehiclesHook.addVehicle(vehicle);
+          newVehicles.push(vehicle);
         }
         vehicleCache.set(vinSlug, vehicle);
 
@@ -172,11 +173,16 @@ const DesktopDashboard = () => {
           sessions: [workSession],
         };
 
-        await addTask(task);
-        totalTasks++;
+        newTasks.push(task);
       }
 
-      toast({ title: `Imported ${totalTasks} tasks`, description: `Added to ${clientName}` });
+      // Batch save all vehicles and tasks at once
+      if (newVehicles.length > 0) {
+        await vehiclesHook.setVehicles([...vehicles, ...newVehicles]);
+      }
+      await setTasks([...tasks, ...newTasks]);
+
+      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });

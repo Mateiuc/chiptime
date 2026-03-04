@@ -122,21 +122,16 @@ const DesktopDashboard = () => {
       const client = clients.find(c => c.id === clientId);
       const clientName = client?.name || 'Unknown';
 
-      // Group sessions by tag
-      const byTag = new Map<string, typeof sessions>();
-      for (const s of sessions) {
-        const key = s.tag || '';
-        if (!byTag.has(key)) byTag.set(key, []);
-        byTag.get(key)!.push(s);
-      }
-
+      // Vehicle cache for deduplication by tag
+      const vehicleCache = new Map<string, Vehicle>();
       let totalTasks = 0;
 
-      for (const [tag, tagSessions] of byTag) {
+      for (const s of sessions) {
+        const tag = s.tag || '';
         const vinSlug = tag ? `IMPORT-${tag.toUpperCase().replace(/\s+/g, '-')}` : 'IMPORT-UNKNOWN';
 
         // Find or create vehicle for this tag
-        let vehicle = vehicles.find(v => v.clientId === clientId && v.vin === vinSlug);
+        let vehicle = vehicleCache.get(vinSlug) || vehicles.find(v => v.clientId === clientId && v.vin === vinSlug);
         if (!vehicle) {
           vehicle = {
             id: crypto.randomUUID(),
@@ -147,9 +142,10 @@ const DesktopDashboard = () => {
           };
           await vehiclesHook.addVehicle(vehicle);
         }
+        vehicleCache.set(vinSlug, vehicle);
 
-        // Build work sessions
-        const workSessions: WorkSession[] = tagSessions.map(s => ({
+        // One task per row with a single work session
+        const workSession: WorkSession = {
           id: crypto.randomUUID(),
           createdAt: s.startTime,
           completedAt: s.endTime,
@@ -161,9 +157,7 @@ const DesktopDashboard = () => {
             duration: p.duration,
           })),
           parts: [],
-        }));
-
-        const totalTime = tagSessions.reduce((sum, s) => sum + s.relDurationSeconds, 0);
+        };
 
         const task: Task = {
           id: crypto.randomUUID(),
@@ -172,17 +166,17 @@ const DesktopDashboard = () => {
           customerName: clientName,
           carVin: vehicle.vin,
           status: 'completed',
-          totalTime,
+          totalTime: s.relDurationSeconds,
           needsFollowUp: false,
-          createdAt: tagSessions[0].date,
-          sessions: workSessions,
+          createdAt: s.date,
+          sessions: [workSession],
         };
 
         await addTask(task);
         totalTasks++;
       }
 
-      toast({ title: `Imported ${totalTasks} tasks (${sessions.length} sessions)`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${totalTasks} tasks`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });

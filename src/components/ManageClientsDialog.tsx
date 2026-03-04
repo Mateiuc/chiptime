@@ -124,10 +124,12 @@ export const ManageClientsDialog = ({
     let totalTime = 0;
     
     clientTasks.forEach(task => {
-      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-      const laborCost = (effectiveTime / 3600) * hourlyRate;
-      totalLaborCost += laborCost;
       totalTime += task.totalTime;
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+        totalLaborCost += (effectiveTime / 3600) * hourlyRate;
+      });
       
       task.sessions.forEach(session => {
         session.parts?.forEach(part => {
@@ -157,9 +159,11 @@ export const ManageClientsDialog = ({
     let totalTime = 0;
     
     vehicleTasks.forEach(task => {
-      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-      const laborCost = (effectiveTime / 3600) * hourlyRate;
-      totalLaborCost += laborCost;
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+        totalLaborCost += (effectiveTime / 3600) * hourlyRate;
+      });
       totalTime += task.totalTime;
       
       task.sessions.forEach(session => {

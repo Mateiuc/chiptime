@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Switch } from '@/components/ui/switch';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -42,7 +41,6 @@ export const EditTaskDialog = ({
   vehicleInfo
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [chargeMinimumHour, setChargeMinimumHour] = useState(task.chargeMinimumHour || false);
   const { toast } = useNotifications();
   const isMobile = useIsMobile();
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
@@ -454,8 +452,7 @@ export const EditTaskDialog = ({
     const updatedTask = {
       ...task,
       sessions: validSessions,
-      totalTime,
-      chargeMinimumHour
+      totalTime
     };
     onSave(updatedTask);
     toast({
@@ -580,10 +577,6 @@ export const EditTaskDialog = ({
       )}
       {!showDeleteConfirm && (
         <>
-          <div className="flex items-center gap-1.5 mr-auto">
-            <Switch id="editChargeMinHour" checked={chargeMinimumHour} onCheckedChange={setChargeMinimumHour} />
-            <label htmlFor="editChargeMinHour" className="text-xs text-muted-foreground cursor-pointer">Min 1hr</label>
-          </div>
           <Button
             variant="secondary"
             size={desktop ? "default" : "sm"}
@@ -624,9 +617,20 @@ export const EditTaskDialog = ({
                       <h4 className="font-bold text-base">Session {sessionIndex + 1}</h4>
                       <span className="text-xs text-muted-foreground">{formattedDate}</span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
+                        onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
+                        title="Charge minimum 1 hour for this session"
+                      >
+                        <Flag className="h-3 w-3" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                   {/* Periods */}
                   <div className="space-y-1">
@@ -791,9 +795,20 @@ export const EditTaskDialog = ({
                       </span>
                     )}
                   </CollapsibleTrigger>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
+                      onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
+                      title="Charge minimum 1 hour for this session"
+                    >
+                      <Flag className="h-4 w-4" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <CollapsibleContent>

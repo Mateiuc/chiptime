@@ -203,8 +203,11 @@ const DesktopDashboard = () => {
   // --- Bill PDF generation ---
   const generateBillPdf = (task: Task, client: Client, vehicle: Vehicle) => {
     const rate = client.hourlyRate || settings.defaultHourlyRate;
-    const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-    const laborCost = (effectiveTime / 3600) * rate;
+    const laborCost = (task.sessions || []).reduce((total, session) => {
+      const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+      return total + (effectiveTime / 3600) * rate;
+    }, 0);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
     const total = laborCost + partsCost;
@@ -364,8 +367,11 @@ const DesktopDashboard = () => {
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId);
     const rate = client?.hourlyRate || settings.defaultHourlyRate;
-    const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-    const laborCost = (effectiveTime / 3600) * rate;
+    const laborCost = (task.sessions || []).reduce((total, session) => {
+      const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+      return total + (effectiveTime / 3600) * rate;
+    }, 0);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
     );

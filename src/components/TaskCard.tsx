@@ -1063,8 +1063,11 @@ export const TaskCard = ({
     }
   };
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-  const laborCost = effectiveTime / 3600 * hourlyRate;
+  const laborCost = (task.sessions || []).reduce((total, session) => {
+    const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+    const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+    return total + (effectiveTime / 3600) * hourlyRate;
+  }, 0);
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);
   }, 0);

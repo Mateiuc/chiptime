@@ -94,7 +94,8 @@ export function calculateClientCosts(
     vehicleTasks.forEach(task => {
       task.sessions.forEach(session => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const laborCost = (duration / 3600) * hourlyRate;
+        const effectiveDuration = (session.chargeMinimumHour && duration < 3600) ? 3600 : duration;
+        const laborCost = (effectiveDuration / 3600) * hourlyRate;
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
         totalLabor += laborCost;

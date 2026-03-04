@@ -175,9 +175,12 @@ export const SettingsDialog = ({
     const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
     
     return clientTasks.reduce((total, task) => {
-      // Labor cost
-      const effectiveTime = (task.chargeMinimumHour && task.totalTime < 3600) ? 3600 : task.totalTime;
-      const laborCost = effectiveTime / 3600 * hourlyRate;
+      // Labor cost - per session
+      const laborCost = (task.sessions || []).reduce((sessionTotal, session) => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+        return sessionTotal + (effectiveTime / 3600) * hourlyRate;
+      }, 0);
       
       // Parts cost
       const partsCost = (task.sessions || []).reduce((sessionTotal, session) => {

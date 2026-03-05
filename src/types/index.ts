@@ -73,6 +73,7 @@ export interface Task {
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
   chargeMinimumHour?: boolean; // @deprecated - use session.chargeMinimumHour instead
+  importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column
 }
 
 export interface BackupSettings {

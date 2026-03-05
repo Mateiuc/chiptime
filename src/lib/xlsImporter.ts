@@ -7,6 +7,7 @@ export interface ImportedSession {
   endTime: Date;
   description: string;
   relDurationSeconds: number;
+  relSalary?: number;
   periods: { startTime: Date; endTime: Date; duration: number }[];
 }
 
@@ -35,13 +36,14 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
   let relDurCol = col('rel.');
   let descCol = col('description');
   let tagsCol = col('tags');
+  let relSalaryCol = col('salary');
   let breaksDescCol = col('breaks desc');
 
   // Headerless fallback: assume standard column order
   let dataStart = 1;
   if (dateCol === -1 || startCol === -1 || endCol === -1) {
     dateCol = 0; startCol = 1; endCol = 2; relDurCol = 4;
-    descCol = 5; tagsCol = 6; breaksDescCol = 8;
+    relSalaryCol = 5; descCol = 6; tagsCol = 7; breaksDescCol = 9;
     dataStart = 0;
   }
 
@@ -80,6 +82,14 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
       // Parse rel. Duration (e.g. "7:28:00" or fractional day number)
       const relDurationSeconds = relDurCol !== -1 ? parseDurationToSeconds(row[relDurCol]) : null;
 
+      // Parse rel. Salary
+      let relSalary: number | undefined;
+      if (relSalaryCol !== -1 && row[relSalaryCol] != null) {
+        const salaryVal = row[relSalaryCol];
+        const parsed = typeof salaryVal === 'number' ? salaryVal : parseFloat(String(salaryVal).replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(parsed)) relSalary = parsed;
+      }
+
       // Parse breaks
       const breaks = parseBreaksDescription(breaksDescRaw, baseDate);
 
@@ -102,6 +112,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
           endTime: new Date(endTime),
           description,
           relDurationSeconds: totalWorkSeconds,
+          relSalary,
           periods: periods.map(p => ({ ...p })),
         });
       }

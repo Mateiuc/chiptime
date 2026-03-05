@@ -1,15 +1,25 @@
 
 
-# Fix: Move "Money Over Time" chart inside scrollable content
+# Drill-Down on "Money Over Time" Bar Chart
 
-## Problem
-The "Money Over Time" chart block (lines 974-1009) is rendered **outside** the scrollable `div` (which closes at line 971 with `</div>` and `)}`) — making it fixed/stuck at the bottom of the viewport, covering half the page.
+## Concept
+When the user double-clicks a bar in the chart, the chart view swaps to show a detailed breakdown of that month — listing each vehicle with its cost. A "Back to chart" button returns to the bar graph view.
 
-## Solution
-Move the entire "Money Over Time" chart block to **inside** the scrollable content div, right after the Revenue Charts section (after line 969, before the closing `</div>` at line 970). This places it in the normal document flow, scrollable, and visually below "Expected Gain."
+## Implementation (single file: `src/pages/DesktopDashboard.tsx`)
 
-Also match the styling to "Expected Gain" — use `rounded-xl` border instead of `rounded-lg`, and keep the same height for the chart area (250px like Expected Gain charts instead of 300px).
+### 1. Add state for drilled month
+- `const [drillMonth, setDrillMonth] = useState<string | null>(null)`
 
-### File to edit
-- `src/pages/DesktopDashboard.tsx` — cut lines 974-1009 and paste them before line 970, adjusting card styling to match Expected Gain.
+### 2. Compute drill-down data
+- A `useMemo` that, when `drillMonth` is set, filters tasks to that month (and selected client), then groups them by vehicle, showing: vehicle make/model/year, VIN, client name, and total cost for that month.
+
+### 3. Handle bar double-click
+- Add `onDoubleClick` handler on the `<Bar>` component via the `onClick` event on `BarChart` (recharts supports `onClick` on `Bar` which fires on single click — we can use single click for simplicity since double-click isn't natively supported by recharts). Use `onClick` on the `<Bar>` component: `onClick={(data) => setDrillMonth(data.month)}`.
+
+### 4. Swap chart with detail table
+- When `drillMonth` is set, instead of the BarChart, render a table/list showing:
+  - Header: "Details for {month}" + a "Back" button to clear `drillMonth`
+  - Rows: each vehicle with client name, make/model/VIN, and cost for that month
+  - Total row at the bottom
+- Same container height (250px) with scroll if needed.
 

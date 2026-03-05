@@ -434,20 +434,15 @@ const DesktopDashboard = () => {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return key === drillMonth;
     });
-    // Group by vehicle
-    const vehicleMap: Record<string, { vehicle: Vehicle | undefined; client: Client | undefined; cost: number }> = {};
-    monthTasks.forEach(t => {
-      const vid = t.vehicleId || 'unknown';
-      if (!vehicleMap[vid]) {
-        vehicleMap[vid] = {
-          vehicle: vehicles.find(v => v.id === vid),
-          client: clients.find(c => c.id === t.clientId),
-          cost: 0,
-        };
-      }
-      vehicleMap[vid].cost += getTaskCost(t);
-    });
-    return Object.values(vehicleMap).sort((a, b) => b.cost - a.cost);
+    return monthTasks.map(t => ({
+      id: t.id,
+      vehicle: vehicles.find(v => v.id === t.vehicleId),
+      description: t.sessions?.find(s => s.description)?.description || '—',
+      date: new Date(t.createdAt).toLocaleDateString(),
+      timeWorked: formatDuration(t.totalTime || 0),
+      client: clients.find(c => c.id === t.clientId)?.name || 'Unknown',
+      cost: getTaskCost(t),
+    })).sort((a, b) => b.cost - a.cost);
   }, [drillMonth, tasks, vehicles, clients, chartClient, settings]);
 
   const getSessionDuration = (session: WorkSession) =>
@@ -1032,25 +1027,31 @@ const DesktopDashboard = () => {
                     <thead className="sticky top-0 bg-card">
                       <tr className="border-b">
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Vehicle</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Description</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Time Worked</th>
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Client</th>
                         <th className="text-right py-2 px-2 font-medium text-muted-foreground">Cost</th>
                       </tr>
                     </thead>
                     <tbody>
                       {drillDownData.map((row, i) => (
-                        <tr key={i} className="border-b border-border/50">
+                        <tr key={row.id || i} className="border-b border-border/50">
                           <td className="py-2 px-2">
                             {row.vehicle ? `${row.vehicle.year || ''} ${row.vehicle.make || ''} ${row.vehicle.model || ''}`.trim() || row.vehicle.vin : 'Unknown'}
                             {row.vehicle?.vin && <span className="text-muted-foreground text-xs ml-2">{row.vehicle.vin}</span>}
                           </td>
-                          <td className="py-2 px-2">{row.client?.name || 'Unknown'}</td>
+                          <td className="py-2 px-2 text-muted-foreground">{row.description}</td>
+                          <td className="py-2 px-2 text-muted-foreground">{row.date}</td>
+                          <td className="py-2 px-2 font-mono text-muted-foreground">{row.timeWorked}</td>
+                          <td className="py-2 px-2">{row.client}</td>
                           <td className="py-2 px-2 text-right font-medium">{formatCurrency(row.cost)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="sticky bottom-0 bg-card">
                       <tr className="border-t-2">
-                        <td colSpan={2} className="py-2 px-2 font-bold">Total</td>
+                        <td colSpan={5} className="py-2 px-2 font-bold">Total</td>
                         <td className="py-2 px-2 text-right font-bold">{formatCurrency(drillDownData.reduce((s, r) => s + r.cost, 0))}</td>
                       </tr>
                     </tfoot>

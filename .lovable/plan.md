@@ -1,30 +1,26 @@
 
 
-# Add "rel. Salary" Support to XLS Import
+# Use `importedSalary` as the Displayed Cost for Imported Tasks
 
-## What's new in the file
-The file now has a **"rel. Salary"** column (column 5) between "rel. Duration" and "Description". This shifts Description to column 6, Tags to 7, Breaks to 8, Breaks Description to 9.
+## Problem
+The `importedSalary` value is correctly parsed and stored on the task, but every cost display still calculates `hourlyRate × duration`. The "rel. Salary" amount is never shown.
 
-Example: row 1 has `rel. Salary = 358.40` for "G20 m340i headlight..." work.
+## Solution
+When a task has `importedSalary` set, use that as the total cost instead of computing from hourly rate. This affects three locations:
 
-## Plan
+### 1. `src/components/TaskCard.tsx` (lines ~1111-1127)
+- After the existing labor cost calculation, check if `task.importedSalary` is defined
+- If so, override `laborCost` and `totalCost` with `task.importedSalary` (no parts cost addition since imported tasks don't have parts)
+- Also update the PDF generators (~line 387 and ~701) to use `importedSalary` when available
 
-### 1. Add `relSalary` to `ImportedSession` interface
-Add `relSalary?: number` to the interface in `src/lib/xlsImporter.ts`.
+### 2. `src/lib/clientPortalUtils.ts` (lines ~122-144)
+- In the session cost calculation, if the parent task has `importedSalary`, use that as `laborCost` instead of `(duration / 3600) * hourlyRate`
+- Since imported tasks have exactly one session, assign the full `importedSalary` to that session's `laborCost`
 
-### 2. Parse the new column in `parseWorkHistoryXls`
-- Header mode: detect column by name `"rel. salary"` or `"salary"`
-- Headerless fallback: column index 5 (shift `descCol` to 6, `tagsCol` to 7, `breaksDescCol` to 9)
-- Parse the value as a number (handle both raw number and string like `"358.40"`)
-
-### 3. Add `importedSalary` to `Task` type
-Add optional `importedSalary?: number` field to the `Task` interface in `src/types/index.ts`. This preserves the exact dollar amount from the XLS without interfering with the existing billing calculation.
-
-### 4. Store salary during import
-In `src/pages/DesktopDashboard.tsx`, pass `s.relSalary` into the task object as `importedSalary`.
+### 3. `src/components/ClientCostBreakdown.tsx`
+- No changes needed — it already reads `laborCost` from the session summary objects produced by `clientPortalUtils`
 
 ### Files to edit
-- `src/lib/xlsImporter.ts` — parse new column, update interface
-- `src/types/index.ts` — add `importedSalary` to Task
-- `src/pages/DesktopDashboard.tsx` — store salary on task creation
+- `src/components/TaskCard.tsx` — use `importedSalary` for display and PDFs
+- `src/lib/clientPortalUtils.ts` — pass `importedSalary` through to session cost
 

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -111,6 +111,11 @@ const DesktopDashboard = () => {
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   const [chartClient, setChartClient] = useState<string>('all');
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
+  const [drillSortField, setDrillSortField] = useState<'date' | 'cost'>('date');
+  const [drillSortDir, setDrillSortDir] = useState<'asc' | 'desc'>('desc');
+  const [drillShowCompleted, setDrillShowCompleted] = useState(true);
+  const [drillShowBilled, setDrillShowBilled] = useState(true);
+  const [drillShowPaid, setDrillShowPaid] = useState(true);
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
@@ -434,16 +439,29 @@ const DesktopDashboard = () => {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return key === drillMonth;
     });
-    return monthTasks.map(t => ({
+    const statusFiltered = monthTasks.filter(t => {
+      if (t.status === 'completed' && !drillShowCompleted) return false;
+      if (t.status === 'billed' && !drillShowBilled) return false;
+      if (t.status === 'paid' && !drillShowPaid) return false;
+      return true;
+    });
+    return statusFiltered.map(t => ({
       id: t.id,
       vehicle: vehicles.find(v => v.id === t.vehicleId),
       description: t.sessions?.find(s => s.description)?.description || '—',
       date: new Date(t.createdAt).toLocaleDateString(),
+      rawDate: new Date(t.createdAt).getTime(),
       timeWorked: formatDuration(t.totalTime || 0),
       client: clients.find(c => c.id === t.clientId)?.name || 'Unknown',
       cost: getTaskCost(t),
-    })).sort((a, b) => b.cost - a.cost);
-  }, [drillMonth, tasks, vehicles, clients, chartClient, settings]);
+      status: t.status,
+    })).sort((a, b) => {
+      const factor = drillSortDir === 'asc' ? 1 : -1;
+      return drillSortField === 'date'
+        ? (a.rawDate - b.rawDate) * factor
+        : (a.cost - b.cost) * factor;
+    });
+  }, [drillMonth, tasks, vehicles, clients, chartClient, settings, drillSortField, drillSortDir, drillShowCompleted, drillShowBilled, drillShowPaid]);
 
   const getSessionDuration = (session: WorkSession) =>
     (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);
@@ -995,7 +1013,7 @@ const DesktopDashboard = () => {
               <h3 className="text-lg font-bold flex items-center gap-2">
                 {drillMonth ? (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => setDrillMonth(null)} className="mr-1 h-7 px-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setDrillMonth(null); setDrillSortField('date'); setDrillSortDir('desc'); setDrillShowCompleted(true); setDrillShowBilled(true); setDrillShowPaid(true); }} className="mr-1 h-7 px-2">
                       ← Back
                     </Button>
                     Details for {drillMonth}
@@ -1021,17 +1039,28 @@ const DesktopDashboard = () => {
               )}
             </div>
             {drillMonth ? (
-              <div className="h-[250px] overflow-auto">
+              <div>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                  <Button variant={drillShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowCompleted(v => !v)}>Completed</Button>
+                  <Button variant={drillShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowBilled(v => !v)}>Billed</Button>
+                  <Button variant={drillShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowPaid(v => !v)}>Paid</Button>
+                </div>
+                <div className="h-[220px] overflow-auto">
                 {drillDownData.length > 0 ? (
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-card">
                       <tr className="border-b">
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Vehicle</th>
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Description</th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'date') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('date'); setDrillSortDir('desc'); } }}>
+                          Date {drillSortField === 'date' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
+                        </th>
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Time Worked</th>
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Client</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Cost</th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'cost') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('cost'); setDrillSortDir('desc'); } }}>
+                          Cost {drillSortField === 'cost' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1059,6 +1088,7 @@ const DesktopDashboard = () => {
                 ) : (
                   <p className="text-muted-foreground text-center py-8">No data for this month</p>
                 )}
+              </div>
               </div>
             ) : monthlyRevenueData.length > 0 ? (
               <div className="h-[250px]">

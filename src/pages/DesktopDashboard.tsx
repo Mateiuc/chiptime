@@ -110,6 +110,7 @@ const DesktopDashboard = () => {
   const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   const [chartClient, setChartClient] = useState<string>('all');
+  const [drillMonth, setDrillMonth] = useState<string | null>(null);
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
@@ -423,6 +424,31 @@ const DesktopDashboard = () => {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
   }, [tasks, chartClient, clients, settings]);
+
+  // --- Drill-down data for Money Over Time chart ---
+  const drillDownData = useMemo(() => {
+    if (!drillMonth) return [];
+    const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
+    const monthTasks = filtered.filter(t => {
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === drillMonth;
+    });
+    // Group by vehicle
+    const vehicleMap: Record<string, { vehicle: Vehicle | undefined; client: Client | undefined; cost: number }> = {};
+    monthTasks.forEach(t => {
+      const vid = t.vehicleId || 'unknown';
+      if (!vehicleMap[vid]) {
+        vehicleMap[vid] = {
+          vehicle: vehicles.find(v => v.id === vid),
+          client: clients.find(c => c.id === t.clientId),
+          cost: 0,
+        };
+      }
+      vehicleMap[vid].cost += getTaskCost(t);
+    });
+    return Object.values(vehicleMap).sort((a, b) => b.cost - a.cost);
+  }, [drillMonth, tasks, vehicles, clients, chartClient, settings]);
 
   const getSessionDuration = (session: WorkSession) =>
     (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);
@@ -972,21 +998,68 @@ const DesktopDashboard = () => {
           <div className="mt-6 rounded-xl border-2 bg-card p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Money Over Time
+                {drillMonth ? (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setDrillMonth(null)} className="mr-1 h-7 px-2">
+                      ← Back
+                    </Button>
+                    Details for {drillMonth}
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-5 w-5" />
+                    Money Over Time
+                  </>
+                )}
               </h3>
-              <select
-                value={chartClient}
-                onChange={e => setChartClient(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="all">All Clients</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              {!drillMonth && (
+                <select
+                  value={chartClient}
+                  onChange={e => { setChartClient(e.target.value); setDrillMonth(null); }}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">All Clients</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
-            {monthlyRevenueData.length > 0 ? (
+            {drillMonth ? (
+              <div className="h-[250px] overflow-auto">
+                {drillDownData.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-card">
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Vehicle</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Client</th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drillDownData.map((row, i) => (
+                        <tr key={i} className="border-b border-border/50">
+                          <td className="py-2 px-2">
+                            {row.vehicle ? `${row.vehicle.year || ''} ${row.vehicle.make || ''} ${row.vehicle.model || ''}`.trim() || row.vehicle.vin : 'Unknown'}
+                            {row.vehicle?.vin && <span className="text-muted-foreground text-xs ml-2">{row.vehicle.vin}</span>}
+                          </td>
+                          <td className="py-2 px-2">{row.client?.name || 'Unknown'}</td>
+                          <td className="py-2 px-2 text-right font-medium">{formatCurrency(row.cost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="sticky bottom-0 bg-card">
+                      <tr className="border-t-2">
+                        <td colSpan={2} className="py-2 px-2 font-bold">Total</td>
+                        <td className="py-2 px-2 text-right font-bold">{formatCurrency(drillDownData.reduce((s, r) => s + r.cost, 0))}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">No data for this month</p>
+                )}
+              </div>
+            ) : monthlyRevenueData.length > 0 ? (
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyRevenueData}>
@@ -994,7 +1067,7 @@ const DesktopDashboard = () => {
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data: any) => setDrillMonth(data.month)} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -1,25 +1,23 @@
 
 
-# Drill-Down on "Money Over Time" Bar Chart
+# Add Description, Date, and Time Worked to Money Over Time Drill-Down
 
-## Concept
-When the user double-clicks a bar in the chart, the chart view swaps to show a detailed breakdown of that month — listing each vehicle with its cost. A "Back to chart" button returns to the bar graph view.
+## Current State
+The drill-down table groups tasks by vehicle and shows only 3 columns: Vehicle, Client, Cost.
 
-## Implementation (single file: `src/pages/DesktopDashboard.tsx`)
+## Proposed Change
+Switch from vehicle-grouped rows to **per-task rows**, adding Description, Date, and Time Worked columns before Client.
 
-### 1. Add state for drilled month
-- `const [drillMonth, setDrillMonth] = useState<string | null>(null)`
+### New column order:
+`Vehicle | Description | Date | Time Worked | Client | Cost`
 
-### 2. Compute drill-down data
-- A `useMemo` that, when `drillMonth` is set, filters tasks to that month (and selected client), then groups them by vehicle, showing: vehicle make/model/year, VIN, client name, and total cost for that month.
+### Changes in `src/pages/DesktopDashboard.tsx`:
 
-### 3. Handle bar double-click
-- Add `onDoubleClick` handler on the `<Bar>` component via the `onClick` event on `BarChart` (recharts supports `onClick` on `Bar` which fires on single click — we can use single click for simplicity since double-click isn't natively supported by recharts). Use `onClick` on the `<Bar>` component: `onClick={(data) => setDrillMonth(data.month)}`.
+1. **Update `drillDownData` memo** (lines 429-451): Instead of grouping by vehicle, return one row per task with fields: `vehicle`, `client`, `cost`, `description` (from latest session or task), `date` (task createdAt), `timeWorked` (task totalTime in seconds).
 
-### 4. Swap chart with detail table
-- When `drillMonth` is set, instead of the BarChart, render a table/list showing:
-  - Header: "Details for {month}" + a "Back" button to clear `drillMonth`
-  - Rows: each vehicle with client name, make/model/VIN, and cost for that month
-  - Total row at the bottom
-- Same container height (250px) with scroll if needed.
+2. **Update table headers** (lines 1033-1037): Add Description, Date, Time Worked columns between Vehicle and Client.
+
+3. **Update table rows** (lines 1040-1049): Render description (from first session with a description, or "—"), formatted date, and formatted duration (HH:MM:SS) in the new columns.
+
+4. **Update footer colspan** (line 1053): Change `colSpan` from 2 to 5 to span all columns before Cost.
 

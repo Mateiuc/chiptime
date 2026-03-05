@@ -116,6 +116,9 @@ const DesktopDashboard = () => {
   const [drillShowCompleted, setDrillShowCompleted] = useState(true);
   const [drillShowBilled, setDrillShowBilled] = useState(true);
   const [drillShowPaid, setDrillShowPaid] = useState(true);
+  const [chartShowCompleted, setChartShowCompleted] = useState(true);
+  const [chartShowBilled, setChartShowBilled] = useState(true);
+  const [chartShowPaid, setChartShowPaid] = useState(true);
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
@@ -419,8 +422,14 @@ const DesktopDashboard = () => {
   // --- Money Over Time chart data ---
   const monthlyRevenueData = useMemo(() => {
     const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
+    const statusFiltered = filtered.filter(t => {
+      if (t.status === 'completed' && !chartShowCompleted) return false;
+      if (t.status === 'billed' && !chartShowBilled) return false;
+      if (t.status === 'paid' && !chartShowPaid) return false;
+      return true;
+    });
     const monthMap: Record<string, number> = {};
-    filtered.forEach(t => {
+    statusFiltered.forEach(t => {
       const d = new Date(t.createdAt);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
@@ -428,7 +437,7 @@ const DesktopDashboard = () => {
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [tasks, chartClient, clients, settings]);
+  }, [tasks, chartClient, clients, settings, chartShowCompleted, chartShowBilled, chartShowPaid]);
 
   // --- Drill-down data for Money Over Time chart ---
   const drillDownData = useMemo(() => {
@@ -1090,7 +1099,15 @@ const DesktopDashboard = () => {
                 )}
               </div>
               </div>
-            ) : monthlyRevenueData.length > 0 ? (
+            ) : (
+              <>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
+                <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
+                <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
+              </div>
+              {monthlyRevenueData.length > 0 ? (
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyRevenueData}>
@@ -1098,12 +1115,14 @@ const DesktopDashboard = () => {
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data: any) => setDrillMonth(data.month)} />
+                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data: any) => { setDrillMonth(data.month); setDrillShowCompleted(chartShowCompleted); setDrillShowBilled(chartShowBilled); setDrillShowPaid(chartShowPaid); }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <p className="text-muted-foreground text-center py-8">No data for selected client</p>
+            )}
+              </>
             )}
           </div>
         </div>

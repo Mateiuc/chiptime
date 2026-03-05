@@ -1,23 +1,28 @@
 
 
-# Add Description, Date, and Time Worked to Money Over Time Drill-Down
+# Add Sorting, Date Filter, and Status Toggles to Drill-Down Table
 
-## Current State
-The drill-down table groups tasks by vehicle and shows only 3 columns: Vehicle, Client, Cost.
+## Changes in `src/pages/DesktopDashboard.tsx`
 
-## Proposed Change
-Switch from vehicle-grouped rows to **per-task rows**, adding Description, Date, and Time Worked columns before Client.
+### 1. New state variables
+- `drillSortField`: `'date' | 'cost'` (default `'date'`)
+- `drillSortDir`: `'asc' | 'desc'` (default `'desc'`)
+- `drillShowCompleted`, `drillShowBilled`, `drillShowPaid`: booleans, all default `true`
 
-### New column order:
-`Vehicle | Description | Date | Time Worked | Client | Cost`
+### 2. Update `drillDownData` memo
+- Include task status in each row object (`status: t.status`)
+- Include raw date for sorting (`rawDate: new Date(t.createdAt).getTime()`)
+- Filter by status toggles: only include tasks whose status matches enabled flags (completed/billed/paid)
+- Sort by `drillSortField` + `drillSortDir` instead of hardcoded cost descending
 
-### Changes in `src/pages/DesktopDashboard.tsx`:
+### 3. Add controls row above the table (inside the drillMonth block)
+A small toolbar between the header ("Details for...") and the table:
+- **Sort by**: Two small clickable header labels on Date and Cost columns with up/down arrow icons (ArrowUpDown from lucide). Clicking toggles sort direction, clicking different column switches sort field.
+- **Status toggles**: Three small toggle buttons/badges: "Completed", "Billed", "Paid" — each toggleable on/off with visual feedback (filled vs outline). Uses the existing Badge or small buttons.
 
-1. **Update `drillDownData` memo** (lines 429-451): Instead of grouping by vehicle, return one row per task with fields: `vehicle`, `client`, `cost`, `description` (from latest session or task), `date` (task createdAt), `timeWorked` (task totalTime in seconds).
+### 4. Make table headers clickable for sort
+The Date and Cost `<th>` elements become clickable with an arrow indicator showing current sort direction.
 
-2. **Update table headers** (lines 1033-1037): Add Description, Date, Time Worked columns between Vehicle and Client.
-
-3. **Update table rows** (lines 1040-1049): Render description (from first session with a description, or "—"), formatted date, and formatted duration (HH:MM:SS) in the new columns.
-
-4. **Update footer colspan** (line 1053): Change `colSpan` from 2 to 5 to span all columns before Cost.
+### 5. Reset drill filters when drillMonth changes
+When `setDrillMonth` is called, reset sort and status filters to defaults.
 

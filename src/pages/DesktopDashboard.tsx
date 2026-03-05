@@ -230,7 +230,7 @@ const DesktopDashboard = () => {
       if (session.isCloning && cloningRate > 0) { cloneTot += cloningRate; cloneCnt++; }
       if (session.isProgramming && programmingRate > 0) { progTot += programmingRate; progCnt++; }
     });
-    const laborCost = baseLab + minHrAdj + cloneTot + progTot;
+    const laborCost = task.importedSalary != null ? task.importedSalary : (baseLab + minHrAdj + cloneTot + progTot);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
     const total = laborCost + partsCost;
@@ -391,6 +391,10 @@ const DesktopDashboard = () => {
 
   // --- Helpers ---
   const getTaskCost = (task: Task) => {
+    const partsCost = (task.sessions || []).reduce((sum, s) =>
+      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
+    );
+    if (task.importedSalary != null) return task.importedSalary + partsCost;
     const client = clients.find(c => c.id === task.clientId);
     const rate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
@@ -403,9 +407,6 @@ const DesktopDashboard = () => {
       if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
       return total + sessionCost;
     }, 0);
-    const partsCost = (task.sessions || []).reduce((sum, s) =>
-      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
-    );
     return laborCost + partsCost;
   };
 

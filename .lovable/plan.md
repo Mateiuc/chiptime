@@ -1,29 +1,30 @@
 
 
-# Fix XLS Import — One Task Per Row
+# Add "rel. Salary" Support to XLS Import
 
-## Current Behavior
-All rows sharing the same tag are grouped into a single task with multiple work sessions. This merges unrelated work together.
+## What's new in the file
+The file now has a **"rel. Salary"** column (column 5) between "rel. Duration" and "Description". This shifts Description to column 6, Tags to 7, Breaks to 8, Breaks Description to 9.
 
-## Desired Behavior
-Each row in the XLS creates:
-- A **vehicle** (reused if same tag already exists for that client)
-- Its own **task** with a single work session containing the parsed periods
+Example: row 1 has `rel. Salary = 358.40` for "G20 m340i headlight..." work.
 
-So 133 rows → 133 tasks. Vehicles are still deduplicated by tag (e.g., all "X5" rows share one vehicle, but each gets its own task).
+## Plan
 
-## Changes — `src/pages/DesktopDashboard.tsx` (lines 125–183)
+### 1. Add `relSalary` to `ImportedSession` interface
+Add `relSalary?: number` to the interface in `src/lib/xlsImporter.ts`.
 
-Replace the "group by tag" logic with a per-row loop:
+### 2. Parse the new column in `parseWorkHistoryXls`
+- Header mode: detect column by name `"rel. salary"` or `"salary"`
+- Headerless fallback: column index 5 (shift `descCol` to 6, `tagsCol` to 7, `breaksDescCol` to 9)
+- Parse the value as a number (handle both raw number and string like `"358.40"`)
 
-1. Remove the `byTag` Map grouping
-2. For each imported session:
-   - Find or create a vehicle for the tag (same dedup logic as now)
-   - Create one Task with one WorkSession containing the row's periods
-   - `totalTime` = that row's `relDurationSeconds`
-   - Status = `completed`
-3. Toast shows total tasks created
+### 3. Add `importedSalary` to `Task` type
+Add optional `importedSalary?: number` field to the `Task` interface in `src/types/index.ts`. This preserves the exact dollar amount from the XLS without interfering with the existing billing calculation.
+
+### 4. Store salary during import
+In `src/pages/DesktopDashboard.tsx`, pass `s.relSalary` into the task object as `importedSalary`.
 
 ### Files to edit
-- `src/pages/DesktopDashboard.tsx` — replace grouping logic with per-row task creation
+- `src/lib/xlsImporter.ts` — parse new column, update interface
+- `src/types/index.ts` — add `importedSalary` to Task
+- `src/pages/DesktopDashboard.tsx` — store salary on task creation
 

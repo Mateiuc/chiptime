@@ -1,28 +1,18 @@
 
 
-# Add Sorting, Date Filter, and Status Toggles to Drill-Down Table
+# Add Status Filter Buttons to Main "Money Over Time" Bar Chart
 
 ## Changes in `src/pages/DesktopDashboard.tsx`
 
-### 1. New state variables
-- `drillSortField`: `'date' | 'cost'` (default `'date'`)
-- `drillSortDir`: `'asc' | 'desc'` (default `'desc'`)
-- `drillShowCompleted`, `drillShowBilled`, `drillShowPaid`: booleans, all default `true`
+### 1. Add new state variables for chart-level status filters
+Add `chartShowCompleted`, `chartShowBilled`, `chartShowPaid` — all default `true`. These are separate from the drill-down filters so they work independently.
 
-### 2. Update `drillDownData` memo
-- Include task status in each row object (`status: t.status`)
-- Include raw date for sorting (`rawDate: new Date(t.createdAt).getTime()`)
-- Filter by status toggles: only include tasks whose status matches enabled flags (completed/billed/paid)
-- Sort by `drillSortField` + `drillSortDir` instead of hardcoded cost descending
+### 2. Update `monthlyRevenueData` memo
+Add status filtering before aggregation: skip tasks whose status doesn't match the enabled chart-level toggles. Add the three new state variables to the dependency array.
 
-### 3. Add controls row above the table (inside the drillMonth block)
-A small toolbar between the header ("Details for...") and the table:
-- **Sort by**: Two small clickable header labels on Date and Cost columns with up/down arrow icons (ArrowUpDown from lucide). Clicking toggles sort direction, clicking different column switches sort field.
-- **Status toggles**: Three small toggle buttons/badges: "Completed", "Billed", "Paid" — each toggleable on/off with visual feedback (filled vs outline). Uses the existing Badge or small buttons.
+### 3. Add toggle buttons above the chart
+Place three small toggle buttons (Completed / Billed / Paid) in a row between the existing client selector and the chart area — same style as the drill-down toggles (`variant={chartShowX ? 'default' : 'outline'}`, small size). Only visible when `!drillMonth` (main chart view).
 
-### 4. Make table headers clickable for sort
-The Date and Cost `<th>` elements become clickable with an arrow indicator showing current sort direction.
-
-### 5. Reset drill filters when drillMonth changes
-When `setDrillMonth` is called, reset sort and status filters to defaults.
+### 4. Pass chart-level filters to drill-down
+When clicking a bar to drill down, initialize `drillShowCompleted/Billed/Paid` from the chart-level filter values so the drill-down inherits the same visibility.
 

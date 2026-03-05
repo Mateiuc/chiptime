@@ -109,6 +109,21 @@ const DesktopDashboard = () => {
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
+  const [chartClient, setChartClient] = useState<string>('all');
+
+  // --- Money Over Time chart data ---
+  const monthlyRevenueData = useMemo(() => {
+    const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
+    const monthMap: Record<string, number> = {};
+    filtered.forEach(t => {
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
+    });
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
+  }, [tasks, chartClient, clients, settings]);
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
@@ -668,6 +683,12 @@ const DesktopDashboard = () => {
                               {vehicle.color && (
                                 <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>
                               )}
+                              {(() => {
+                                const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+                                return vehicleCost > 0 ? (
+                                  <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-2">{formatCurrency(vehicleCost)}</span>
+                                ) : null;
+                              })()}
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
@@ -950,6 +971,43 @@ const DesktopDashboard = () => {
         </div>
       )}
 
+
+      {/* Money Over Time Chart */}
+      {desktopView === 'tree' && (
+        <div className="mt-6 rounded-lg border-2 bg-card p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Money Over Time
+            </h3>
+            <select
+              value={chartClient}
+              onChange={e => setChartClient(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">All Clients</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          {monthlyRevenueData.length > 0 ? (
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyRevenueData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">No data for selected client</p>
+          )}
+        </div>
+      )}
 
       {/* Add Client Dialog */}
       <AddClientDialog

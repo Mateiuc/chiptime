@@ -967,44 +967,41 @@ const DesktopDashboard = () => {
               </div>
             </div>
           )}
-        </div>
-      )}
 
-
-      {/* Money Over Time Chart */}
-      {desktopView === 'tree' && (
-        <div className="mt-6 rounded-lg border-2 bg-card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Money Over Time
-            </h3>
-            <select
-              value={chartClient}
-              onChange={e => setChartClient(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">All Clients</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          {monthlyRevenueData.length > 0 ? (
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyRevenueData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+          {/* Money Over Time Chart */}
+          <div className="mt-6 rounded-xl border-2 bg-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Money Over Time
+              </h3>
+              <select
+                value={chartClient}
+                onChange={e => setChartClient(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="all">All Clients</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">No data for selected client</p>
-          )}
+            {monthlyRevenueData.length > 0 ? (
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyRevenueData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">No data for selected client</p>
+            )}
+          </div>
         </div>
       )}
 

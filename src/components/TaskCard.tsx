@@ -384,7 +384,7 @@ export const TaskCard = ({
         }, 0);
         
         // Calculate cost for this session
-        const sessionCost = (sessionDuration / 3600) * hourlyRate;
+        const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
         
         // Get description or use default
         const description = session.description || 'Work session';
@@ -698,7 +698,7 @@ export const TaskCard = ({
           return total + period.duration;
         }, 0);
         
-        const sessionCost = (sessionDuration / 3600) * hourlyRate;
+        const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
         const description = session.description || 'Work session';
         
         const col1Width = col2X - col1X - 4;
@@ -1120,7 +1120,8 @@ export const TaskCard = ({
     if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
     if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
   });
-  const laborCost = baseLabor + totalMinHourAdj + totalCloning + totalProgramming;
+  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming;
+  const laborCost = task.importedSalary != null ? task.importedSalary : calculatedLabor;
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);
   }, 0);

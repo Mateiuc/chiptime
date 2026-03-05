@@ -111,20 +111,6 @@ const DesktopDashboard = () => {
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   const [chartClient, setChartClient] = useState<string>('all');
 
-  // --- Money Over Time chart data ---
-  const monthlyRevenueData = useMemo(() => {
-    const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
-    const monthMap: Record<string, number> = {};
-    filtered.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
-    });
-    return Object.entries(monthMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [tasks, chartClient, clients, settings]);
-
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
     try {
@@ -370,7 +356,6 @@ const DesktopDashboard = () => {
     toast({ title: 'Task Deleted' });
   };
 
-
   const handleDeleteClient = (id: string) => {
     const clientTasks = tasks.filter(t => t.clientId === id);
     if (clientTasks.some(t => ['pending', 'in-progress', 'paused'].includes(t.status))) {
@@ -424,6 +409,20 @@ const DesktopDashboard = () => {
     }, 0);
     return laborCost + partsCost;
   };
+
+  // --- Money Over Time chart data ---
+  const monthlyRevenueData = useMemo(() => {
+    const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
+    const monthMap: Record<string, number> = {};
+    filtered.forEach(t => {
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
+    });
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
+  }, [tasks, chartClient, clients, settings]);
 
   const getSessionDuration = (session: WorkSession) =>
     (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);

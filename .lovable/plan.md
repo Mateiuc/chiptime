@@ -1,13 +1,15 @@
 
 
-# Fix: "Cannot access before initialization" crash on Desktop Dashboard
+# Fix: Move "Money Over Time" chart inside scrollable content
 
 ## Problem
-The `monthlyRevenueData` `useMemo` hook was added near line 112, but it calls `getTaskCost()` which is defined at line 408. Since `const` declarations are not hoisted, this causes a runtime error: "Cannot access 'St' before initialization."
+The "Money Over Time" chart block (lines 974-1009) is rendered **outside** the scrollable `div` (which closes at line 971 with `</div>` and `)}`) — making it fixed/stuck at the bottom of the viewport, covering half the page.
 
 ## Solution
-Move the `monthlyRevenueData` `useMemo` block (and the `chartClient` state) to **after** the `getTaskCost` function definition (after line ~420). This ensures `getTaskCost` is already declared when the memo runs.
+Move the entire "Money Over Time" chart block to **inside** the scrollable content div, right after the Revenue Charts section (after line 969, before the closing `</div>` at line 970). This places it in the normal document flow, scrollable, and visually below "Expected Gain."
+
+Also match the styling to "Expected Gain" — use `rounded-xl` border instead of `rounded-lg`, and keep the same height for the chart area (250px like Expected Gain charts instead of 300px).
 
 ### File to edit
-- `src/pages/DesktopDashboard.tsx` — relocate `chartClient` state and `monthlyRevenueData` memo from lines ~112-128 to after line ~420
+- `src/pages/DesktopDashboard.tsx` — cut lines 974-1009 and paste them before line 970, adjusting card styling to match Expected Gain.
 

@@ -121,11 +121,19 @@ export function calculateClientCosts(
     vehicleTasks.forEach(task => {
       task.sessions.forEach(session => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const baseLaborCost = (duration / 3600) * hourlyRate;
-        const minHourAdj = (session.chargeMinimumHour && duration < 3600) ? ((3600 - duration) / 3600) * hourlyRate : 0;
-        const sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
-        const sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
-        const laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost;
+        let laborCost: number;
+        let minHourAdj = 0;
+        let sessionCloningCost = 0;
+        let sessionProgrammingCost = 0;
+        if (task.importedSalary != null) {
+          laborCost = task.importedSalary;
+        } else {
+          const baseLaborCost = (duration / 3600) * hourlyRate;
+          minHourAdj = (session.chargeMinimumHour && duration < 3600) ? ((3600 - duration) / 3600) * hourlyRate : 0;
+          sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
+          sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
+          laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost;
+        }
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
         totalLabor += laborCost;

@@ -170,6 +170,7 @@ const DesktopDashboard = () => {
           totalTime: s.relDurationSeconds,
           needsFollowUp: false,
           createdAt: s.date,
+          importedSalary: s.relSalary,
           sessions: [workSession],
         };
 

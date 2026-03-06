@@ -176,7 +176,7 @@ const DesktopDashboard = () => {
           vehicleId: vehicle.id,
           customerName: clientName,
           carVin: vehicle.vin,
-          status: 'completed',
+          status: s.paid ? 'paid' : 'completed',
           totalTime: s.relDurationSeconds,
           needsFollowUp: false,
           createdAt: s.date,

@@ -1,18 +1,19 @@
 
 
-# Add Status Filter Buttons to Main "Money Over Time" Bar Chart
+# Add "Paid" Column Support to XLS Import
 
-## Changes in `src/pages/DesktopDashboard.tsx`
+The uploaded XLS file has a "Paid" column with "Yes"/"No" values. Currently the importer ignores this column and sets all imported tasks to `status: 'completed'`. This change will read that column and set the task status to `'paid'` when "Yes", keeping `'completed'` when "No".
 
-### 1. Add new state variables for chart-level status filters
-Add `chartShowCompleted`, `chartShowBilled`, `chartShowPaid` — all default `true`. These are separate from the drill-down filters so they work independently.
+## Changes
 
-### 2. Update `monthlyRevenueData` memo
-Add status filtering before aggregation: skip tasks whose status doesn't match the enabled chart-level toggles. Add the three new state variables to the dependency array.
+### 1. `src/lib/xlsImporter.ts`
+- Add `paid: boolean` field to the `ImportedSession` interface
+- Detect the "paid" column index using the existing `col()` helper
+- Parse the value: treat "yes"/"true"/"1" (case-insensitive) as `true`, everything else as `false`
+- Include it in each returned session object
 
-### 3. Add toggle buttons above the chart
-Place three small toggle buttons (Completed / Billed / Paid) in a row between the existing client selector and the chart area — same style as the drill-down toggles (`variant={chartShowX ? 'default' : 'outline'}`, small size). Only visible when `!drillMonth` (main chart view).
+### 2. `src/pages/DesktopDashboard.tsx`
+- In `handleImportXls`, when building each `Task`, set `status: s.paid ? 'paid' : 'completed'` instead of the hardcoded `'completed'`
 
-### 4. Pass chart-level filters to drill-down
-When clicking a bar to drill down, initialize `drillShowCompleted/Billed/Paid` from the chart-level filter values so the drill-down inherits the same visibility.
+Two small edits, no UI changes needed -- the existing status filters on the chart and drill-down will automatically show/hide the paid vs completed imported tasks.
 

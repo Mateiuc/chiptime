@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { TaskInlineEditor } from '@/components/TaskInlineEditor';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
+import { DesktopReportsView } from '@/components/DesktopReportsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
@@ -93,7 +94,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [desktopView, setDesktopView] = useState<'tree' | 'settings'>('tree');
+  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -576,6 +577,10 @@ const DesktopDashboard = () => {
               <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
               Save
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'reports' ? 'tree' : 'reports')}
+              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'reports' ? 'bg-primary-foreground/20' : ''}`}>
+              <BarChart3 className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'settings' ? 'tree' : 'settings')}
               className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'settings' ? 'bg-primary-foreground/20' : ''}`}>
               <SettingsIcon className="h-4 w-4" />
@@ -611,6 +616,8 @@ const DesktopDashboard = () => {
         <div className="flex-1 overflow-y-auto">
           <DesktopSettingsView settings={settings} onSave={setSettings} />
         </div>
+      ) : desktopView === 'reports' ? (
+        <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {filteredTree.length === 0 && (

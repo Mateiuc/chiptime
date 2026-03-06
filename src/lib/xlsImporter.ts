@@ -8,6 +8,7 @@ export interface ImportedSession {
   description: string;
   relDurationSeconds: number;
   relSalary?: number;
+  paid: boolean;
   periods: { startTime: Date; endTime: Date; duration: number }[];
 }
 
@@ -38,6 +39,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
   let tagsCol = col('tags');
   let relSalaryCol = col('salary');
   let breaksDescCol = col('breaks desc');
+  let paidCol = col('paid');
 
   // Headerless fallback: assume standard column order
   let dataStart = 1;
@@ -104,6 +106,10 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
         ? tagsRaw.split(/,/).map(t => t.trim()).filter(Boolean)
         : [''];
 
+      // Parse paid column
+      const paidRaw = paidCol !== -1 && row[paidCol] != null ? String(row[paidCol]).toLowerCase().trim() : '';
+      const paid = ['yes', 'true', '1'].includes(paidRaw);
+
       for (const tag of tags) {
         results.push({
           tag,
@@ -113,6 +119,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
           description,
           relDurationSeconds: totalWorkSeconds,
           relSalary,
+          paid,
           periods: periods.map(p => ({ ...p })),
         });
       }

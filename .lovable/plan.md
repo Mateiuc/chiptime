@@ -1,42 +1,86 @@
 
 
-# Add Invoice Creator to Desktop Dashboard
+# Full Analytics & Reports Page for Desktop
 
 ## Overview
-Add a new `'invoices'` view mode to the desktop dashboard. The user fills a form to create invoices and generates a PDF using the **uploaded Invoice-2.jpg as background** (instead of the old bill-background.jpg), with text positioned at the same coordinates as the existing `generateBillingPDF` in TaskCard.
+Create a new dedicated `/chip/reports` page (or a new view tab within the existing desktop dashboard) that provides comprehensive visual analytics with rich filtering. Since the app uses a single `DesktopDashboard` component with view switching (`tree` / `settings`), I'll add a third view mode: `reports`.
 
-## Files to Change
+## New View: `reports` in DesktopDashboard
 
-### 1. Copy uploaded image to project
-- Copy `user-uploads://Invoice-2.jpg` to `src/assets/invoice-background.jpg`
+### Navigation
+- Add a chart/reports icon button in the header bar (next to the settings gear) that toggles to the reports view.
 
-### 2. New: `src/components/DesktopInvoiceView.tsx`
-A self-contained component receiving `clients`, `vehicles`, `tasks`, `settings` as props.
+### Filter Toolbar (top of reports view)
+A sticky toolbar with:
+- **Client filter**: dropdown to select a specific client or "All Clients"
+- **Vehicle filter**: dropdown (filtered by selected client) or "All Vehicles"
+- **Status toggles**: Completed / Billed / Paid toggle buttons (same pattern as existing)
+- **Date range**: two date pickers (From / To) using the Shadcn Calendar/Popover pattern to scope all charts to a date window
+- **Reset button**: clears all filters back to defaults
 
-**Form fields (left panel):**
-- Client selector (dropdown from existing clients, auto-fills name)
-- Vehicle selector (filtered by client, auto-fills year/make/model/VIN)
-- Date (defaults to today)
-- Pre-fill from Task dropdown (optional — picks an existing task and populates line items)
-- Dynamic line items: description, time (hh:mm), amount — add/remove rows
-- Parts section: name, qty, price, description — add/remove rows
-- Billing extras: Min 1 Hour (with count), Cloning (with count), Programming (with count)
-- Auto-calculated total
+### Charts Section (scrollable grid below toolbar)
+All charts use recharts (already installed). Each chart card uses a distinct color gradient border (like the existing paid/completed chart cards).
 
-**PDF generation (reusing exact TaskCard positions):**
-- `new jsPDF({ format: 'letter' })`
-- `doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4)` — the new uploaded background
-- "Bill to:" at (20, 48.5) purple, client name at (20, 53), vehicle at (20, 58.5), date right-aligned at (195.9, 58.5)
-- Table headers DESCRIPTION/TIME/AMOUNT at y=72, red line at y=74
-- Line items starting at y=82 with 8px spacing
-- TOTAL at y=261 right-aligned
-- Timestamp at bottom center
+1. **Revenue Over Time** (bar chart, green gradient)
+   - Monthly revenue bars, respects all filters
+   - Click bar to see itemized breakdown (reuse drill-down table pattern)
 
-**Layout:** Two-column — form on left (~40%), a scaled visual preview of the letter-size page on right (~60%) showing the invoice background with overlaid text matching positions.
+2. **Revenue by Client** (horizontal bar chart, blue gradient)
+   - One bar per client showing total revenue within filtered range
+   - Different color per client bar using the vehicle color scheme
 
-### 3. Edit: `src/pages/DesktopDashboard.tsx`
-- Change view type: `'tree' | 'settings' | 'reports' | 'invoices'`
-- Add `Receipt` icon button (already imported) in header next to reports/settings, toggling `'invoices'` view
-- Render `<DesktopInvoiceView>` when `desktopView === 'invoices'`
-- Pass `clients`, `vehicles`, `tasks`, `settings` props
+3. **Revenue by Vehicle** (horizontal bar chart, purple gradient)
+   - Top 20 vehicles by revenue, with make/model labels
+   - Each bar a different shade
+
+4. **Tasks by Status** (pie/donut chart, amber gradient)
+   - Shows count of tasks per status within filtered range
+   - Each status gets its existing color from `statusColors`
+
+5. **Work Hours Over Time** (line/area chart, cyan gradient)
+   - Monthly total hours worked
+   - Useful to see effort vs revenue
+
+6. **Cars Serviced Over Time** (bar chart, indigo gradient)
+   - Unique vehicles per month
+
+### Detail Table (below charts)
+- A full sortable table of all tasks matching the current filters
+- Columns: Date, Client, Vehicle, Description, Status, Time Worked, Cost
+- Sortable by Date, Cost, Client, Status
+- Shows description inline
+- Color-coded status badges
+- Footer with totals
+
+## Technical Approach
+
+### Changes to `src/pages/DesktopDashboard.tsx`
+1. Add `desktopView` option `'reports'` to the existing `'tree' | 'settings'` union
+2. Add reports icon button in header
+3. Add new state variables for report filters: `rptClient`, `rptVehicle`, `rptStatusCompleted/Billed/Paid`, `rptDateFrom`, `rptDateTo`, `rptSortField`, `rptSortDir`
+4. Add `useMemo` hooks for each chart's data, all derived from `tasks` + filter state
+5. Add the reports view JSX block (conditionally rendered when `desktopView === 'reports'`)
+
+### New imports needed
+- `PieChart, Pie, Cell, LineChart, Line, AreaChart, Area` from recharts
+- `Calendar` component and `Popover` for date pickers
+- `format` from `date-fns`
+- `CalendarIcon, BarChart3` from lucide-react
+
+### Color scheme for charts
+Use a palette array for pie/bar segments:
+```text
+const CHART_COLORS = [
+  '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
+  '#ef4444', '#06b6d4', '#ec4899', '#6366f1',
+  '#14b8a6', '#f97316', '#84cc16', '#a855f7'
+];
+```
+
+### File size consideration
+The DesktopDashboard is already 1156 lines. To keep it manageable, I'll extract the reports view into a new component:
+- **`src/components/DesktopReportsView.tsx`** — new file containing all reports logic, charts, filters, and table
+- DesktopDashboard passes `tasks`, `clients`, `vehicles`, `settings`, and helper functions as props
+
+This keeps the main dashboard clean and the reports self-contained.
 

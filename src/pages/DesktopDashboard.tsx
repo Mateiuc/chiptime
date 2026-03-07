@@ -95,7 +95,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports'>('tree');
+  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());

@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { TaskInlineEditor } from '@/components/TaskInlineEditor';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { DesktopReportsView } from '@/components/DesktopReportsView';
+import { DesktopInvoiceView } from '@/components/DesktopInvoiceView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 

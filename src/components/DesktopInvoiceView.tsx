@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react';
 import { Plus, Trash2, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Client, Vehicle, Task, Settings } from '@/types';
+import { Settings } from '@/types';
 import { formatCurrency } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
 import invoiceBackground from '@/assets/invoice-background.jpg';
@@ -13,7 +13,7 @@ import invoiceBackground from '@/assets/invoice-background.jpg';
 interface LineItem {
   id: string;
   description: string;
-  time: string; // hh:mm
+  time: string;
   amount: number;
 }
 
@@ -26,16 +26,21 @@ interface PartItem {
 }
 
 interface Props {
-  clients: Client[];
-  vehicles: Vehicle[];
-  tasks: Task[];
   settings: Settings;
 }
 
-export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props) => {
-  const [selectedClientId, setSelectedClientId] = useState('');
-  const [selectedVehicleId, setSelectedVehicleId] = useState('');
-  const [selectedTaskId, setSelectedTaskId] = useState('');
+export const DesktopInvoiceView = ({ settings }: Props) => {
+  // Client fields
+  const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+
+  // Vehicle fields
+  const [vehicleYear, setVehicleYear] = useState('');
+  const [vehicleMake, setVehicleMake] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleVin, setVehicleVin] = useState('');
+
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -50,70 +55,27 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
   const [programmingEnabled, setProgrammingEnabled] = useState(false);
   const [programmingCount, setProgrammingCount] = useState(1);
 
-  const client = clients.find(c => c.id === selectedClientId);
-  const filteredVehicles = vehicles.filter(v => v.clientId === selectedClientId);
-  const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-  const filteredTasks = tasks.filter(t => t.vehicleId === selectedVehicleId);
-
-  const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-  const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+  const hourlyRate = settings.defaultHourlyRate;
+  const cloningRate = settings.defaultCloningRate || 0;
+  const programmingRate = settings.defaultProgrammingRate || 0;
 
   const minHourAdj = minHourEnabled ? minHourCount * hourlyRate : 0;
   const cloningTotal = cloningEnabled ? cloningCount * cloningRate : 0;
   const programmingTotal = programmingEnabled ? programmingCount * programmingRate : 0;
 
-  const laborTotal = lineItems.reduce((s, li) => s + li.amount, 0) + minHourAdj + cloningTotal + programmingTotal;
+  // Filter active line items (have content + time or amount)
+  const activeLineItems = lineItems.filter(li =>
+    li.description.trim() !== '' && (li.time !== '00:00' || li.amount > 0)
+  );
+
+  const laborTotal = activeLineItems.reduce((s, li) => s + li.amount, 0) + minHourAdj + cloningTotal + programmingTotal;
   const partsTotal = parts.reduce((s, p) => s + p.price * p.quantity, 0);
   const grandTotal = laborTotal + partsTotal;
 
   const vehicleInfo = useMemo(() => {
-    if (!vehicle) return '';
-    return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') +
-      (vehicle.vin ? ` (VIN: ${vehicle.vin})` : '');
-  }, [vehicle]);
-
-  const handlePrefillTask = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const rate = client?.hourlyRate || settings.defaultHourlyRate;
-    const newLines: LineItem[] = (task.sessions || []).map(session => {
-      const dur = (session.periods || []).reduce((t, p) => t + p.duration, 0);
-      const cost = task.importedSalary != null ? task.importedSalary : (dur / 3600) * rate;
-      const h = Math.floor(dur / 3600);
-      const m = Math.floor((dur % 3600) / 60);
-      return {
-        id: crypto.randomUUID(),
-        description: session.description || 'Work session',
-        time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-        amount: Math.round(cost * 100) / 100,
-      };
-    });
-    if (newLines.length === 0) newLines.push({ id: crypto.randomUUID(), description: '', time: '00:00', amount: 0 });
-    setLineItems(newLines);
-
-    const allParts = (task.sessions || []).flatMap(s => s.parts || []);
-    setParts(allParts.map(p => ({
-      id: crypto.randomUUID(),
-      name: p.name,
-      quantity: p.quantity,
-      price: p.price,
-      description: p.description || '',
-    })));
-
-    // Billing extras
-    let mhc = 0, cc = 0, pc = 0;
-    (task.sessions || []).forEach(s => {
-      if (s.chargeMinimumHour) mhc++;
-      if (s.isCloning) cc++;
-      if (s.isProgramming) pc++;
-    });
-    setMinHourEnabled(mhc > 0); setMinHourCount(Math.max(mhc, 1));
-    setCloningEnabled(cc > 0); setCloningCount(Math.max(cc, 1));
-    setProgrammingEnabled(pc > 0); setProgrammingCount(Math.max(pc, 1));
-  };
+    const info = [vehicleYear, vehicleMake, vehicleModel].filter(Boolean).join(' ');
+    return info + (vehicleVin ? ` (VIN: ${vehicleVin})` : '');
+  }, [vehicleYear, vehicleMake, vehicleModel, vehicleVin]);
 
   const addLineItem = () => setLineItems(prev => [...prev, { id: crypto.randomUUID(), description: '', time: '00:00', amount: 0 }]);
   const removeLineItem = (id: string) => setLineItems(prev => prev.filter(li => li.id !== id));
@@ -143,7 +105,7 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(client?.name || 'N/A', 20, 47);
+    doc.text(clientName || 'N/A', 20, 47);
 
     // Vehicle
     doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 52);
@@ -168,9 +130,8 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
 
-    // Line items
-    lineItems.forEach(li => {
-      if (!li.description && li.amount === 0) return;
+    // Only active line items
+    activeLineItems.forEach(li => {
       const col1Width = col2X - col1X - 4;
       const wrapped = doc.splitTextToSize(li.description, col1Width);
       const startY = yPos;
@@ -178,8 +139,8 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
         doc.text(line, col1X + 2, yPos);
         if (i < wrapped.length - 1) yPos += 6;
       });
-      doc.text(li.time, col2X + 2, startY);
-      doc.text(formatCurrency(li.amount), col3X + 2, startY, { align: 'right' });
+      if (li.time !== '00:00') doc.text(li.time, col2X + 2, startY);
+      if (li.amount > 0) doc.text(formatCurrency(li.amount), col3X + 2, startY, { align: 'right' });
       yPos += 8;
     });
 
@@ -240,10 +201,10 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
     doc.setTextColor(100, 100, 100);
     doc.text(ts, 107.95, 277.4, { align: 'center' });
 
-    doc.save(`Invoice_${client?.name || 'invoice'}.pdf`);
+    doc.save(`Invoice_${clientName || 'invoice'}.pdf`);
   };
 
-  // Preview scaling: letter is 215.9 x 279.4 mm, map to pixels
+  // Preview scaling
   const previewW = 500;
   const previewH = previewW * (279.4 / 215.9);
   const scale = previewW / 215.9;
@@ -254,50 +215,26 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
       <div className="w-[420px] shrink-0 border-r bg-card overflow-y-auto p-5 space-y-5">
         <h2 className="text-lg font-bold text-foreground">Create Invoice</h2>
 
-        {/* Client */}
-        <div className="space-y-1.5">
+        {/* Client info */}
+        <div className="space-y-2">
           <Label>Client</Label>
-          <Select value={selectedClientId} onValueChange={v => { setSelectedClientId(v); setSelectedVehicleId(''); setSelectedTaskId(''); }}>
-            <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-            <SelectContent>
-              {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input placeholder="Name" value={clientName} onChange={e => setClientName(e.target.value)} />
+          <div className="flex gap-2">
+            <Input placeholder="Email" className="flex-1" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
+            <Input placeholder="Phone" className="w-36" value={clientPhone} onChange={e => setClientPhone(e.target.value)} />
+          </div>
         </div>
 
-        {/* Vehicle */}
-        {selectedClientId && (
-          <div className="space-y-1.5">
-            <Label>Vehicle</Label>
-            <Select value={selectedVehicleId} onValueChange={v => { setSelectedVehicleId(v); setSelectedTaskId(''); }}>
-              <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
-              <SelectContent>
-                {filteredVehicles.map(v => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Vehicle info */}
+        <div className="space-y-2">
+          <Label>Vehicle</Label>
+          <div className="flex gap-2">
+            <Input placeholder="Year" className="w-20" value={vehicleYear} onChange={e => setVehicleYear(e.target.value)} />
+            <Input placeholder="Make" className="flex-1" value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} />
+            <Input placeholder="Model" className="flex-1" value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} />
           </div>
-        )}
-
-        {/* Pre-fill from task */}
-        {selectedVehicleId && filteredTasks.length > 0 && (
-          <div className="space-y-1.5">
-            <Label>Pre-fill from Task</Label>
-            <Select value={selectedTaskId} onValueChange={handlePrefillTask}>
-              <SelectTrigger><SelectValue placeholder="(optional)" /></SelectTrigger>
-              <SelectContent>
-                {filteredTasks.map(t => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.sessions?.[0]?.description || t.status} — {new Date(t.createdAt).toLocaleDateString()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+          <Input placeholder="VIN" value={vehicleVin} onChange={e => setVehicleVin(e.target.value)} />
+        </div>
 
         {/* Date */}
         <div className="space-y-1.5">
@@ -313,8 +250,8 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
           </div>
           {lineItems.map(li => (
             <div key={li.id} className="flex gap-1.5 items-start">
-              <Input placeholder="Description" className="flex-1 text-xs h-8" value={li.description}
-                onChange={e => updateLineItem(li.id, 'description', e.target.value)} />
+              <Textarea placeholder="Description" className="flex-1 text-xs min-h-[36px] resize-y" value={li.description}
+                onChange={e => updateLineItem(li.id, 'description', e.target.value)} rows={1} />
               <Input placeholder="hh:mm" className="w-16 text-xs h-8" value={li.time}
                 onChange={e => updateLineItem(li.id, 'time', e.target.value)} />
               <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={li.amount || ''}
@@ -399,7 +336,6 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
         <div className="relative shadow-2xl rounded-sm" style={{ width: previewW, height: previewH }}>
           <img src={invoiceBackground} alt="Invoice background" className="w-full h-full object-cover rounded-sm" />
 
-          {/* Overlay text matching PDF positions */}
           <div className="absolute inset-0" style={{ fontSize: `${17 * scale * 0.35}px` }}>
             {/* To */}
             <span className="absolute font-bold" style={{ left: 20 * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
@@ -407,7 +343,7 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
             </span>
             {/* Client name */}
             <span className="absolute" style={{ left: 20 * scale, top: 43 * scale, fontSize: `${11 * scale * 0.35}px` }}>
-              {client?.name || ''}
+              {clientName}
             </span>
             {/* Vehicle */}
             <span className="absolute" style={{ left: 20 * scale, top: 48 * scale, fontSize: `${11 * scale * 0.35}px` }}>
@@ -423,20 +359,24 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
             <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
             <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
 
-            {/* Line items */}
-            {lineItems.map((li, i) => {
+            {/* Active line items only */}
+            {activeLineItems.map((li, i) => {
               const yBase = 78 + i * 8;
               return (
                 <div key={li.id}>
                   <span className="absolute truncate" style={{ left: 22 * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px`, maxWidth: 105 * scale }}>
                     {li.description}
                   </span>
-                  <span className="absolute" style={{ left: 131 * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
-                    {li.time}
-                  </span>
-                  <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
-                    {li.amount ? formatCurrency(li.amount) : ''}
-                  </span>
+                  {li.time !== '00:00' && (
+                    <span className="absolute" style={{ left: 131 * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
+                      {li.time}
+                    </span>
+                  )}
+                  {li.amount > 0 && (
+                    <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
+                      {formatCurrency(li.amount)}
+                    </span>
+                  )}
                 </div>
               );
             })}

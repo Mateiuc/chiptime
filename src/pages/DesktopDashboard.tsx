@@ -624,7 +624,7 @@ const DesktopDashboard = () => {
       ) : desktopView === 'reports' ? (
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
       ) : desktopView === 'invoices' ? (
-        <DesktopInvoiceView clients={clients} vehicles={vehicles} tasks={tasks} settings={settings} />
+        <DesktopInvoiceView settings={settings} />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {filteredTree.length === 0 && (

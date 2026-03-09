@@ -129,24 +129,24 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
 
-    // Bill to
+    // To
     doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(128, 0, 128);
-    doc.text('Bill to:', 20, 48.5);
+    doc.text('To:', 20, 42);
 
     // Date right
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
-    doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
+    doc.text(billedDate, 195.9, 42, { align: 'right' });
 
     // Client name
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(client?.name || 'N/A', 20, 53);
+    doc.text(client?.name || 'N/A', 20, 47);
 
     // Vehicle
-    doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 58.5);
+    doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 52);
 
     // Table
     const tableTop = 66;

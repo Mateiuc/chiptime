@@ -401,21 +401,21 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
 
           {/* Overlay text matching PDF positions */}
           <div className="absolute inset-0" style={{ fontSize: `${17 * scale * 0.35}px` }}>
-            {/* Bill to */}
-            <span className="absolute font-bold" style={{ left: 20 * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
-              Bill to:
+            {/* To */}
+            <span className="absolute font-bold" style={{ left: 20 * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+              To:
             </span>
             {/* Client name */}
-            <span className="absolute" style={{ left: 20 * scale, top: 49.5 * scale, fontSize: `${11 * scale * 0.35}px` }}>
+            <span className="absolute" style={{ left: 20 * scale, top: 43 * scale, fontSize: `${11 * scale * 0.35}px` }}>
               {client?.name || ''}
             </span>
             {/* Vehicle */}
-            <span className="absolute" style={{ left: 20 * scale, top: 55 * scale, fontSize: `${11 * scale * 0.35}px` }}>
+            <span className="absolute" style={{ left: 20 * scale, top: 48 * scale, fontSize: `${11 * scale * 0.35}px` }}>
               {vehicleInfo}
             </span>
             {/* Date */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 55 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
-              {invoiceDate ? `Billed on ${new Date(invoiceDate).toLocaleDateString('en-US')}` : ''}
+            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+              {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
 
             {/* Table headers */}

@@ -129,24 +129,24 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
 
-    // Bill to
+    // To
     doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(128, 0, 128);
-    doc.text('Bill to:', 20, 48.5);
+    doc.text('To:', 20, 42);
 
     // Date right
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
-    doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
+    doc.text(billedDate, 195.9, 42, { align: 'right' });
 
     // Client name
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(client?.name || 'N/A', 20, 53);
+    doc.text(client?.name || 'N/A', 20, 47);
 
     // Vehicle
-    doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 58.5);
+    doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 52);
 
     // Table
     const tableTop = 66;
@@ -401,21 +401,21 @@ export const DesktopInvoiceView = ({ clients, vehicles, tasks, settings }: Props
 
           {/* Overlay text matching PDF positions */}
           <div className="absolute inset-0" style={{ fontSize: `${17 * scale * 0.35}px` }}>
-            {/* Bill to */}
-            <span className="absolute font-bold" style={{ left: 20 * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
-              Bill to:
+            {/* To */}
+            <span className="absolute font-bold" style={{ left: 20 * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+              To:
             </span>
             {/* Client name */}
-            <span className="absolute" style={{ left: 20 * scale, top: 49.5 * scale, fontSize: `${11 * scale * 0.35}px` }}>
+            <span className="absolute" style={{ left: 20 * scale, top: 43 * scale, fontSize: `${11 * scale * 0.35}px` }}>
               {client?.name || ''}
             </span>
             {/* Vehicle */}
-            <span className="absolute" style={{ left: 20 * scale, top: 55 * scale, fontSize: `${11 * scale * 0.35}px` }}>
+            <span className="absolute" style={{ left: 20 * scale, top: 48 * scale, fontSize: `${11 * scale * 0.35}px` }}>
               {vehicleInfo}
             </span>
             {/* Date */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 55 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
-              {invoiceDate ? `Billed on ${new Date(invoiceDate).toLocaleDateString('en-US')}` : ''}
+            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+              {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
 
             {/* Table headers */}

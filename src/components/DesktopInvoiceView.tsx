@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Settings } from '@/types';
 import { formatCurrency } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
@@ -34,50 +33,29 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
 
-  // Vehicle fields
-  const [vehicleYear, setVehicleYear] = useState('');
-  const [vehicleMake, setVehicleMake] = useState('');
-  const [vehicleModel, setVehicleModel] = useState('');
-  const [vehicleVin, setVehicleVin] = useState('');
-
+  // Invoice fields
+  const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${Date.now().toString(36).toUpperCase()}`);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState('');
+  const [notes, setNotes] = useState('');
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: crypto.randomUUID(), description: '', time: '00:00', amount: 0 },
+    { id: crypto.randomUUID(), description: '', time: '', amount: 0 },
   ]);
   const [parts, setParts] = useState<PartItem[]>([]);
 
-  const [minHourEnabled, setMinHourEnabled] = useState(false);
-  const [minHourCount, setMinHourCount] = useState(1);
-  const [cloningEnabled, setCloningEnabled] = useState(false);
-  const [cloningCount, setCloningCount] = useState(1);
-  const [programmingEnabled, setProgrammingEnabled] = useState(false);
-  const [programmingCount, setProgrammingCount] = useState(1);
-
-  const hourlyRate = settings.defaultHourlyRate;
-  const cloningRate = settings.defaultCloningRate || 0;
-  const programmingRate = settings.defaultProgrammingRate || 0;
-
-  const minHourAdj = minHourEnabled ? minHourCount * hourlyRate : 0;
-  const cloningTotal = cloningEnabled ? cloningCount * cloningRate : 0;
-  const programmingTotal = programmingEnabled ? programmingCount * programmingRate : 0;
-
-  // Filter active line items (have content + time or amount)
+  // A line item is active if ANY field has data
   const activeLineItems = lineItems.filter(li =>
-    li.description.trim() !== '' && (li.time !== '00:00' || li.amount > 0)
+    li.description.trim() !== '' || (li.time && li.time !== '00:00' && li.time !== '') || li.amount > 0
   );
 
-  const laborTotal = activeLineItems.reduce((s, li) => s + li.amount, 0) + minHourAdj + cloningTotal + programmingTotal;
+  const laborTotal = activeLineItems.reduce((s, li) => s + li.amount, 0);
   const partsTotal = parts.reduce((s, p) => s + p.price * p.quantity, 0);
   const grandTotal = laborTotal + partsTotal;
 
-  const vehicleInfo = useMemo(() => {
-    const info = [vehicleYear, vehicleMake, vehicleModel].filter(Boolean).join(' ');
-    return info + (vehicleVin ? ` (VIN: ${vehicleVin})` : '');
-  }, [vehicleYear, vehicleMake, vehicleModel, vehicleVin]);
-
-  const addLineItem = () => setLineItems(prev => [...prev, { id: crypto.randomUUID(), description: '', time: '00:00', amount: 0 }]);
+  const addLineItem = () => setLineItems(prev => [...prev, { id: crypto.randomUUID(), description: '', time: '', amount: 0 }]);
   const removeLineItem = (id: string) => setLineItems(prev => prev.filter(li => li.id !== id));
   const updateLineItem = (id: string, field: keyof LineItem, value: any) =>
     setLineItems(prev => prev.map(li => li.id === id ? { ...li, [field]: value } : li));
@@ -91,31 +69,48 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
 
-    // To
+    const col1X = 20;
+    const col2X = 130;
+    const col3X = 190.9;
+
+    // Invoice number top-left
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    if (invoiceNumber) doc.text(invoiceNumber, 20, 35);
+
+    // To + Date
     doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(128, 0, 128);
     doc.text('To:', 20, 42);
 
-    // Date right
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
     doc.text(billedDate, 195.9, 42, { align: 'right' });
 
-    // Client name
+    // Client info — only filled fields
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(clientName || 'N/A', 20, 47);
+    let clientY = 47;
+    if (clientName) { doc.text(clientName, 20, clientY); clientY += 5; }
+    if (clientEmail) { doc.text(clientEmail, 20, clientY); clientY += 5; }
+    if (clientPhone) { doc.text(clientPhone, 20, clientY); clientY += 5; }
+    if (clientAddress) {
+      const addrLines = doc.splitTextToSize(clientAddress, 100);
+      addrLines.forEach((line: string) => { doc.text(line, 20, clientY); clientY += 5; });
+    }
 
-    // Vehicle
-    doc.text(vehicleInfo || 'Vehicle Info Not Available', 20, 52);
+    // Due date
+    if (dueDate) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 47, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    }
 
-    // Table
+    // Table headers
     const tableTop = 66;
-    const col1X = 20;
-    const col2X = 130;
-    const col3X = 190.9;
-
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('DESCRIPTION', 25, tableTop + 6);
@@ -130,36 +125,25 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
 
-    // Only active line items
+    // Line items — render each field only if it has data
     activeLineItems.forEach(li => {
       const col1Width = col2X - col1X - 4;
-      const wrapped = doc.splitTextToSize(li.description, col1Width);
       const startY = yPos;
-      wrapped.forEach((line: string, i: number) => {
-        doc.text(line, col1X + 2, yPos);
-        if (i < wrapped.length - 1) yPos += 6;
-      });
-      if (li.time !== '00:00') doc.text(li.time, col2X + 2, startY);
-      if (li.amount > 0) doc.text(formatCurrency(li.amount), col3X + 2, startY, { align: 'right' });
+      if (li.description.trim()) {
+        const wrapped = doc.splitTextToSize(li.description, col1Width);
+        wrapped.forEach((line: string, i: number) => {
+          doc.text(line, col1X + 2, yPos);
+          if (i < wrapped.length - 1) yPos += 6;
+        });
+      }
+      if (li.time && li.time !== '00:00' && li.time !== '') {
+        doc.text(li.time, col2X + 2, startY);
+      }
+      if (li.amount > 0) {
+        doc.text(formatCurrency(li.amount), col3X + 2, startY, { align: 'right' });
+      }
       yPos += 8;
     });
-
-    // Billing extras
-    if (minHourEnabled && minHourAdj > 0) {
-      doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
-      doc.text(formatCurrency(minHourAdj), col3X + 2, yPos, { align: 'right' });
-      yPos += 8;
-    }
-    if (cloningEnabled && cloningTotal > 0) {
-      doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
-      doc.text(formatCurrency(cloningTotal), col3X + 2, yPos, { align: 'right' });
-      yPos += 8;
-    }
-    if (programmingEnabled && programmingTotal > 0) {
-      doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
-      doc.text(formatCurrency(programmingTotal), col3X + 2, yPos, { align: 'right' });
-      yPos += 8;
-    }
 
     // Parts
     parts.forEach(part => {
@@ -186,6 +170,18 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
       yPos += 8;
     });
 
+    // Notes
+    if (notes.trim()) {
+      yPos += 4;
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      const noteLines = doc.splitTextToSize(notes, 170);
+      noteLines.forEach((line: string) => {
+        if (yPos < 250) { doc.text(line, col1X + 2, yPos); yPos += 5; }
+      });
+      doc.setTextColor(0, 0, 0);
+    }
+
     // Total
     yPos = 261;
     doc.setFontSize(16);
@@ -201,7 +197,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     doc.setTextColor(100, 100, 100);
     doc.text(ts, 107.95, 277.4, { align: 'center' });
 
-    doc.save(`Invoice_${clientName || 'invoice'}.pdf`);
+    doc.save(`Invoice_${clientName || invoiceNumber || 'invoice'}.pdf`);
   };
 
   // Preview scaling
@@ -215,6 +211,16 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
       <div className="w-[420px] shrink-0 border-r bg-card overflow-y-auto p-5 space-y-5">
         <h2 className="text-lg font-bold text-foreground">Create Invoice</h2>
 
+        {/* Invoice info */}
+        <div className="space-y-2">
+          <Label>Invoice</Label>
+          <div className="flex gap-2">
+            <Input placeholder="Invoice #" className="flex-1" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
+            <Input type="date" className="w-40" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+          </div>
+          <Input type="date" placeholder="Due date" className="w-40" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+        </div>
+
         {/* Client info */}
         <div className="space-y-2">
           <Label>Client</Label>
@@ -223,23 +229,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
             <Input placeholder="Email" className="flex-1" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
             <Input placeholder="Phone" className="w-36" value={clientPhone} onChange={e => setClientPhone(e.target.value)} />
           </div>
-        </div>
-
-        {/* Vehicle info */}
-        <div className="space-y-2">
-          <Label>Vehicle</Label>
-          <div className="flex gap-2">
-            <Input placeholder="Year" className="w-20" value={vehicleYear} onChange={e => setVehicleYear(e.target.value)} />
-            <Input placeholder="Make" className="flex-1" value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} />
-            <Input placeholder="Model" className="flex-1" value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} />
-          </div>
-          <Input placeholder="VIN" value={vehicleVin} onChange={e => setVehicleVin(e.target.value)} />
-        </div>
-
-        {/* Date */}
-        <div className="space-y-1.5">
-          <Label>Date</Label>
-          <Input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+          <Textarea placeholder="Address" className="min-h-[50px] text-sm" value={clientAddress} onChange={e => setClientAddress(e.target.value)} rows={2} />
         </div>
 
         {/* Line items */}
@@ -290,33 +280,10 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
           ))}
         </div>
 
-        {/* Billing extras */}
+        {/* Notes */}
         <div className="space-y-2">
-          <Label>Billing Extras</Label>
-          <div className="flex items-center gap-2">
-            <Checkbox checked={minHourEnabled} onCheckedChange={v => setMinHourEnabled(!!v)} />
-            <span className="text-sm">Min 1 Hour</span>
-            {minHourEnabled && (
-              <Input type="number" className="w-14 h-7 text-xs" value={minHourCount}
-                onChange={e => setMinHourCount(parseInt(e.target.value) || 1)} min={1} />
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox checked={cloningEnabled} onCheckedChange={v => setCloningEnabled(!!v)} />
-            <span className="text-sm">Cloning ({formatCurrency(cloningRate)})</span>
-            {cloningEnabled && (
-              <Input type="number" className="w-14 h-7 text-xs" value={cloningCount}
-                onChange={e => setCloningCount(parseInt(e.target.value) || 1)} min={1} />
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox checked={programmingEnabled} onCheckedChange={v => setProgrammingEnabled(!!v)} />
-            <span className="text-sm">Programming ({formatCurrency(programmingRate)})</span>
-            {programmingEnabled && (
-              <Input type="number" className="w-14 h-7 text-xs" value={programmingCount}
-                onChange={e => setProgrammingCount(parseInt(e.target.value) || 1)} min={1} />
-            )}
-          </div>
+          <Label>Notes / Terms</Label>
+          <Textarea placeholder="Payment terms, notes, etc." className="min-h-[60px] text-sm" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
         </div>
 
         {/* Total & generate */}
@@ -336,44 +303,61 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
         <div className="relative shadow-2xl rounded-sm" style={{ width: previewW, height: previewH }}>
           <img src={invoiceBackground} alt="Invoice background" className="w-full h-full object-cover rounded-sm" />
 
-          <div className="absolute inset-0" style={{ fontSize: `${17 * scale * 0.35}px` }}>
+          <div className="absolute inset-0" style={{ fontSize: `${11 * scale * 0.35}px` }}>
+            {/* Invoice # */}
+            {invoiceNumber && (
+              <span className="absolute text-muted-foreground" style={{ left: 20 * scale, top: 32 * scale, fontSize: `${10 * scale * 0.35}px` }}>
+                {invoiceNumber}
+              </span>
+            )}
             {/* To */}
             <span className="absolute font-bold" style={{ left: 20 * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               To:
-            </span>
-            {/* Client name */}
-            <span className="absolute" style={{ left: 20 * scale, top: 43 * scale, fontSize: `${11 * scale * 0.35}px` }}>
-              {clientName}
-            </span>
-            {/* Vehicle */}
-            <span className="absolute" style={{ left: 20 * scale, top: 48 * scale, fontSize: `${11 * scale * 0.35}px` }}>
-              {vehicleInfo}
             </span>
             {/* Date */}
             <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
+            {/* Due date */}
+            {dueDate && (
+              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 43 * scale, fontSize: `${9 * scale * 0.35}px` }}>
+                Due: {new Date(dueDate).toLocaleDateString('en-US')}
+              </span>
+            )}
+
+            {/* Client info — only filled fields */}
+            {(() => {
+              let cy = 43;
+              const items: React.ReactNode[] = [];
+              if (clientName) { items.push(<span key="name" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientName}</span>); cy += 5; }
+              if (clientEmail) { items.push(<span key="email" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientEmail}</span>); cy += 5; }
+              if (clientPhone) { items.push(<span key="phone" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientPhone}</span>); cy += 5; }
+              if (clientAddress) { items.push(<span key="addr" className="absolute truncate" style={{ left: 20 * scale, top: cy * scale, maxWidth: 120 * scale }}>{clientAddress}</span>); }
+              return items;
+            })()}
 
             {/* Table headers */}
             <span className="absolute font-bold" style={{ left: 25 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>DESCRIPTION</span>
             <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
             <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
 
-            {/* Active line items only */}
+            {/* Active line items */}
             {activeLineItems.map((li, i) => {
               const yBase = 78 + i * 8;
               return (
                 <div key={li.id}>
-                  <span className="absolute truncate" style={{ left: 22 * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px`, maxWidth: 105 * scale }}>
-                    {li.description}
-                  </span>
-                  {li.time !== '00:00' && (
-                    <span className="absolute" style={{ left: 131 * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
+                  {li.description.trim() && (
+                    <span className="absolute truncate" style={{ left: 22 * scale, top: yBase * scale, maxWidth: 105 * scale }}>
+                      {li.description}
+                    </span>
+                  )}
+                  {li.time && li.time !== '00:00' && li.time !== '' && (
+                    <span className="absolute" style={{ left: 131 * scale, top: yBase * scale }}>
                       {li.time}
                     </span>
                   )}
                   {li.amount > 0 && (
-                    <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale, fontSize: `${11 * scale * 0.35}px` }}>
+                    <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale }}>
                       {formatCurrency(li.amount)}
                     </span>
                   )}

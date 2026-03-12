@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
-import { Plus, Trash2, FileDown } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, FileDown, Bold, Italic, Underline } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Toggle } from '@/components/ui/toggle';
 import { Settings } from '@/types';
 import { formatCurrency } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
@@ -14,6 +15,9 @@ interface LineItem {
   description: string;
   time: string;
   amount: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
 }
 
 interface PartItem {
@@ -29,24 +33,21 @@ interface Props {
 }
 
 export const DesktopInvoiceView = ({ settings }: Props) => {
-  // Client fields
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientAddress, setClientAddress] = useState('');
 
-  // Invoice fields
   const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${Date.now().toString(36).toUpperCase()}`);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: crypto.randomUUID(), description: '', time: '', amount: 0 },
+    { id: crypto.randomUUID(), description: '', time: '', amount: 0, bold: false, italic: false, underline: false },
   ]);
   const [parts, setParts] = useState<PartItem[]>([]);
 
-  // A line item is active if ANY field has data
   const activeLineItems = lineItems.filter(li =>
     li.description.trim() !== '' || (li.time && li.time !== '00:00' && li.time !== '') || li.amount > 0
   );
@@ -55,7 +56,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const partsTotal = parts.reduce((s, p) => s + p.price * p.quantity, 0);
   const grandTotal = laborTotal + partsTotal;
 
-  const addLineItem = () => setLineItems(prev => [...prev, { id: crypto.randomUUID(), description: '', time: '', amount: 0 }]);
+  const addLineItem = () => setLineItems(prev => [...prev, { id: crypto.randomUUID(), description: '', time: '', amount: 0, bold: false, italic: false, underline: false }]);
   const removeLineItem = (id: string) => setLineItems(prev => prev.filter(li => li.id !== id));
   const updateLineItem = (id: string, field: keyof LineItem, value: any) =>
     setLineItems(prev => prev.map(li => li.id === id ? { ...li, [field]: value } : li));
@@ -65,6 +66,13 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const updatePart = (id: string, field: keyof PartItem, value: any) =>
     setParts(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
 
+  const getFontStyle = (bold: boolean, italic: boolean): string => {
+    if (bold && italic) return 'bolditalic';
+    if (bold) return 'bold';
+    if (italic) return 'italic';
+    return 'normal';
+  };
+
   const generatePDF = () => {
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
@@ -73,39 +81,40 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     const col2X = 130;
     const col3X = 190.9;
 
-    // Invoice number top-left
+    // Invoice number
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    if (invoiceNumber) doc.text(invoiceNumber, 20, 35);
+    if (invoiceNumber) doc.text(invoiceNumber, 20, 38);
 
-    // To + Date
+    // To: and Date on the same line
     doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(128, 0, 128);
-    doc.text('To:', 20, 42);
+    doc.text('To:', 20, 48);
 
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
-    doc.text(billedDate, 195.9, 42, { align: 'right' });
+    doc.text(billedDate, 195.9, 48, { align: 'right' });
 
-    // Client info — only filled fields
+    // Client info — compact, +4 spacing, starting y=46
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    let clientY = 47;
-    if (clientName) { doc.text(clientName, 20, clientY); clientY += 5; }
-    if (clientEmail) { doc.text(clientEmail, 20, clientY); clientY += 5; }
-    if (clientPhone) { doc.text(clientPhone, 20, clientY); clientY += 5; }
+    doc.setFontSize(10);
+    let clientY = 53;
+    if (clientName) { doc.text(clientName, 20, clientY); clientY += 4; }
+    if (clientEmail) { doc.text(clientEmail, 20, clientY); clientY += 4; }
+    if (clientPhone) { doc.text(clientPhone, 20, clientY); clientY += 4; }
     if (clientAddress) {
+      // Single line, truncate to fit
       const addrLines = doc.splitTextToSize(clientAddress, 100);
-      addrLines.forEach((line: string) => { doc.text(line, 20, clientY); clientY += 5; });
+      doc.text(addrLines[0], 20, clientY);
     }
 
     // Due date
     if (dueDate) {
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 47, { align: 'right' });
+      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 53, { align: 'right' });
       doc.setTextColor(0, 0, 0);
     }
 
@@ -123,18 +132,28 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
 
     let yPos = tableTop + 16;
     doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
 
-    // Line items — render each field only if it has data
+    // Line items with formatting
     activeLineItems.forEach(li => {
       const col1Width = col2X - col1X - 4;
       const startY = yPos;
+      const fontStyle = getFontStyle(li.bold, li.italic);
+
       if (li.description.trim()) {
+        doc.setFont('helvetica', fontStyle);
         const wrapped = doc.splitTextToSize(li.description, col1Width);
         wrapped.forEach((line: string, i: number) => {
           doc.text(line, col1X + 2, yPos);
+          // Underline
+          if (li.underline) {
+            const textWidth = doc.getTextWidth(line);
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.2);
+            doc.line(col1X + 2, yPos + 0.8, col1X + 2 + textWidth, yPos + 0.8);
+          }
           if (i < wrapped.length - 1) yPos += 6;
         });
+        doc.setFont('helvetica', 'normal');
       }
       if (li.time && li.time !== '00:00' && li.time !== '') {
         doc.text(li.time, col2X + 2, startY);
@@ -149,6 +168,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     parts.forEach(part => {
       if (!part.name) return;
       const partY = yPos;
+      doc.setFont('helvetica', 'normal');
       doc.text(part.name, col1X + 2, partY);
       if (part.description) {
         yPos += 6;
@@ -239,18 +259,34 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
             <Button variant="ghost" size="sm" onClick={addLineItem}><Plus className="h-3 w-3 mr-1" />Add</Button>
           </div>
           {lineItems.map(li => (
-            <div key={li.id} className="flex gap-1.5 items-start">
-              <Textarea placeholder="Description" className="flex-1 text-xs min-h-[36px] resize-y" value={li.description}
-                onChange={e => updateLineItem(li.id, 'description', e.target.value)} rows={1} />
-              <Input placeholder="hh:mm" className="w-16 text-xs h-8" value={li.time}
-                onChange={e => updateLineItem(li.id, 'time', e.target.value)} />
-              <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={li.amount || ''}
-                onChange={e => updateLineItem(li.id, 'amount', parseFloat(e.target.value) || 0)} />
-              {lineItems.length > 1 && (
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
+            <div key={li.id} className="space-y-1">
+              <div className="flex gap-1.5 items-start">
+                <Textarea placeholder="Description" className="flex-1 text-xs min-h-[36px] resize-y" value={li.description}
+                  onChange={e => updateLineItem(li.id, 'description', e.target.value)} rows={1} />
+                <Input placeholder="hh:mm" className="w-16 text-xs h-8" value={li.time}
+                  onChange={e => updateLineItem(li.id, 'time', e.target.value)} />
+                <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={li.amount || ''}
+                  onChange={e => updateLineItem(li.id, 'amount', parseFloat(e.target.value) || 0)} />
+                {lineItems.length > 1 && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-0.5 ml-0.5">
+                <Toggle size="sm" pressed={li.bold} onPressedChange={v => updateLineItem(li.id, 'bold', v)}
+                  className="h-6 w-6 p-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                  <Bold className="h-3 w-3" />
+                </Toggle>
+                <Toggle size="sm" pressed={li.italic} onPressedChange={v => updateLineItem(li.id, 'italic', v)}
+                  className="h-6 w-6 p-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                  <Italic className="h-3 w-3" />
+                </Toggle>
+                <Toggle size="sm" pressed={li.underline} onPressedChange={v => updateLineItem(li.id, 'underline', v)}
+                  className="h-6 w-6 p-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                  <Underline className="h-3 w-3" />
+                </Toggle>
+              </div>
             </div>
           ))}
         </div>
@@ -306,32 +342,32 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
           <div className="absolute inset-0" style={{ fontSize: `${11 * scale * 0.35}px` }}>
             {/* Invoice # */}
             {invoiceNumber && (
-              <span className="absolute text-muted-foreground" style={{ left: 20 * scale, top: 32 * scale, fontSize: `${10 * scale * 0.35}px` }}>
+              <span className="absolute text-muted-foreground" style={{ left: 20 * scale, top: 34 * scale, fontSize: `${10 * scale * 0.35}px` }}>
                 {invoiceNumber}
               </span>
             )}
             {/* To */}
-            <span className="absolute font-bold" style={{ left: 20 * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ left: 20 * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               To:
             </span>
             {/* Date */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 38 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
             {/* Due date */}
             {dueDate && (
-              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 43 * scale, fontSize: `${9 * scale * 0.35}px` }}>
+              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 49 * scale, fontSize: `${9 * scale * 0.35}px` }}>
                 Due: {new Date(dueDate).toLocaleDateString('en-US')}
               </span>
             )}
 
-            {/* Client info — only filled fields */}
+            {/* Client info — compact +4 spacing */}
             {(() => {
-              let cy = 43;
+              let cy = 49;
               const items: React.ReactNode[] = [];
-              if (clientName) { items.push(<span key="name" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientName}</span>); cy += 5; }
-              if (clientEmail) { items.push(<span key="email" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientEmail}</span>); cy += 5; }
-              if (clientPhone) { items.push(<span key="phone" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientPhone}</span>); cy += 5; }
+              if (clientName) { items.push(<span key="name" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientName}</span>); cy += 4; }
+              if (clientEmail) { items.push(<span key="email" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientEmail}</span>); cy += 4; }
+              if (clientPhone) { items.push(<span key="phone" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientPhone}</span>); cy += 4; }
               if (clientAddress) { items.push(<span key="addr" className="absolute truncate" style={{ left: 20 * scale, top: cy * scale, maxWidth: 120 * scale }}>{clientAddress}</span>); }
               return items;
             })()}
@@ -341,13 +377,20 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
             <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
             <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
 
-            {/* Active line items */}
+            {/* Active line items with formatting */}
             {activeLineItems.map((li, i) => {
               const yBase = 78 + i * 8;
               return (
                 <div key={li.id}>
                   {li.description.trim() && (
-                    <span className="absolute truncate" style={{ left: 22 * scale, top: yBase * scale, maxWidth: 105 * scale }}>
+                    <span className="absolute truncate" style={{
+                      left: 22 * scale,
+                      top: yBase * scale,
+                      maxWidth: 105 * scale,
+                      fontWeight: li.bold ? 'bold' : 'normal',
+                      fontStyle: li.italic ? 'italic' : 'normal',
+                      textDecoration: li.underline ? 'underline' : 'none',
+                    }}>
                       {li.description}
                     </span>
                   )}

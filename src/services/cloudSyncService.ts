@@ -16,8 +16,8 @@ export interface CloudSyncState {
 type SyncEventListener = (state: CloudSyncState) => void;
 
 class CloudSyncService {
-  private syncInterval: NodeJS.Timeout | null = null;
-  private syncDebounceTimer: NodeJS.Timeout | null = null;
+  private syncInterval: ReturnType<typeof setInterval> | null = null;
+  private syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private state: CloudSyncState = {
     status: 'idle',
     isConnected: false,

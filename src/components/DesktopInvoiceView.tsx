@@ -38,7 +38,6 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const [clientPhone, setClientPhone] = useState('');
   const [clientAddress, setClientAddress] = useState('');
 
-  const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${Date.now().toString(36).toUpperCase()}`);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -51,6 +50,9 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const activeLineItems = lineItems.filter(li =>
     li.description.trim() !== '' || (li.time && li.time !== '00:00' && li.time !== '') || li.amount > 0
   );
+
+  const hasAnyTime = activeLineItems.some(li => li.time && li.time !== '00:00' && li.time !== '');
+  const hasAnyAmount = activeLineItems.some(li => li.amount > 0) || parts.length > 0;
 
   const laborTotal = activeLineItems.reduce((s, li) => s + li.amount, 0);
   const partsTotal = parts.reduce((s, p) => s + p.price * p.quantity, 0);
@@ -73,6 +75,13 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     return 'normal';
   };
 
+  // Dynamic description width based on visible columns
+  const getDescWidth = () => {
+    if (!hasAnyTime && !hasAnyAmount) return 170;
+    if (hasAnyTime && hasAnyAmount) return 106;
+    return 140; // one column visible
+  };
+
   const generatePDF = () => {
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
@@ -80,51 +89,45 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     const col1X = 20;
     const col2X = 130;
     const col3X = 190.9;
+    const descWidth = getDescWidth();
 
-    // Invoice number
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    if (invoiceNumber) doc.text(invoiceNumber, 20, 38);
-
-    // To: and Date on the same line
+    // To: at y=43
     doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(128, 0, 128);
-    doc.text('To:', 20, 48);
+    doc.text('To:', 20, 43);
 
+    // Date at y=55, right-aligned, just above stars
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
-    doc.text(billedDate, 195.9, 48, { align: 'right' });
+    doc.text(billedDate, 195.9, 55, { align: 'right' });
 
-    // Client info — compact, +4 spacing, starting y=46
+    // Due date at y=59
+    if (dueDate) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 59, { align: 'right' });
+    }
+
+    // Client info starting at y=48, +4 spacing
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    let clientY = 53;
+    let clientY = 48;
     if (clientName) { doc.text(clientName, 20, clientY); clientY += 4; }
     if (clientEmail) { doc.text(clientEmail, 20, clientY); clientY += 4; }
     if (clientPhone) { doc.text(clientPhone, 20, clientY); clientY += 4; }
     if (clientAddress) {
-      // Single line, truncate to fit
       const addrLines = doc.splitTextToSize(clientAddress, 100);
       doc.text(addrLines[0], 20, clientY);
     }
 
-    // Due date
-    if (dueDate) {
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 53, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
-    }
-
-    // Table headers
+    // Table headers at y=66
     const tableTop = 66;
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('DESCRIPTION', 25, tableTop + 6);
-    doc.text('TIME', col2X - 1, tableTop + 6);
-    doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
+    if (hasAnyTime) doc.text('TIME', col2X - 1, tableTop + 6);
+    if (hasAnyAmount) doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
 
     doc.setLineWidth(0.3);
     doc.setDrawColor(255, 0, 0);
@@ -133,18 +136,16 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     let yPos = tableTop + 16;
     doc.setFontSize(11);
 
-    // Line items with formatting
+    // Line items
     activeLineItems.forEach(li => {
-      const col1Width = col2X - col1X - 4;
       const startY = yPos;
       const fontStyle = getFontStyle(li.bold, li.italic);
 
       if (li.description.trim()) {
         doc.setFont('helvetica', fontStyle);
-        const wrapped = doc.splitTextToSize(li.description, col1Width);
+        const wrapped = doc.splitTextToSize(li.description, descWidth);
         wrapped.forEach((line: string, i: number) => {
           doc.text(line, col1X + 2, yPos);
-          // Underline
           if (li.underline) {
             const textWidth = doc.getTextWidth(line);
             doc.setDrawColor(0, 0, 0);
@@ -155,10 +156,10 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
         });
         doc.setFont('helvetica', 'normal');
       }
-      if (li.time && li.time !== '00:00' && li.time !== '') {
+      if (hasAnyTime && li.time && li.time !== '00:00' && li.time !== '') {
         doc.text(li.time, col2X + 2, startY);
       }
-      if (li.amount > 0) {
+      if (hasAnyAmount && li.amount > 0) {
         doc.text(formatCurrency(li.amount), col3X + 2, startY, { align: 'right' });
       }
       yPos += 8;
@@ -175,7 +176,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
         doc.setFontSize(9);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 100, 100);
-        const wrapped = doc.splitTextToSize(part.description, col2X - col1X - 6);
+        const wrapped = doc.splitTextToSize(part.description, descWidth - 4);
         wrapped.forEach((line: string, i: number) => {
           doc.text(line, col1X + 4, yPos);
           if (i < wrapped.length - 1) yPos += 5;
@@ -185,8 +186,8 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
         doc.setFontSize(11);
         yPos += 2;
       }
-      doc.text(`${part.quantity}`, col2X + 2, partY);
-      doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partY, { align: 'right' });
+      if (hasAnyTime) doc.text(`${part.quantity}`, col2X + 2, partY);
+      if (hasAnyAmount) doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partY, { align: 'right' });
       yPos += 8;
     });
 
@@ -217,7 +218,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     doc.setTextColor(100, 100, 100);
     doc.text(ts, 107.95, 277.4, { align: 'center' });
 
-    doc.save(`Invoice_${clientName || invoiceNumber || 'invoice'}.pdf`);
+    doc.save(`Invoice_${clientName || 'invoice'}.pdf`);
   };
 
   // Preview scaling
@@ -225,20 +226,22 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
   const previewH = previewW * (279.4 / 215.9);
   const scale = previewW / 215.9;
 
+  // Preview description max-width mirrors PDF logic
+  const previewDescMaxW = getDescWidth() * scale;
+
   return (
     <div className="flex-1 overflow-hidden flex">
       {/* Form panel */}
       <div className="w-[420px] shrink-0 border-r bg-card overflow-y-auto p-5 space-y-5">
         <h2 className="text-lg font-bold text-foreground">Create Invoice</h2>
 
-        {/* Invoice info */}
+        {/* Invoice info — date & due date only */}
         <div className="space-y-2">
-          <Label>Invoice</Label>
+          <Label>Invoice Date</Label>
           <div className="flex gap-2">
-            <Input placeholder="Invoice #" className="flex-1" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
             <Input type="date" className="w-40" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+            <Input type="date" placeholder="Due date" className="w-40" value={dueDate} onChange={e => setDueDate(e.target.value)} />
           </div>
-          <Input type="date" placeholder="Due date" className="w-40" value={dueDate} onChange={e => setDueDate(e.target.value)} />
         </div>
 
         {/* Client info */}
@@ -340,30 +343,24 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
           <img src={invoiceBackground} alt="Invoice background" className="w-full h-full object-cover rounded-sm" />
 
           <div className="absolute inset-0" style={{ fontSize: `${11 * scale * 0.35}px` }}>
-            {/* Invoice # */}
-            {invoiceNumber && (
-              <span className="absolute text-muted-foreground" style={{ left: 20 * scale, top: 34 * scale, fontSize: `${10 * scale * 0.35}px` }}>
-                {invoiceNumber}
-              </span>
-            )}
             {/* To */}
-            <span className="absolute font-bold" style={{ left: 20 * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ left: 20 * scale, top: 39 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               To:
             </span>
-            {/* Date */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 44 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            {/* Date — above stars */}
+            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 51 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
             {/* Due date */}
             {dueDate && (
-              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 49 * scale, fontSize: `${9 * scale * 0.35}px` }}>
+              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 55 * scale, fontSize: `${9 * scale * 0.35}px` }}>
                 Due: {new Date(dueDate).toLocaleDateString('en-US')}
               </span>
             )}
 
-            {/* Client info — compact +4 spacing */}
+            {/* Client info — y=44 with +4 spacing */}
             {(() => {
-              let cy = 49;
+              let cy = 44;
               const items: React.ReactNode[] = [];
               if (clientName) { items.push(<span key="name" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientName}</span>); cy += 4; }
               if (clientEmail) { items.push(<span key="email" className="absolute" style={{ left: 20 * scale, top: cy * scale }}>{clientEmail}</span>); cy += 4; }
@@ -372,34 +369,41 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
               return items;
             })()}
 
-            {/* Table headers */}
+            {/* Table headers — dynamic */}
             <span className="absolute font-bold" style={{ left: 25 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>DESCRIPTION</span>
-            <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
-            <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
+            {hasAnyTime && (
+              <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
+            )}
+            {hasAnyAmount && (
+              <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
+            )}
 
-            {/* Active line items with formatting */}
+            {/* Active line items */}
             {activeLineItems.map((li, i) => {
               const yBase = 78 + i * 8;
               return (
                 <div key={li.id}>
                   {li.description.trim() && (
-                    <span className="absolute truncate" style={{
+                    <span className="absolute" style={{
                       left: 22 * scale,
                       top: yBase * scale,
-                      maxWidth: 105 * scale,
+                      maxWidth: previewDescMaxW,
                       fontWeight: li.bold ? 'bold' : 'normal',
                       fontStyle: li.italic ? 'italic' : 'normal',
                       textDecoration: li.underline ? 'underline' : 'none',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: hasAnyTime || hasAnyAmount ? 'nowrap' : 'normal',
                     }}>
                       {li.description}
                     </span>
                   )}
-                  {li.time && li.time !== '00:00' && li.time !== '' && (
+                  {hasAnyTime && li.time && li.time !== '00:00' && li.time !== '' && (
                     <span className="absolute" style={{ left: 131 * scale, top: yBase * scale }}>
                       {li.time}
                     </span>
                   )}
-                  {li.amount > 0 && (
+                  {hasAnyAmount && li.amount > 0 && (
                     <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale }}>
                       {formatCurrency(li.amount)}
                     </span>

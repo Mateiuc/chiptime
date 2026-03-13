@@ -231,9 +231,10 @@ const Index = () => {
     toast({ title: 'Timer Paused' });
   };
 
-  const handleStopTimer = () => {
-    const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+  const handleStopTimer = (taskId: string) => {
+    const activeTask = tasks.find(t => t.id === taskId);
     if (!activeTask) return;
+    setStoppingTaskId(taskId);
 
     // If timer is running, create final period
     if (activeTask.status === 'in-progress' && activeTask.startTime) {

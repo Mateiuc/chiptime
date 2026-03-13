@@ -66,6 +66,7 @@ const Index = () => {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showCompleteWork, setShowCompleteWork] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
 
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -230,9 +231,10 @@ const Index = () => {
     toast({ title: 'Timer Paused' });
   };
 
-  const handleStopTimer = () => {
-    const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+  const handleStopTimer = (taskId: string) => {
+    const activeTask = tasks.find(t => t.id === taskId);
     if (!activeTask) return;
+    setStoppingTaskId(taskId);
 
     // If timer is running, create final period
     if (activeTask.status === 'in-progress' && activeTask.startTime) {
@@ -278,7 +280,7 @@ const Index = () => {
   };
 
   const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false) => {
-    const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+    const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
     // Update the active session with description and parts
@@ -305,6 +307,7 @@ const Index = () => {
     });
 
     setShowCompleteWork(false);
+    setStoppingTaskId(null);
     toast({ 
       title: 'Work Completed',
       description: needsFollowUp ? 'Task completed - more work needed' : 'Work session finished successfully',
@@ -690,7 +693,7 @@ const Index = () => {
                           onMarkPaid={handleMarkPaid}
                           onRestartTimer={handleRestartTimer}
                           onPauseTimer={task.status === 'in-progress' ? handlePauseTimer : undefined}
-                          onStopTimer={task.status === 'in-progress' || task.status === 'paused' ? handleStopTimer : undefined}
+                          onStopTimer={task.status === 'in-progress' || task.status === 'paused' ? () => handleStopTimer(task.id) : undefined}
                           onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}
@@ -770,8 +773,16 @@ const Index = () => {
 
       <CompleteWorkDialog
         open={showCompleteWork}
-        onOpenChange={setShowCompleteWork}
+        onOpenChange={(open) => { setShowCompleteWork(open); if (!open) setStoppingTaskId(null); }}
         onComplete={handleCompleteWork}
+        vehicleLabel={(() => {
+          if (!stoppingTaskId) return undefined;
+          const t = tasks.find(tk => tk.id === stoppingTaskId);
+          if (!t) return undefined;
+          const v = vehicles.find(vh => vh.id === t.vehicleId);
+          if (!v) return undefined;
+          return [v.year, v.make, v.model].filter(Boolean).join(' ');
+        })()}
       />
 
       <SettingsDialog

@@ -781,7 +781,7 @@ const Index = () => {
           if (!t) return undefined;
           const v = vehicles.find(vh => vh.id === t.vehicleId);
           if (!v) return undefined;
-          return [v.year, v.make, v.model, v.licensePlate ? `- ${v.licensePlate}` : ''].filter(Boolean).join(' ');
+          return [v.year, v.make, v.model].filter(Boolean).join(' ');
         })()}
       />
 

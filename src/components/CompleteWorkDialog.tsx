@@ -15,6 +15,7 @@ interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean) => void;
+  vehicleLabel?: string;
 }
 
 export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteWorkDialogProps) => {

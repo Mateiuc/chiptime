@@ -1257,7 +1257,7 @@ export const TaskCard = ({
                       <Play className="h-3.5 w-3.5" />
                       <span className="text-xs">Resume</span>
                     </Button>
-                    {onStopTimer && <Button variant="secondary" size="sm" onClick={onStopTimer} className="gap-1 h-9 px-3">
+                    {onStopTimer && <Button variant="secondary" size="sm" onClick={() => onStopTimer(task.id)} className="gap-1 h-9 px-3">
                         <Square className="h-3.5 w-3.5" />
                         <span className="text-xs">Stop</span>
                       </Button>}

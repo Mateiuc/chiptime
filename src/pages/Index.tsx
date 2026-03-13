@@ -773,8 +773,16 @@ const Index = () => {
 
       <CompleteWorkDialog
         open={showCompleteWork}
-        onOpenChange={setShowCompleteWork}
+        onOpenChange={(open) => { setShowCompleteWork(open); if (!open) setStoppingTaskId(null); }}
         onComplete={handleCompleteWork}
+        vehicleLabel={(() => {
+          if (!stoppingTaskId) return undefined;
+          const t = tasks.find(tk => tk.id === stoppingTaskId);
+          if (!t) return undefined;
+          const v = vehicles.find(vh => vh.id === t.vehicleId);
+          if (!v) return undefined;
+          return [v.year, v.make, v.model, v.licensePlate ? `- ${v.licensePlate}` : ''].filter(Boolean).join(' ');
+        })()}
       />
 
       <SettingsDialog

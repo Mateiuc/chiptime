@@ -84,6 +84,13 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
         </header>
 
         <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
+          {vehicleLabel && (
+            <Card className="bg-primary/10 border-primary/30">
+              <CardContent className="py-3 px-4">
+                <p className="text-sm font-bold text-primary">{vehicleLabel}</p>
+              </CardContent>
+            </Card>
+          )}
           <Card className="bg-card/60 backdrop-blur-sm border-primary/20">
             <CardContent className="pt-6">
               <div className="space-y-2">

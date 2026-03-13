@@ -280,7 +280,7 @@ const Index = () => {
   };
 
   const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false) => {
-    const activeTask = tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+    const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
     // Update the active session with description and parts

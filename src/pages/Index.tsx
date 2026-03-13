@@ -693,7 +693,7 @@ const Index = () => {
                           onMarkPaid={handleMarkPaid}
                           onRestartTimer={handleRestartTimer}
                           onPauseTimer={task.status === 'in-progress' ? handlePauseTimer : undefined}
-                          onStopTimer={task.status === 'in-progress' || task.status === 'paused' ? handleStopTimer : undefined}
+                          onStopTimer={task.status === 'in-progress' || task.status === 'paused' ? () => handleStopTimer(task.id) : undefined}
                           onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}

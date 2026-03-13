@@ -18,7 +18,7 @@ interface CompleteWorkDialogProps {
   vehicleLabel?: string;
 }
 
-export const CompleteWorkDialog = ({ open, onOpenChange, onComplete }: CompleteWorkDialogProps) => {
+export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabel }: CompleteWorkDialogProps) => {
   const [description, setDescription] = useState('');
   const [parts, setParts] = useState<Part[]>([]);
   const [needsFollowUp, setNeedsFollowUp] = useState(false);

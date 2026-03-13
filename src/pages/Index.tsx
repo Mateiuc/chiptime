@@ -66,6 +66,7 @@ const Index = () => {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showCompleteWork, setShowCompleteWork] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
 
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);

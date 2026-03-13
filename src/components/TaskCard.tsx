@@ -32,7 +32,7 @@ interface TaskCardProps {
   onMarkPaid: (taskId: string) => void;
   onRestartTimer: (taskId: string) => void;
   onPauseTimer?: () => void;
-  onStopTimer?: () => void;
+  onStopTimer?: (taskId: string) => void;
   onUpdateTask?: (updatedTask: Task) => Promise<void> | void;
   onDelete?: (taskId: string) => void;
   vehicleColorScheme?: VehicleColorScheme;

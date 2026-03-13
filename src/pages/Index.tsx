@@ -307,6 +307,7 @@ const Index = () => {
     });
 
     setShowCompleteWork(false);
+    setStoppingTaskId(null);
     toast({ 
       title: 'Work Completed',
       description: needsFollowUp ? 'Task completed - more work needed' : 'Work session finished successfully',

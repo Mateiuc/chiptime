@@ -269,6 +269,7 @@ const Index = () => {
       }
 
       updateTask(activeTask.id, {
+        status: 'paused',
         sessions: updatedSessions,
         totalTime: activeTask.totalTime + elapsed,
         startTime: undefined,

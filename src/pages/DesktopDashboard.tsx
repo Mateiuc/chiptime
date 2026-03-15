@@ -496,7 +496,6 @@ const DesktopDashboard = () => {
       return { client, vehicles: clientVehicles };
     }).filter(c => {
       if (q && !c.client.name.toLowerCase().includes(q) && c.vehicles.length === 0) return false;
-      if (filter !== 'all' && c.vehicles.length === 0) return false;
       return true;
     });
   }, [clients, vehicles, tasks, filter, searchQuery]);

@@ -16,7 +16,7 @@ import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
-import { syncPortalToCloud } from '@/lib/clientPortalUtils';
+import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
 import { SyncData } from '@/services/appSyncService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3 } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
-import { syncPortalToCloud } from '@/lib/clientPortalUtils';
+import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
 import { SyncData } from '@/services/appSyncService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
@@ -477,6 +477,142 @@ const DesktopDashboard = () => {
   const getSessionDuration = (session: WorkSession) =>
     (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);
 
+  // --- Client financials for PDF ---
+  const getClientFinancials = (clientId: string) => {
+    const clientTasks = tasks.filter(t => t.clientId === clientId);
+    const client = clients.find(c => c.id === clientId);
+    const hourlyRate = client?.hourlyRate || 0;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+    let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
+    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
+    clientTasks.forEach(task => {
+      totalTime += task.totalTime;
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
+        let minAdj = 0, cloneCost = 0, progCost = 0;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
+        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost;
+        totalMinHourAdj += minAdj;
+        totalCloning += cloneCost;
+        totalProgramming += progCost;
+      });
+      task.sessions.forEach(session => {
+        session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
+      });
+    });
+    return {
+      totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
+      totalMinHourAdj, totalCloning, totalProgramming,
+      completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
+      activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
+      totalTasks: clientTasks.length,
+    };
+  };
+
+  const getVehicleStats = (vehicleId: string) => {
+    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
+    return { active: vehicleTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length, total: vehicleTasks.length };
+  };
+
+  const getVehicleFinancials = (vehicleId: string, clientId: string) => {
+    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
+    const client = clients.find(c => c.id === clientId);
+    const hourlyRate = client?.hourlyRate || 0;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+    let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
+    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
+    vehicleTasks.forEach(task => {
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
+        let minAdj = 0, cloneCost = 0, progCost = 0;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
+        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost;
+        totalMinHourAdj += minAdj;
+        totalCloning += cloneCost;
+        totalProgramming += progCost;
+      });
+      totalTime += task.totalTime;
+      task.sessions.forEach(session => {
+        session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
+      });
+    });
+    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, taskCount: vehicleTasks.length };
+  };
+
+  const generateClientPDF = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) { toast({ title: 'Error', description: 'Client not found', variant: 'destructive' }); return; }
+    const clientVehicles = vehicles.filter(v => v.clientId === clientId);
+    const financials = getClientFinancials(clientId);
+    toast({ title: 'Generating PDF', description: 'Creating client report...' });
+    const doc = new jsPDF();
+    doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+    doc.text('Client Report', 105, 20, { align: 'center' });
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-US')}`, 105, 28, { align: 'center' });
+    let yPos = 45;
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text('Client Information', 20, yPos); yPos += 8;
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${client.name}`, 25, yPos); yPos += 6;
+    if (client.email) { doc.text(`Email: ${client.email}`, 25, yPos); yPos += 6; }
+    if (client.phone) { doc.text(`Phone: ${client.phone}`, 25, yPos); yPos += 6; }
+    doc.text(`Hourly Rate: ${formatCurrency(client.hourlyRate || 0)}/hr`, 25, yPos); yPos += 12;
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text('Summary', 20, yPos); yPos += 8;
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Total Tasks: ${financials.totalTasks} (${financials.activeTasks} active, ${financials.completedTasks} completed)`, 25, yPos); yPos += 6;
+    doc.text(`Total Vehicles: ${clientVehicles.length}`, 25, yPos); yPos += 6;
+    doc.text(`Total Labor Time: ${formatDuration(financials.totalTime)}`, 25, yPos); yPos += 6;
+    const baseLab = financials.totalLaborCost - (financials.totalMinHourAdj || 0) - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    doc.text(`Base Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos); yPos += 6;
+    if (financials.totalMinHourAdj > 0) { doc.text(`Min 1 Hour adjustments: ${formatCurrency(financials.totalMinHourAdj)}`, 25, yPos); yPos += 6; }
+    if (financials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, yPos); yPos += 6; }
+    if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos); yPos += 6; }
+    doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
+    doc.setFont('helvetica', 'normal'); yPos += 12;
+    if (clientVehicles.length > 0) {
+      doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+      doc.text('Vehicles', 20, yPos); yPos += 8;
+      clientVehicles.forEach((vehicle, index) => {
+        if (yPos > 250) { doc.addPage(); yPos = 20; }
+        const vehicleName = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Unknown Vehicle';
+        const vStats = getVehicleStats(vehicle.id);
+        const vFin = getVehicleFinancials(vehicle.id, clientId);
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+        doc.text(`${index + 1}. ${vehicleName}`, 25, yPos); yPos += 6;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text(`VIN: ${vehicle.vin}`, 30, yPos); yPos += 5;
+        if (vehicle.color) { doc.text(`Color: ${vehicle.color}`, 30, yPos); yPos += 5; }
+        doc.text(`Tasks: ${vStats.total} (${vStats.active} active)`, 30, yPos); yPos += 5;
+        doc.text(`Total Time: ${formatDuration(vFin.totalTime)}`, 30, yPos); yPos += 5;
+        const vBaseLab = vFin.totalLaborCost - (vFin.totalMinHourAdj || 0) - (vFin.totalCloning || 0) - (vFin.totalProgramming || 0);
+        doc.text(`Labor Cost: ${formatCurrency(vBaseLab)}`, 30, yPos); yPos += 5;
+        if (vFin.totalMinHourAdj > 0) { doc.text(`Min 1 Hour: ${formatCurrency(vFin.totalMinHourAdj)}`, 30, yPos); yPos += 5; }
+        if (vFin.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(vFin.totalCloning)}`, 30, yPos); yPos += 5; }
+        if (vFin.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(vFin.totalProgramming)}`, 30, yPos); yPos += 5; }
+        doc.text(`Parts Cost: ${formatCurrency(vFin.totalPartsCost)}`, 30, yPos); yPos += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);
+        doc.setFont('helvetica', 'normal'); yPos += 8;
+      });
+    }
+    const sanitizedName = client.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toLocaleDateString('en-US').replace(/\//g, '-');
+    doc.save(`Client_Report_${sanitizedName}_${dateStr}.pdf`);
+    toast({ title: 'PDF Generated', description: 'Client report downloaded successfully' });
+  };
+
   // --- Filtered tree data ---
   const filteredTree = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -693,11 +829,60 @@ const DesktopDashboard = () => {
                         e.target.value = '';
                       }}
                     />
-                    {client.portalId && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId}`, '_blank')} title="Client Portal">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                      const code = client.accessCode || generateAccessCode();
+                      if (!client.accessCode) {
+                        updateClient(client.id, { accessCode: code });
+                      }
+                      toast({ title: 'Access Code', description: `PIN: ${code}` });
+                    }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                      const code = client.accessCode || generateAccessCode();
+                      if (!client.accessCode) {
+                        updateClient(client.id, { accessCode: code });
+                      }
+                      try {
+                        let portalId = client.portalId;
+                        if (!portalId) {
+                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+                          updateClient(client.id, { portalId, accessCode: code });
+                        } else {
+                          await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+                        }
+                        const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
+                        await navigator.clipboard.writeText(url);
+                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                        return;
+                      } catch (err) {
+                        console.warn('[Share] Cloud sync failed, falling back:', err);
+                      }
+                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
+                      const encoded = await encodeClientData(summary, code);
+                      const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
+                      if (url.length <= 2000) {
+                        await navigator.clipboard.writeText(url);
+                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                      } else {
+                        const htmlBlob = generatePortalHtmlFile(summary, code);
+                        const file = new File([htmlBlob], `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`, { type: 'text/html' });
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(htmlBlob);
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                        toast({ title: 'File Downloaded', description: `Send it to your client. PIN: ${code}` });
+                      }
+                    }} title="Share Portal Link">
+                      <Link2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId || client.id}`, '_blank')} title="Client Portal">
+                      <Eye className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>

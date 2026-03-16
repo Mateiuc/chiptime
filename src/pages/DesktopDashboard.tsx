@@ -829,11 +829,60 @@ const DesktopDashboard = () => {
                         e.target.value = '';
                       }}
                     />
-                    {client.portalId && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId}`, '_blank')} title="Client Portal">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                      const code = client.accessCode || generateAccessCode();
+                      if (!client.accessCode) {
+                        updateClient(client.id, { accessCode: code });
+                      }
+                      toast({ title: 'Access Code', description: `PIN: ${code}` });
+                    }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                      const code = client.accessCode || generateAccessCode();
+                      if (!client.accessCode) {
+                        updateClient(client.id, { accessCode: code });
+                      }
+                      try {
+                        let portalId = client.portalId;
+                        if (!portalId) {
+                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+                          updateClient(client.id, { portalId, accessCode: code });
+                        } else {
+                          await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+                        }
+                        const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
+                        await navigator.clipboard.writeText(url);
+                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                        return;
+                      } catch (err) {
+                        console.warn('[Share] Cloud sync failed, falling back:', err);
+                      }
+                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
+                      const encoded = await encodeClientData(summary, code);
+                      const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
+                      if (url.length <= 2000) {
+                        await navigator.clipboard.writeText(url);
+                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                      } else {
+                        const htmlBlob = generatePortalHtmlFile(summary, code);
+                        const file = new File([htmlBlob], `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`, { type: 'text/html' });
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(htmlBlob);
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                        toast({ title: 'File Downloaded', description: `Send it to your client. PIN: ${code}` });
+                      }
+                    }} title="Share Portal Link">
+                      <Link2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId || client.id}`, '_blank')} title="Client Portal">
+                      <Eye className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>

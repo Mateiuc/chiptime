@@ -126,6 +126,48 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
             </div>
           </CardContent>
         </Card>
+
+        {/* Default Add Key Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default Add Key Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultAddKeyRate}
+                onChange={(e) => setDefaultAddKeyRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "Add Key"</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default All Keys Lost Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default All Keys Lost Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultAllKeysLostRate}
+                onChange={(e) => setDefaultAllKeysLostRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "All Keys Lost"</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Backup & Restore */}

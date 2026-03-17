@@ -99,6 +99,8 @@ export interface Settings {
   defaultHourlyRate: number;
   defaultCloningRate?: number;
   defaultProgrammingRate?: number;
+  defaultAddKeyRate?: number;
+  defaultAllKeysLostRate?: number;
   googleApiKey?: string;
   grokApiKey?: string;
   ocrSpaceApiKey?: string;

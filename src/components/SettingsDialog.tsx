@@ -360,6 +360,36 @@ export const SettingsDialog = ({
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label>Default Add Key Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={addKeyRate}
+                  onChange={(e) => setAddKeyRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "Add Key"
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default All Keys Lost Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={allKeysLostRate}
+                  onChange={(e) => setAllKeysLostRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "All Keys Lost"
+                </p>
+              </div>
+
               <div className="flex items-center justify-between py-2">
                 <div className="space-y-0.5">
                   <Label>Show Popup Notifications</Label>

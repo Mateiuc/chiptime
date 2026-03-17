@@ -28,6 +28,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
     setNotificationsEnabled(settings.notificationsEnabled !== false);
     setDefaultCloningRate(settings.defaultCloningRate?.toString() || '');
     setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
+    setDefaultAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
+    setDefaultAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
   }, [settings]);
 
   const handleSave = () => {

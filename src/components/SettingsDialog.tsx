@@ -74,6 +74,8 @@ export const SettingsDialog = ({
     setHourlyRate(settings.defaultHourlyRate.toString());
     setCloningRate(settings.defaultCloningRate?.toString() || '');
     setProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
+    setAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
+    setAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
   }, [settings]);
 
   useEffect(() => {

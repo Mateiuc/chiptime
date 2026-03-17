@@ -880,7 +880,20 @@ const DesktopDashboard = () => {
                     }} title="Share Portal Link">
                       <Link2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(`/client/${client.portalId || client.id}`, '_blank')} title="Client Portal">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                      try {
+                        let portalId = client.portalId;
+                        if (!portalId) {
+                          const clientVehicles = vehicles.filter(v => v.clientId === client.id);
+                          const clientTasks = tasks.filter(t => clientVehicles.some(v => v.id === t.vehicleId));
+                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate);
+                          updateClient(client.id, { portalId });
+                        }
+                        window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}`, '_blank');
+                      } catch {
+                        toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
+                      }
+                    }} title="Client Portal">
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">

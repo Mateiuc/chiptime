@@ -20,12 +20,16 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
   const [defaultCloningRate, setDefaultCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
   const [defaultProgrammingRate, setDefaultProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
+  const [defaultAddKeyRate, setDefaultAddKeyRate] = useState(settings.defaultAddKeyRate?.toString() || '');
+  const [defaultAllKeysLostRate, setDefaultAllKeysLostRate] = useState(settings.defaultAllKeysLostRate?.toString() || '');
 
   useEffect(() => {
     setDefaultHourlyRate(settings.defaultHourlyRate?.toString() || '75');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
     setDefaultCloningRate(settings.defaultCloningRate?.toString() || '');
     setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
+    setDefaultAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
+    setDefaultAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
   }, [settings]);
 
   const handleSave = () => {
@@ -35,6 +39,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       notificationsEnabled,
       defaultCloningRate: defaultCloningRate ? parseFloat(defaultCloningRate) : undefined,
       defaultProgrammingRate: defaultProgrammingRate ? parseFloat(defaultProgrammingRate) : undefined,
+      defaultAddKeyRate: defaultAddKeyRate ? parseFloat(defaultAddKeyRate) : undefined,
+      defaultAllKeysLostRate: defaultAllKeysLostRate ? parseFloat(defaultAllKeysLostRate) : undefined,
     });
     toast({ title: 'Settings Saved' });
   };
@@ -117,6 +123,48 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
                 step={0.01}
               />
               <p className="text-xs text-muted-foreground">Added per session when marked as "Programming"</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default Add Key Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default Add Key Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultAddKeyRate}
+                onChange={(e) => setDefaultAddKeyRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "Add Key"</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default All Keys Lost Rate */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Default All Keys Lost Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Rate ($)</Label>
+              <Input
+                type="number"
+                value={defaultAllKeysLostRate}
+                onChange={(e) => setDefaultAllKeysLostRate(e.target.value)}
+                placeholder="Leave empty if not used"
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-muted-foreground">Added per session when marked as "All Keys Lost"</p>
             </div>
           </CardContent>
         </Card>

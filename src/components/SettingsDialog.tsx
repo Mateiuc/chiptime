@@ -64,6 +64,8 @@ export const SettingsDialog = ({
   const [hourlyRate, setHourlyRate] = useState(settings.defaultHourlyRate.toString());
   const [cloningRate, setCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
   const [programmingRate, setProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
+  const [addKeyRate, setAddKeyRate] = useState(settings.defaultAddKeyRate?.toString() || '');
+  const [allKeysLostRate, setAllKeysLostRate] = useState(settings.defaultAllKeysLostRate?.toString() || '');
   const [showManageClients, setShowManageClients] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useNotifications();
@@ -72,6 +74,8 @@ export const SettingsDialog = ({
     setHourlyRate(settings.defaultHourlyRate.toString());
     setCloningRate(settings.defaultCloningRate?.toString() || '');
     setProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
+    setAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
+    setAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
   }, [settings]);
 
   useEffect(() => {
@@ -99,6 +103,8 @@ export const SettingsDialog = ({
       defaultHourlyRate: parseFloat(hourlyRate) || 75,
       defaultCloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       defaultProgrammingRate: programmingRate ? parseFloat(programmingRate) : undefined,
+      defaultAddKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
+      defaultAllKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
       googleApiKey: googleApiKey.trim() || undefined,
       grokApiKey: grokApiKey.trim() || undefined,
       ocrSpaceApiKey: ocrSpaceApiKey.trim() || undefined,
@@ -351,6 +357,36 @@ export const SettingsDialog = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   This rate is added per session when marked as "Programming"
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default Add Key Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={addKeyRate}
+                  onChange={(e) => setAddKeyRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "Add Key"
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default All Keys Lost Rate ($)</Label>
+                <Input
+                  type="number"
+                  value={allKeysLostRate}
+                  onChange={(e) => setAllKeysLostRate(e.target.value)}
+                  min={0}
+                  step={0.01}
+                  placeholder="Leave empty if not used"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This rate is added per session when marked as "All Keys Lost"
                 </p>
               </div>
 

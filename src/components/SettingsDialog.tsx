@@ -103,6 +103,8 @@ export const SettingsDialog = ({
       defaultHourlyRate: parseFloat(hourlyRate) || 75,
       defaultCloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       defaultProgrammingRate: programmingRate ? parseFloat(programmingRate) : undefined,
+      defaultAddKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
+      defaultAllKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
       googleApiKey: googleApiKey.trim() || undefined,
       grokApiKey: grokApiKey.trim() || undefined,
       ocrSpaceApiKey: ocrSpaceApiKey.trim() || undefined,

@@ -886,7 +886,7 @@ const DesktopDashboard = () => {
                         if (!portalId) {
                           const clientVehicles = vehicles.filter(v => v.clientId === client.id);
                           const clientTasks = tasks.filter(t => clientVehicles.some(v => v.id === t.vehicleId));
-                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.hourlyRate);
+                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate);
                           updateClient(client.id, { portalId });
                         }
                         window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}`, '_blank');

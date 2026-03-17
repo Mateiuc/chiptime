@@ -20,6 +20,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
   const [defaultCloningRate, setDefaultCloningRate] = useState(settings.defaultCloningRate?.toString() || '');
   const [defaultProgrammingRate, setDefaultProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
+  const [defaultAddKeyRate, setDefaultAddKeyRate] = useState(settings.defaultAddKeyRate?.toString() || '');
+  const [defaultAllKeysLostRate, setDefaultAllKeysLostRate] = useState(settings.defaultAllKeysLostRate?.toString() || '');
 
   useEffect(() => {
     setDefaultHourlyRate(settings.defaultHourlyRate?.toString() || '75');

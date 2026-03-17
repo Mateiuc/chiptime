@@ -39,6 +39,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       notificationsEnabled,
       defaultCloningRate: defaultCloningRate ? parseFloat(defaultCloningRate) : undefined,
       defaultProgrammingRate: defaultProgrammingRate ? parseFloat(defaultProgrammingRate) : undefined,
+      defaultAddKeyRate: defaultAddKeyRate ? parseFloat(defaultAddKeyRate) : undefined,
+      defaultAllKeysLostRate: defaultAllKeysLostRate ? parseFloat(defaultAllKeysLostRate) : undefined,
     });
     toast({ title: 'Settings Saved' });
   };

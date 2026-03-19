@@ -150,6 +150,20 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
                   </div>
                   <Switch checked={isProgramming} onCheckedChange={setIsProgramming} />
                 </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">Add Key</Label>
+                  </div>
+                  <Switch checked={isAddKey} onCheckedChange={setIsAddKey} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">All Keys Lost</Label>
+                  </div>
+                  <Switch checked={isAllKeysLost} onCheckedChange={setIsAllKeysLost} />
+                </div>
               </div>
             </CardContent>
           </Card>

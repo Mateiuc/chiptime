@@ -55,6 +55,8 @@ export interface WorkSession {
   chargeMinimumHour?: boolean; // Bill minimum 1 hour for this session
   isCloning?: boolean; // Apply cloning rate to this session
   isProgramming?: boolean; // Apply programming rate to this session
+  isAddKey?: boolean; // Apply add key rate to this session
+  isAllKeysLost?: boolean; // Apply all keys lost rate to this session
 }
 
 export type TaskStatus = 'pending' | 'in-progress' | 'paused' | 'completed' | 'billed' | 'paid';

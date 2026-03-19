@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2, Flag, Copy, Cpu } from 'lucide-react';
+import { Plus, Trash2, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
 import { Part } from '@/types';
 
 interface CompleteWorkDialogProps {

@@ -1,86 +1,40 @@
 
 
-# Full Analytics & Reports Page for Desktop
+# Add "Add Key" and "All Keys Lost" Session Flags
 
 ## Overview
-Create a new dedicated `/chip/reports` page (or a new view tab within the existing desktop dashboard) that provides comprehensive visual analytics with rich filtering. Since the app uses a single `DesktopDashboard` component with view switching (`tree` / `settings`), I'll add a third view mode: `reports`.
+Add two new per-session billing flags — **Add Key** and **All Keys Lost** — following the exact same pattern as the existing Cloning and Programming flags. These appear in:
+1. **CompleteWorkDialog** (mobile work completion)
+2. **EditTaskDialog** (mobile + desktop session editing)
+3. **WorkSession type** + all cost calculation logic
 
-## New View: `reports` in DesktopDashboard
+## Changes
 
-### Navigation
-- Add a chart/reports icon button in the header bar (next to the settings gear) that toggles to the reports view.
+### 1. `src/types/index.ts` — Add fields to WorkSession
+Add `isAddKey?: boolean` and `isAllKeysLost?: boolean` to the `WorkSession` interface.
 
-### Filter Toolbar (top of reports view)
-A sticky toolbar with:
-- **Client filter**: dropdown to select a specific client or "All Clients"
-- **Vehicle filter**: dropdown (filtered by selected client) or "All Vehicles"
-- **Status toggles**: Completed / Billed / Paid toggle buttons (same pattern as existing)
-- **Date range**: two date pickers (From / To) using the Shadcn Calendar/Popover pattern to scope all charts to a date window
-- **Reset button**: clears all filters back to defaults
+### 2. `src/components/CompleteWorkDialog.tsx`
+- Add `isAddKey` and `isAllKeysLost` state + switches (using `Key` and `KeyRound` icons from lucide)
+- Update `onComplete` callback signature to include both new flags
+- Reset them on complete
+- Add two new Switch rows after Programming in the Billing Options section
 
-### Charts Section (scrollable grid below toolbar)
-All charts use recharts (already installed). Each chart card uses a distinct color gradient border (like the existing paid/completed chart cards).
+### 3. `src/pages/Index.tsx` — `handleCompleteWork`
+- Update signature to accept `isAddKey` and `isAllKeysLost`
+- Set them on the target session (same as `isCloning`/`isProgramming`)
 
-1. **Revenue Over Time** (bar chart, green gradient)
-   - Monthly revenue bars, respects all filters
-   - Click bar to see itemized breakdown (reuse drill-down table pattern)
+### 4. `src/components/EditTaskDialog.tsx`
+- Add toggle buttons for `isAddKey` and `isAllKeysLost` in both mobile and desktop session headers (next to Cloning/Programming buttons)
+- Use `Key` and `KeyRound` icons
 
-2. **Revenue by Client** (horizontal bar chart, blue gradient)
-   - One bar per client showing total revenue within filtered range
-   - Different color per client bar using the vehicle color scheme
+### 5. `src/pages/DesktopDashboard.tsx` — Cost calculations
+- Add `addKeyRate` and `allKeysLostRate` from client/settings
+- Include `isAddKey`/`isAllKeysLost` costs in all cost calculation blocks (lines ~240, ~415, ~494, ~533)
 
-3. **Revenue by Vehicle** (horizontal bar chart, purple gradient)
-   - Top 20 vehicles by revenue, with make/model labels
-   - Each bar a different shade
-
-4. **Tasks by Status** (pie/donut chart, amber gradient)
-   - Shows count of tasks per status within filtered range
-   - Each status gets its existing color from `statusColors`
-
-5. **Work Hours Over Time** (line/area chart, cyan gradient)
-   - Monthly total hours worked
-   - Useful to see effort vs revenue
-
-6. **Cars Serviced Over Time** (bar chart, indigo gradient)
-   - Unique vehicles per month
-
-### Detail Table (below charts)
-- A full sortable table of all tasks matching the current filters
-- Columns: Date, Client, Vehicle, Description, Status, Time Worked, Cost
-- Sortable by Date, Cost, Client, Status
-- Shows description inline
-- Color-coded status badges
-- Footer with totals
-
-## Technical Approach
-
-### Changes to `src/pages/DesktopDashboard.tsx`
-1. Add `desktopView` option `'reports'` to the existing `'tree' | 'settings'` union
-2. Add reports icon button in header
-3. Add new state variables for report filters: `rptClient`, `rptVehicle`, `rptStatusCompleted/Billed/Paid`, `rptDateFrom`, `rptDateTo`, `rptSortField`, `rptSortDir`
-4. Add `useMemo` hooks for each chart's data, all derived from `tasks` + filter state
-5. Add the reports view JSX block (conditionally rendered when `desktopView === 'reports'`)
-
-### New imports needed
-- `PieChart, Pie, Cell, LineChart, Line, AreaChart, Area` from recharts
-- `Calendar` component and `Popover` for date pickers
-- `format` from `date-fns`
-- `CalendarIcon, BarChart3` from lucide-react
-
-### Color scheme for charts
-Use a palette array for pie/bar segments:
-```text
-const CHART_COLORS = [
-  '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
-  '#ef4444', '#06b6d4', '#ec4899', '#6366f1',
-  '#14b8a6', '#f97316', '#84cc16', '#a855f7'
-];
-```
-
-### File size consideration
-The DesktopDashboard is already 1156 lines. To keep it manageable, I'll extract the reports view into a new component:
-- **`src/components/DesktopReportsView.tsx`** — new file containing all reports logic, charts, filters, and table
-- DesktopDashboard passes `tasks`, `clients`, `vehicles`, `settings`, and helper functions as props
-
-This keeps the main dashboard clean and the reports self-contained.
+### 6. Files changed
+- `src/types/index.ts`
+- `src/components/CompleteWorkDialog.tsx`
+- `src/pages/Index.tsx`
+- `src/components/EditTaskDialog.tsx`
+- `src/pages/DesktopDashboard.tsx`
 

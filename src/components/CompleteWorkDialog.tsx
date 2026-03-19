@@ -25,6 +25,8 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
   const [chargeMinimumHour, setChargeMinimumHour] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
   const [isProgramming, setIsProgramming] = useState(false);
+  const [isAddKey, setIsAddKey] = useState(false);
+  const [isAllKeysLost, setIsAllKeysLost] = useState(false);
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',

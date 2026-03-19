@@ -14,7 +14,7 @@ import { Part } from '@/types';
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean) => void;
   vehicleLabel?: string;
 }
 

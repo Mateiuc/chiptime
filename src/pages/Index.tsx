@@ -280,7 +280,7 @@ const Index = () => {
     setShowCompleteWork(true);
   };
 
-  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false) => {
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false) => {
     const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
@@ -297,6 +297,8 @@ const Index = () => {
       targetSession.chargeMinimumHour = chargeMinimumHour;
       targetSession.isCloning = isCloning;
       targetSession.isProgramming = isProgramming;
+      targetSession.isAddKey = isAddKey;
+      targetSession.isAllKeysLost = isAllKeysLost;
     }
 
     updateTask(activeTask.id, {

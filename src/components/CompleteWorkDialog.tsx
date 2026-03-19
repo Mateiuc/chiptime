@@ -65,7 +65,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour, isCloning, isProgramming);
+    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour, isCloning, isProgramming, isAddKey, isAllKeysLost);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '' });
@@ -73,6 +73,8 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
     setChargeMinimumHour(false);
     setIsCloning(false);
     setIsProgramming(false);
+    setIsAddKey(false);
+    setIsAllKeysLost(false);
     onOpenChange(false);
   };
 

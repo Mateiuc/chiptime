@@ -645,6 +645,24 @@ export const EditTaskDialog = ({
                       >
                         <Cpu className="h-3 w-3" fill={session.isProgramming ? 'currentColor' : 'none'} />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
+                        onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
+                        title="Apply add key rate to this session"
+                      >
+                        <Key className="h-3 w-3" fill={session.isAddKey ? 'currentColor' : 'none'} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
+                        onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
+                        title="Apply all keys lost rate to this session"
+                      >
+                        <KeyRound className="h-3 w-3" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>

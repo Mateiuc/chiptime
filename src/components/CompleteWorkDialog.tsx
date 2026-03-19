@@ -8,13 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2, Flag, Copy, Cpu } from 'lucide-react';
+import { Plus, Trash2, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
 import { Part } from '@/types';
 
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean, isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean) => void;
   vehicleLabel?: string;
 }
 
@@ -25,6 +25,8 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
   const [chargeMinimumHour, setChargeMinimumHour] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
   const [isProgramming, setIsProgramming] = useState(false);
+  const [isAddKey, setIsAddKey] = useState(false);
+  const [isAllKeysLost, setIsAllKeysLost] = useState(false);
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',
@@ -63,7 +65,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour, isCloning, isProgramming);
+    onComplete(description, finalParts, needsFollowUp, chargeMinimumHour, isCloning, isProgramming, isAddKey, isAllKeysLost);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '' });
@@ -71,6 +73,8 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
     setChargeMinimumHour(false);
     setIsCloning(false);
     setIsProgramming(false);
+    setIsAddKey(false);
+    setIsAllKeysLost(false);
     onOpenChange(false);
   };
 
@@ -145,6 +149,20 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
                     <Label className="text-sm">Programming</Label>
                   </div>
                   <Switch checked={isProgramming} onCheckedChange={setIsProgramming} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">Add Key</Label>
+                  </div>
+                  <Switch checked={isAddKey} onCheckedChange={setIsAddKey} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-primary" />
+                    <Label className="text-sm">All Keys Lost</Label>
+                  </div>
+                  <Switch checked={isAllKeysLost} onCheckedChange={setIsAllKeysLost} />
                 </div>
               </div>
             </CardContent>

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -645,6 +645,24 @@ export const EditTaskDialog = ({
                       >
                         <Cpu className="h-3 w-3" fill={session.isProgramming ? 'currentColor' : 'none'} />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
+                        onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
+                        title="Apply add key rate to this session"
+                      >
+                        <Key className="h-3 w-3" fill={session.isAddKey ? 'currentColor' : 'none'} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
+                        onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
+                        title="Apply all keys lost rate to this session"
+                      >
+                        <KeyRound className="h-3 w-3" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -840,6 +858,24 @@ export const EditTaskDialog = ({
                       title="Apply programming rate to this session"
                     >
                       <Cpu className="h-4 w-4" fill={session.isProgramming ? 'currentColor' : 'none'} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
+                      onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
+                      title="Apply add key rate to this session"
+                    >
+                      <Key className="h-4 w-4" fill={session.isAddKey ? 'currentColor' : 'none'} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
+                      onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
+                      title="Apply all keys lost rate to this session"
+                    >
+                      <KeyRound className="h-4 w-4" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                       <Trash2 className="h-4 w-4" />

@@ -40,6 +40,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
       cloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
+      addKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
+      allKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
     });
 
     // Reset form
@@ -49,6 +51,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setHourlyRate('');
     setCloningRate('');
     setProgrammingRate('');
+    setAddKeyRate('');
+    setAllKeysLostRate('');
     onOpenChange(false);
   };
 

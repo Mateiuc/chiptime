@@ -1,37 +1,55 @@
 
 
-# Make Desktop Bill PDF Match Mobile Bill PDF
+# Fix Desktop Bill Photos, Diacritics, and Add Diagnostic PDF Upload
 
-## Problem
-The desktop `generateBillPdf` in `DesktopDashboard.tsx` (line 233) generates a plain-text invoice (no background image, basic "INVOICE" header, simple text layout). The mobile `generateBillingPDF` in `TaskCard.tsx` (line 311) uses the branded background image (`billBackground`), purple "Bill to:" header, styled table with DESCRIPTION/TIME/AMOUNT columns, red separator line, and proper coordinate-based layout matching the template.
-
-## Solution
-Replace the desktop `generateBillPdf` function with the same styled PDF generation used in mobile — using the background image, same coordinates, same table layout, same formatting. Also add the missing Add Key and All Keys Lost line items to both mobile and desktop bills.
+## Problems
+1. **Desktop bill PDF missing photos**: Mobile `TaskCard.tsx` appends session photos to the bill (lines 503-597), but desktop `generateBillPdf` in `DesktopDashboard.tsx` stops after the total — no photo pages.
+2. **Diacritics not rendering**: jsPDF's built-in `helvetica` font lacks extended Latin characters (é, ñ, ü, etc.). Characters with diacritics render as blank or garbled. Fix: strip diacritics from text before rendering (jsPDF limitation — no custom font embedding without significant overhead).
+3. **Diagnostic PDF per vehicle**: New feature — allow uploading a diagnostic PDF per vehicle, store it in cloud storage, and append its pages to the end of both mobile and desktop bill PDFs.
 
 ## Changes
 
-### 1. `src/pages/DesktopDashboard.tsx` — Replace `generateBillPdf` (lines 233-296)
-Rewrite to match mobile's `generateBillingPDF`:
-- Use `jsPDF({ format: 'letter' })` with `billBackground` image overlay
-- Purple "Bill to:" at y=48.5, client name at y=53, vehicle info at y=58.5
-- "Billed on" date right-aligned at y=58.5
-- Table headers (DESCRIPTION/TIME/AMOUNT) at y=66 with red separator line
-- Per-session rows with description, time (hh:mm), and amount
-- Billing option line items: Min Hour, Cloning, Programming, **Add Key**, **All Keys Lost**
-- Parts section with quantity and price
-- TOTAL at y=261
-- Timestamp at bottom center
-- Import `billBackground` from `@/assets/bill-background.jpg`
+### 1. `src/types/index.ts` — Add `diagnosticPdfUrl` to Vehicle
+Add `diagnosticPdfUrl?: string` to the `Vehicle` interface for storing the cloud URL of the uploaded diagnostic PDF.
 
-### 2. `src/components/TaskCard.tsx` — Add missing Add Key / All Keys Lost lines (after line 423)
-Add two blocks after the Programming line item:
-```
-if (addKeyTot > 0) { doc.text(`Add Key (×${addKeyCnt})`, ...); yPos += 8; }
-if (allKeysLostTot > 0) { doc.text(`All Keys Lost (×${allKeysLostCnt})`, ...); yPos += 8; }
-```
-Need to verify the cost variable names used in TaskCard's scope.
+### 2. Create utility: `src/lib/pdfUtils.ts`
+- `stripDiacritics(text: string)`: uses `String.normalize('NFD').replace(...)` to remove accent marks
+- Shared helper for both mobile and desktop PDF generation
 
-## Files
-1. `src/pages/DesktopDashboard.tsx` — rewrite `generateBillPdf`
-2. `src/components/TaskCard.tsx` — add Add Key / All Keys Lost line items to billing PDF
+### 3. `src/pages/DesktopDashboard.tsx` — Fix bill PDF
+- Import `stripDiacritics` and wrap all user-facing text (client name, descriptions, part names) through it
+- Add photo pages after the total section (port the logic from TaskCard lines 503-597, using `cloudUrl` fetch since desktop has no local filesystem)
+- Add diagnostic PDF pages: after photos, if `vehicle.diagnosticPdfUrl` exists, fetch the PDF bytes via `pdf-lib`, extract pages, and append them using jsPDF's `addPage` + image rendering (convert PDF pages to images via canvas)
+- Add "Upload Diagnostic PDF" button per vehicle row in the tree view
+
+### 4. `src/components/TaskCard.tsx` — Fix mobile bill PDF
+- Import `stripDiacritics` and apply to all text in `generateBillingPDF`
+- After the photos section, if `vehicle.diagnosticPdfUrl` exists, fetch and append diagnostic PDF pages
+- Add "Upload Diagnostic" button in the vehicle/task UI
+
+### 5. Diagnostic PDF upload flow
+- Upload handler: accepts a PDF file input, converts to base64, calls the existing `upload-photo` edge function pattern (or a new `upload-diagnostic` edge function) to store in a `diagnostic-pdfs` storage bucket
+- On success, save the public URL to `vehicle.diagnosticPdfUrl` via `updateVehicle`
+
+### 6. Storage bucket migration — `diagnostic-pdfs`
+Create a new public storage bucket `diagnostic-pdfs` for storing uploaded diagnostic PDFs.
+
+### 7. Edge function: `supabase/functions/upload-diagnostic/index.ts`
+Similar to `upload-photo` — accepts base64 PDF + vehicleId, uploads to `diagnostic-pdfs` bucket, returns public URL.
+
+### 8. Appending diagnostic PDF to bill
+Since jsPDF can't natively merge existing PDFs, use `pdf-lib` (already available or add as dependency) to:
+- Generate the bill as a PDF blob from jsPDF
+- Load the diagnostic PDF from URL
+- Merge them using `pdf-lib`'s `PDFDocument.load` + `copyPages`
+- Output the final merged PDF
+
+## Files to create/edit
+1. `src/types/index.ts` — add `diagnosticPdfUrl` to Vehicle
+2. `src/lib/pdfUtils.ts` — new file with `stripDiacritics`
+3. `src/pages/DesktopDashboard.tsx` — diacritics fix, add photos, add diagnostic PDF merge, add upload button
+4. `src/components/TaskCard.tsx` — diacritics fix, add diagnostic PDF merge, add upload button
+5. `supabase/functions/upload-diagnostic/index.ts` — new edge function
+6. SQL migration — create `diagnostic-pdfs` storage bucket
+7. `package.json` — add `pdf-lib` dependency
 

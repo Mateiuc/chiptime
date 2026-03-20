@@ -515,19 +515,23 @@ h+='</table><div style="text-align:right;font-size:11px;font-weight:600;margin-t
 }
 h+='<div style="text-align:right;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:4px;margin-top:8px">Session Total: '+fmt(ss.lc+ss.pc)+'</div></div>';
 });
-var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0);
+var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
 h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(vBaseLab)+'</b></span></div>';
 if(v.tmh&&v.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(v.tmh)+'</b></span></div>';
 if(v.tcl&&v.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(v.tcl)+'</b></span></div>';
 if(v.tpr&&v.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(v.tpr)+'</b></span></div>';
+if(v.tak&&v.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(v.tak)+'</b></span></div>';
+if(v.takl&&v.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(v.takl)+'</b></span></div>';
 h+='<div class="row"><span>Vehicle Parts:</span><span><b>'+fmt(v.tp)+'</b></span></div><div class="row total"><span>Vehicle Total:</span><span>'+fmt(v.vt)+'</span></div></div></div>';
 });
 if(s.v.length>0){
-var gBaseLab=s.tl-(s.tmh||0)-(s.tcl||0)-(s.tpr||0);
+var gBaseLab=s.tl-(s.tmh||0)-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
 h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(gBaseLab)+'</b></span></div>';
 if(s.tmh&&s.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(s.tmh)+'</b></span></div>';
 if(s.tcl&&s.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(s.tcl)+'</b></span></div>';
 if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s.tpr)+'</b></span></div>';
+if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
+if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
 }
 el.innerHTML=h;

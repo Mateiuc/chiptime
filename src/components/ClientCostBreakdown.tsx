@@ -255,7 +255,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 <div className="p-3 md:p-4 bg-muted/50 text-xs md:text-sm space-y-0.5">
                   <div className="flex justify-between">
                     <span>Vehicle Labor:</span>
-                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj)}</span>
+                    <span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span>
                   </div>
                   {vehicleSummary.totalMinHourAdj > 0 && (
                     <div className="flex justify-between">

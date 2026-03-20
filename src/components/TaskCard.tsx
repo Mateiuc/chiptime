@@ -1168,11 +1168,7 @@ export const TaskCard = ({
         });
 
         if (error) throw error;
-        
-        if (onUpdateTask && vehicle) {
-          // We need to propagate the diagnostic URL through a task update
-          // Store it on the vehicle through parent callback
-        }
+        onUpdateVehicle?.(vehicle.id, { diagnosticPdfUrl: data.url });
         toast({ title: 'Uploaded', description: 'Diagnostic PDF will be included in bills' });
       } catch (err) {
         console.error('Upload diagnostic error:', err);

@@ -334,6 +334,18 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 <span className="font-semibold">{formatCurrency(grandTotalProgramming)}</span>
               </div>
             )}
+            {grandTotalAddKey > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Add Key:</span>
+                <span className="font-semibold">{formatCurrency(grandTotalAddKey)}</span>
+              </div>
+            )}
+            {grandTotalAllKeysLost > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>All Keys Lost:</span>
+                <span className="font-semibold">{formatCurrency(grandTotalAllKeysLost)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span>Total Parts:</span>
               <span className="font-semibold">{formatCurrency(grandTotalParts)}</span>

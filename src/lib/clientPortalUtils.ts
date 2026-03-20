@@ -64,6 +64,8 @@ interface SlimSession {
   clc?: number;
   prc?: number;
   mha?: number;
+  akc?: number;
+  aklc?: number;
 }
 
 interface SlimVehicle {
@@ -79,6 +81,8 @@ interface SlimVehicle {
   tcl?: number;
   tpr?: number;
   tmh?: number;
+  tak?: number;
+  takl?: number;
 }
 
 interface SlimPayload {
@@ -90,6 +94,8 @@ interface SlimPayload {
   tcl?: number;
   tpr?: number;
   tmh?: number;
+  tak?: number;
+  takl?: number;
 }
 
 export function generateAccessCode(): string {

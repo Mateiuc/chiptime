@@ -341,7 +341,7 @@ export const TaskCard = ({
         .join(' ');
       const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
       const fullVehicleInfo = vehicleInfo ? `${vehicleInfo} ${vinInfo}` : 'Vehicle Info Not Available';
-      doc.text(fullVehicleInfo, 20, 58.5);
+      doc.text(stripDiacritics(fullVehicleInfo), 20, 58.5);
 
       // Table Section
       const tableTop = 66;

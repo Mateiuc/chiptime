@@ -8,6 +8,7 @@ import { TaskInlineEditor } from '@/components/TaskInlineEditor';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { DesktopReportsView } from '@/components/DesktopReportsView';
 import { DesktopInvoiceView } from '@/components/DesktopInvoiceView';
+import { DesktopClientsView } from '@/components/DesktopClientsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 

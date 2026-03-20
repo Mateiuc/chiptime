@@ -233,7 +233,7 @@ const DesktopDashboard = () => {
   };
 
   // --- Bill PDF generation ---
-  const generateBillPdf = (task: Task, client: Client, vehicle: Vehicle) => {
+  const generateBillPdf = async (task: Task, client: Client, vehicle: Vehicle) => {
     const rate = client.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client.programmingRate || settings.defaultProgrammingRate || 0;
@@ -276,12 +276,12 @@ const DesktopDashboard = () => {
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(client.name || 'N/A', 20, 53);
+    doc.text(stripDiacritics(client.name || 'N/A'), 20, 53);
 
     // Vehicle info
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
     const vinInfo = vehicle.vin ? `(VIN: ${vehicle.vin})` : '';
-    doc.text(`${vehicleLabel} ${vinInfo}`, 20, 58.5);
+    doc.text(stripDiacritics(`${vehicleLabel} ${vinInfo}`), 20, 58.5);
 
     // Table headers
     const tableTop = 66;
@@ -310,7 +310,7 @@ const DesktopDashboard = () => {
     (task.sessions || []).forEach(session => {
       const sessionDuration = (session.periods || []).reduce((t, p) => t + p.duration, 0);
       const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * rate;
-      const description = session.description || 'Work session';
+      const description = stripDiacritics(session.description || 'Work session');
       const col1Width = col2X - col1X - 4;
       const wrapped = doc.splitTextToSize(description, col1Width);
       const startY = yPos;
@@ -325,27 +325,27 @@ const DesktopDashboard = () => {
 
     // Billing option line items
     if (minHrAdj > 0) {
-      doc.text(`Min 1 Hour adjustment (×${minHrCnt})`, col1X + 2, yPos);
+      doc.text(`Min 1 Hour adjustment (x${minHrCnt})`, col1X + 2, yPos);
       doc.text(formatCurrency(minHrAdj), col3X + 2, yPos, { align: 'right' });
       yPos += 8;
     }
     if (cloneTot > 0) {
-      doc.text(`Cloning (×${cloneCnt})`, col1X + 2, yPos);
+      doc.text(`Cloning (x${cloneCnt})`, col1X + 2, yPos);
       doc.text(formatCurrency(cloneTot), col3X + 2, yPos, { align: 'right' });
       yPos += 8;
     }
     if (progTot > 0) {
-      doc.text(`Programming (×${progCnt})`, col1X + 2, yPos);
+      doc.text(`Programming (x${progCnt})`, col1X + 2, yPos);
       doc.text(formatCurrency(progTot), col3X + 2, yPos, { align: 'right' });
       yPos += 8;
     }
     if (addKeyTot > 0) {
-      doc.text(`Add Key (×${addKeyCnt})`, col1X + 2, yPos);
+      doc.text(`Add Key (x${addKeyCnt})`, col1X + 2, yPos);
       doc.text(formatCurrency(addKeyTot), col3X + 2, yPos, { align: 'right' });
       yPos += 8;
     }
     if (allKeysLostTot > 0) {
-      doc.text(`All Keys Lost (×${allKeysLostCnt})`, col1X + 2, yPos);
+      doc.text(`All Keys Lost (x${allKeysLostCnt})`, col1X + 2, yPos);
       doc.text(formatCurrency(allKeysLostTot), col3X + 2, yPos, { align: 'right' });
       yPos += 8;
     }
@@ -357,14 +357,14 @@ const DesktopDashboard = () => {
       allParts.forEach(p => {
         const partY = yPos;
         doc.setFont('helvetica', 'normal');
-        doc.text(p.name, col1X + 2, partY);
+        doc.text(stripDiacritics(p.name), col1X + 2, partY);
         if (p.description) {
           yPos += 6;
           doc.setFontSize(9);
           doc.setFont('helvetica', 'italic');
           doc.setTextColor(100, 100, 100);
           const col1Width = col2X - col1X - 6;
-          const wrappedDesc = doc.splitTextToSize(p.description, col1Width);
+          const wrappedDesc = doc.splitTextToSize(stripDiacritics(p.description), col1Width);
           wrappedDesc.forEach((line: string, i: number) => {
             doc.text(line, col1X + 4, yPos);
             if (i < wrappedDesc.length - 1) yPos += 5;
@@ -395,8 +395,142 @@ const DesktopDashboard = () => {
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated: ${ts}`, 107.95, 277.4, { align: 'center' });
 
-    doc.save(`invoice-${client.name}-${vehicle.vin}.pdf`);
+    // --- Photos section (port from mobile) ---
+    const allPhotos: Array<{ photo: { cloudUrl?: string; base64?: string }; sessionNum: number }> = [];
+    (task.sessions || []).forEach((session, idx) => {
+      (session.photos || []).forEach(photo => {
+        allPhotos.push({ photo, sessionNum: idx + 1 });
+      });
+    });
+
+    if (allPhotos.length > 0) {
+      doc.addPage();
+      let photoYPos = 20;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(128, 0, 128);
+      doc.text('Work Photos', 105, photoYPos, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      photoYPos += 15;
+
+      const colWidth = 85;
+      const colHeight = 64;
+      const colX = [15, 110];
+      let colIdx = 0;
+
+      for (const item of allPhotos) {
+        if (colIdx === 0 && photoYPos > 200) {
+          doc.addPage();
+          photoYPos = 20;
+        }
+
+        const x = colX[colIdx];
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Session ${item.sessionNum}`, x, photoYPos);
+
+        let photoBase64: string | undefined = item.photo.base64;
+
+        // Fetch from cloudUrl
+        if (!photoBase64 && item.photo.cloudUrl) {
+          try {
+            const response = await fetch(item.photo.cloudUrl);
+            const blob = await response.blob();
+            photoBase64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const result = reader.result as string;
+                resolve(result.split(',')[1]);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } catch (fetchError) {
+            console.warn('Failed to fetch photo from cloud:', fetchError);
+          }
+        }
+
+        if (photoBase64) {
+          try {
+            const imgData = `data:image/jpeg;base64,${photoBase64}`;
+            doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth, colHeight);
+          } catch (imgError) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text('(Image could not be loaded)', x, photoYPos + 15);
+          }
+        } else {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          doc.text('(Photo on device only)', x, photoYPos + 15);
+        }
+
+        colIdx++;
+        if (colIdx >= 2) {
+          colIdx = 0;
+          photoYPos += colHeight + 12;
+        }
+      }
+      if (colIdx !== 0) {
+        photoYPos += colHeight + 12;
+      }
+    }
+
+    // --- Merge diagnostic PDF if available ---
+    if (vehicle.diagnosticPdfUrl) {
+      try {
+        const billBlob = doc.output('blob');
+        const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+        const url = URL.createObjectURL(mergedBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: 'Bill PDF Generated', description: 'Includes diagnostic report' });
+        return;
+      } catch (mergeError) {
+        console.warn('Failed to merge diagnostic PDF, saving without it:', mergeError);
+      }
+    }
+
+    doc.save(`invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`);
     toast({ title: 'Bill PDF Generated' });
+  };
+
+  // --- Upload diagnostic PDF for a vehicle ---
+  const handleUploadDiagnosticPdf = async (vehicleId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        toast({ title: 'Uploading...', description: 'Uploading diagnostic PDF' });
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
+          body: { base64, vehicleId, fileName: file.name },
+        });
+
+        if (error) throw error;
+        updateVehicle(vehicleId, { diagnosticPdfUrl: data.url });
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF attached to vehicle' });
+      } catch (err) {
+        console.error('Upload diagnostic error:', err);
+        toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });
+      }
+    };
+    input.click();
   };
 
   const handleGenerateBillAndMarkBilled = (task: Task) => {

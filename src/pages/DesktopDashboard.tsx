@@ -789,6 +789,18 @@ const DesktopDashboard = () => {
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
       ) : desktopView === 'invoices' ? (
         <DesktopInvoiceView settings={settings} />
+      ) : desktopView === 'clients' ? (
+        <DesktopClientsView
+          clients={clients}
+          vehicles={vehicles}
+          tasks={tasks}
+          settings={settings}
+          onUpdateClient={updateClient}
+          onDeleteClient={deleteClient}
+          onUpdateVehicle={updateVehicle}
+          onDeleteVehicle={deleteVehicle}
+          onMoveVehicle={handleMoveVehicle}
+        />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {filteredTree.length === 0 && (

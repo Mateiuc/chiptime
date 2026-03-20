@@ -23,5 +23,5 @@ export const mergePdfs = async (billBlob: Blob, diagnosticUrl: string): Promise<
   pages.forEach(page => mergedPdf.addPage(page));
 
   const mergedBytes = await mergedPdf.save();
-  return new Blob([mergedBytes], { type: 'application/pdf' });
+  return new Blob([mergedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 };

@@ -522,7 +522,7 @@ const DesktopDashboard = () => {
     });
     return {
       totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
-      totalMinHourAdj, totalCloning, totalProgramming,
+      totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost,
       completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
       activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
       totalTasks: clientTasks.length,

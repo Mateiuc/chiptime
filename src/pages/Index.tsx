@@ -698,6 +698,7 @@ const Index = () => {
                           onPauseTimer={task.status === 'in-progress' ? handlePauseTimer : undefined}
                           onStopTimer={task.status === 'in-progress' || task.status === 'paused' ? () => handleStopTimer(task.id) : undefined}
                           onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
+                          onUpdateVehicle={(vid, updates) => updateVehicle(vid, updates)}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}
                         />

@@ -85,14 +85,18 @@ export const DesktopClientsView = ({
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const baseCost = (sessionDuration / 3600) * rate;
-        let minAdj = 0, cloneCost = 0, progCost = 0;
+        let minAdj = 0, cloneCost = 0, progCost = 0, akCost = 0, aklCost = 0;
         if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
         if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
         if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-        totalLaborCost += baseCost + minAdj + cloneCost + progCost;
+        if (session.isAddKey && addKeyRate > 0) akCost = addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) aklCost = allKeysLostRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost + akCost + aklCost;
         totalMinHourAdj += minAdj;
         totalCloning += cloneCost;
         totalProgramming += progCost;
+        totalAddKey += akCost;
+        totalAllKeysLost += aklCost;
       });
       totalTime += task.totalTime;
       task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));

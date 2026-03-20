@@ -194,7 +194,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                       </span>
                       <span className="flex items-center gap-1 font-semibold text-foreground">
                         <DollarSign className="h-3 w-3" />
-                        Labor: {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0))}
+                        Labor: {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                       </span>
                     </div>
                     {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0) && (

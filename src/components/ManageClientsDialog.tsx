@@ -368,6 +368,8 @@ export const ManageClientsDialog = ({
       hourlyRate: client.hourlyRate,
       cloningRate: client.cloningRate,
       programmingRate: client.programmingRate,
+      addKeyRate: client.addKeyRate,
+      allKeysLostRate: client.allKeysLostRate,
     });
   };
 

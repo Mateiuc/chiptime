@@ -743,6 +743,7 @@ const Index = () => {
                           onMarkPaid={handleMarkPaid}
                           onRestartTimer={handleRestartTimer}
                         onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
+                          onUpdateVehicle={(vid, updates) => updateVehicle(vid, updates)}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}
                         />

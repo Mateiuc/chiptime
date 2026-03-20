@@ -26,6 +26,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { PhoneContact } from '@/services/contactsService';
 import jsPDF from 'jspdf';
 import billBackground from '@/assets/bill-background.jpg';
+import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
 

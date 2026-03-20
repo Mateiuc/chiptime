@@ -115,8 +115,8 @@ export function calculateClientCosts(
   const hourlyRate = client.hourlyRate || defaultHourlyRate;
   const cloningRate = client.cloningRate || defaultCloningRate || 0;
   const programmingRate = client.programmingRate || defaultProgrammingRate || 0;
-  const addKeyRate = defaultAddKeyRate || 0;
-  const allKeysLostRate = defaultAllKeysLostRate || 0;
+  const addKeyRate = client.addKeyRate || defaultAddKeyRate || 0;
+  const allKeysLostRate = client.allKeysLostRate || defaultAllKeysLostRate || 0;
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
   
   let grandTotalLabor = 0;

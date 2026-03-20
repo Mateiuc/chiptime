@@ -566,6 +566,26 @@ export const ManageClientsDialog = ({
                                 className="h-9 text-sm bg-background"
                               />
                             </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Add Key Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.addKeyRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, addKeyRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">All Keys Lost Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.allKeysLostRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
                             <div className="flex gap-2 pt-1">
                               <Button size="sm" onClick={() => handleSaveClientEdit(client.id)} className="h-8 bg-primary hover:bg-primary/90">
                                 <Save className="h-3 w-3 mr-1" /> Save

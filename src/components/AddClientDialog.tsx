@@ -130,6 +130,30 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
               step={0.01}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Add Key Rate</Label>
+            <Input 
+              type="number"
+              value={addKeyRate} 
+              onChange={(e) => setAddKeyRate(e.target.value)}
+              placeholder="Leave empty to use default"
+              min={0}
+              step={0.01}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>All Keys Lost Rate</Label>
+            <Input 
+              type="number"
+              value={allKeysLostRate} 
+              onChange={(e) => setAllKeysLostRate(e.target.value)}
+              placeholder="Leave empty to use default"
+              min={0}
+              step={0.01}
+            />
+          </div>
         </div>
 
         <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm">

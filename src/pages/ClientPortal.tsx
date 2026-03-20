@@ -60,7 +60,7 @@ const ClientPortal = () => {
             setLoading(false);
             return;
           }
-          const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate);
+          const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
           setCostSummary(summary);
           setExpectedCode(client.accessCode || null);
         }

@@ -883,7 +883,7 @@ const DesktopDashboard = () => {
                       } catch (err) {
                         console.warn('[Share] Cloud sync failed, falling back:', err);
                       }
-                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
+                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
                       const encoded = await encodeClientData(summary, code);
                       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
                       if (url.length <= 2000) {

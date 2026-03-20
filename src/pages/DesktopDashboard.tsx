@@ -252,45 +252,145 @@ const DesktopDashboard = () => {
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
     const total = laborCost + partsCost;
 
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('INVOICE', 105, 20, { align: 'center' });
+    const doc = new jsPDF({ format: 'letter' });
+    doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);
+
+    const col1X = 20;
+    const col2X = 130;
+    const col3X = 190.9;
+
+    // Bill to header
+    doc.setFontSize(17);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(128, 0, 128);
+    doc.text('Bill to:', 20, 48.5);
+
+    // Billed on date (right side)
+    const billedDate = new Date().toLocaleDateString('en-US');
+    doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
+
+    // Client name
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(`Client: ${client.name}`, 20, 40);
-    if (client.email) doc.text(`Email: ${client.email}`, 20, 47);
-    if (client.phone) doc.text(`Phone: ${client.phone}`, 20, 54);
+    doc.text(client.name || 'N/A', 20, 53);
+
+    // Vehicle info
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
-    doc.text(`Vehicle: ${vehicleLabel}`, 20, 64);
-    doc.text(`VIN: ${vehicle.vin}`, 20, 71);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 81);
+    const vinInfo = vehicle.vin ? `(VIN: ${vehicle.vin})` : '';
+    doc.text(`${vehicleLabel} ${vinInfo}`, 20, 58.5);
 
-    let y = 95;
-    doc.setFontSize(12);
-    doc.text('Labor', 20, y);
-    doc.setFontSize(10);
-    y += 8;
-    doc.text(`${formatDuration(task.totalTime)} @ ${formatCurrency(rate)}/hr = ${formatCurrency(baseLab)}`, 25, y);
-    if (minHrAdj > 0) { y += 7; doc.text(`Min 1 Hour adjustment (×${minHrCnt}): ${formatCurrency(minHrAdj)}`, 25, y); }
-    if (cloneTot > 0) { y += 7; doc.text(`Cloning (×${cloneCnt}): ${formatCurrency(cloneTot)}`, 25, y); }
-    if (progTot > 0) { y += 7; doc.text(`Programming (×${progCnt}): ${formatCurrency(progTot)}`, 25, y); }
-    if (addKeyTot > 0) { y += 7; doc.text(`Add Key (×${addKeyCnt}): ${formatCurrency(addKeyTot)}`, 25, y); }
-    if (allKeysLostTot > 0) { y += 7; doc.text(`All Keys Lost (×${allKeysLostCnt}): ${formatCurrency(allKeysLostTot)}`, 25, y); }
+    // Table headers
+    const tableTop = 66;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DESCRIPTION', 25, tableTop + 6);
+    doc.text('TIME', col2X - 1, tableTop + 6);
+    doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
 
+    // Red line
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(255, 0, 0);
+    doc.line(20, tableTop + 8, 195.9, tableTop + 8);
+
+    const formatDurationHHMM = (seconds: number): string => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
+
+    // Session rows
+    let yPos = tableTop + 16;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+
+    (task.sessions || []).forEach(session => {
+      const sessionDuration = (session.periods || []).reduce((t, p) => t + p.duration, 0);
+      const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * rate;
+      const description = session.description || 'Work session';
+      const col1Width = col2X - col1X - 4;
+      const wrapped = doc.splitTextToSize(description, col1Width);
+      const startY = yPos;
+      wrapped.forEach((line: string, i: number) => {
+        doc.text(line, col1X + 2, yPos);
+        if (i < wrapped.length - 1) yPos += 6;
+      });
+      doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startY);
+      doc.text(formatCurrency(sessionCost), col3X + 2, startY, { align: 'right' });
+      yPos += 8;
+    });
+
+    // Billing option line items
+    if (minHrAdj > 0) {
+      doc.text(`Min 1 Hour adjustment (×${minHrCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(minHrAdj), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (cloneTot > 0) {
+      doc.text(`Cloning (×${cloneCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(cloneTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (progTot > 0) {
+      doc.text(`Programming (×${progCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(progTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (addKeyTot > 0) {
+      doc.text(`Add Key (×${addKeyCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(addKeyTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (allKeysLostTot > 0) {
+      doc.text(`All Keys Lost (×${allKeysLostCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(allKeysLostTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+
+    // Parts
     const allParts = (task.sessions || []).flatMap(s => s.parts || []);
     if (allParts.length > 0) {
-      y += 12;
-      doc.setFontSize(12);
-      doc.text('Parts', 20, y);
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       allParts.forEach(p => {
-        y += 7;
-        doc.text(`${p.name} x${p.quantity} = ${formatCurrency(p.price * p.quantity)}`, 25, y);
+        const partY = yPos;
+        doc.setFont('helvetica', 'normal');
+        doc.text(p.name, col1X + 2, partY);
+        if (p.description) {
+          yPos += 6;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(100, 100, 100);
+          const col1Width = col2X - col1X - 6;
+          const wrappedDesc = doc.splitTextToSize(p.description, col1Width);
+          wrappedDesc.forEach((line: string, i: number) => {
+            doc.text(line, col1X + 4, yPos);
+            if (i < wrappedDesc.length - 1) yPos += 5;
+          });
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+          yPos += 2;
+        }
+        doc.text(`${p.quantity}`, col2X + 2, partY);
+        doc.text(formatCurrency(p.price * p.quantity), col3X + 2, partY, { align: 'right' });
+        yPos += 8;
       });
     }
 
-    y += 15;
-    doc.setFontSize(14);
-    doc.text(`Total: ${formatCurrency(total)}`, 20, y);
+    // Total
+    yPos = 261;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL:', col3X - 45, yPos);
+    doc.text(formatCurrency(total), col3X + 2, yPos, { align: 'right' });
+
+    // Timestamp
+    const now = new Date();
+    const ts = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getFullYear()).slice(-2)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${ts}`, 107.95, 277.4, { align: 'center' });
 
     doc.save(`invoice-${client.name}-${vehicle.vin}.pdf`);
     toast({ title: 'Bill PDF Generated' });

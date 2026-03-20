@@ -1383,6 +1383,8 @@ export const TaskCard = ({
               {totalMinHourAdj > 0 && <div className="flex justify-between"><span>Min 1 Hour (×{minHourCount}):</span><span>{formatCurrency(totalMinHourAdj)}</span></div>}
               {totalCloning > 0 && <div className="flex justify-between"><span>Cloning (×{cloningCount}):</span><span>{formatCurrency(totalCloning)}</span></div>}
               {totalProgramming > 0 && <div className="flex justify-between"><span>Programming (×{programmingCount}):</span><span>{formatCurrency(totalProgramming)}</span></div>}
+              {totalAddKey > 0 && <div className="flex justify-between"><span>Add Key (×{addKeyCount}):</span><span>{formatCurrency(totalAddKey)}</span></div>}
+              {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
             </div>

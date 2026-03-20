@@ -101,6 +101,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalCloning = filteredVehicles.reduce((sum, v) => sum + v.totalCloning, 0);
   const grandTotalProgramming = filteredVehicles.reduce((sum, v) => sum + v.totalProgramming, 0);
   const grandTotalMinHourAdj = filteredVehicles.reduce((sum, v) => sum + v.totalMinHourAdj, 0);
+  const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
+  const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
   const grandTotal = grandTotalLabor + grandTotalParts;
 
   const monthlyData = useMemo(() => {

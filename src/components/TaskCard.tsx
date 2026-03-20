@@ -389,7 +389,7 @@ export const TaskCard = ({
         const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
         
         // Get description or use default
-        const description = session.description || 'Work session';
+        const description = stripDiacritics(session.description || 'Work session');
         
         // Render row with text wrapping
         const col1Width = col2X - col1X - 4;

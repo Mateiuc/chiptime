@@ -90,7 +90,9 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       const totalCloning = sessions.reduce((sum, s) => sum + (s.cloningCost || 0), 0);
       const totalProgramming = sessions.reduce((sum, s) => sum + (s.programmingCost || 0), 0);
       const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
-      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, vehicleTotal: totalLabor + totalParts };
+      const totalAddKey = sessions.reduce((sum, s) => sum + (s.addKeyCost || 0), 0);
+      const totalAllKeysLost = sessions.reduce((sum, s) => sum + (s.allKeysLostCost || 0), 0);
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, vehicleTotal: totalLabor + totalParts };
     })
     .filter((v) => v.sessions.length > 0);
 

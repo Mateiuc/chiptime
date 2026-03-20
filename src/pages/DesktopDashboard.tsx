@@ -737,6 +737,11 @@ const DesktopDashboard = () => {
               <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
               Save
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'clients' ? 'tree' : 'clients')}
+              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'clients' ? 'bg-primary-foreground/20' : ''}`}
+              title="Manage Clients">
+              <Users className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'invoices' ? 'tree' : 'invoices')}
               className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'invoices' ? 'bg-primary-foreground/20' : ''}`}>
               <Receipt className="h-4 w-4" />

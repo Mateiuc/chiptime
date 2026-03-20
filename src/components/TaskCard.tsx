@@ -449,7 +449,7 @@ export const TaskCard = ({
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
             const col1Width = col2X - col1X - 6;
-            const wrappedPartDesc = doc.splitTextToSize(part.description, col1Width);
+            const wrappedPartDesc = doc.splitTextToSize(stripDiacritics(part.description), col1Width);
             wrappedPartDesc.forEach((line: string, index: number) => {
               doc.text(line, col1X + 4, yPos);
               if (index < wrappedPartDesc.length - 1) {

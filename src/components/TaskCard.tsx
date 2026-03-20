@@ -36,6 +36,7 @@ interface TaskCardProps {
   onPauseTimer?: () => void;
   onStopTimer?: (taskId: string) => void;
   onUpdateTask?: (updatedTask: Task) => Promise<void> | void;
+  onUpdateVehicle?: (vehicleId: string, updates: Partial<Vehicle>) => void;
   onDelete?: (taskId: string) => void;
   vehicleColorScheme?: VehicleColorScheme;
 }
@@ -50,6 +51,7 @@ export const TaskCard = ({
   onPauseTimer,
   onStopTimer,
   onUpdateTask,
+  onUpdateVehicle,
   onDelete,
   vehicleColorScheme
 }: TaskCardProps) => {

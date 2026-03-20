@@ -77,27 +77,33 @@ export const DesktopClientsView = ({
     const rate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
-    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
+    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     clientTasks.forEach(task => {
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const baseCost = (sessionDuration / 3600) * rate;
-        let minAdj = 0, cloneCost = 0, progCost = 0;
+        let minAdj = 0, cloneCost = 0, progCost = 0, akCost = 0, aklCost = 0;
         if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
         if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
         if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-        totalLaborCost += baseCost + minAdj + cloneCost + progCost;
+        if (session.isAddKey && addKeyRate > 0) akCost = addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) aklCost = allKeysLostRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost + akCost + aklCost;
         totalMinHourAdj += minAdj;
         totalCloning += cloneCost;
         totalProgramming += progCost;
+        totalAddKey += akCost;
+        totalAllKeysLost += aklCost;
       });
       totalTime += task.totalTime;
       task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));
     });
     return {
       totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
-      totalMinHourAdj, totalCloning, totalProgramming,
+      totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost,
       completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
       activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
       totalTasks: clientTasks.length,
@@ -106,7 +112,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
   };
 
   const handleSaveClientEdit = (clientId: string) => {
@@ -250,6 +256,8 @@ export const DesktopClientsView = ({
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
                 <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>Add Key Rate ($)</Label><Input type="number" value={editFormData.addKeyRate || ''} onChange={e => setEditFormData(p => ({ ...p, addKeyRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>All Keys Lost Rate ($)</Label><Input type="number" value={editFormData.allKeysLostRate || ''} onChange={e => setEditFormData(p => ({ ...p, allKeysLostRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>

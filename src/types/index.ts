@@ -6,6 +6,8 @@ export interface Client {
   hourlyRate?: number;
   cloningRate?: number;
   programmingRate?: number;
+  addKeyRate?: number;
+  allKeysLostRate?: number;
   accessCode?: string;
   portalId?: string;
   createdAt: Date;

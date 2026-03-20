@@ -213,7 +213,7 @@ const DesktopDashboard = () => {
   // --- Client inline edit ---
   const startEditClient = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
   };
   const saveEditClient = () => {
     if (!editingClientId || !editFormData.name?.trim()) return;
@@ -234,8 +234,8 @@ const DesktopDashboard = () => {
     const rate = client.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = settings.defaultAllKeysLostRate || 0;
+    const addKeyRate = client.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     let baseLab = 0, minHrAdj = 0, cloneTot = 0, progTot = 0, addKeyTot = 0, allKeysLostTot = 0;
     let minHrCnt = 0, cloneCnt = 0, progCnt = 0, addKeyCnt = 0, allKeysLostCnt = 0;
     (task.sessions || []).forEach(session => {

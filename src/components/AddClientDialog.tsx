@@ -19,6 +19,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [hourlyRate, setHourlyRate] = useState('');
   const [cloningRate, setCloningRate] = useState('');
   const [programmingRate, setProgrammingRate] = useState('');
+  const [addKeyRate, setAddKeyRate] = useState('');
+  const [allKeysLostRate, setAllKeysLostRate] = useState('');
   const { toast } = useNotifications();
 
   const handleSave = () => {
@@ -38,6 +40,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
       cloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
+      addKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
+      allKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
     });
 
     // Reset form
@@ -47,6 +51,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setHourlyRate('');
     setCloningRate('');
     setProgrammingRate('');
+    setAddKeyRate('');
+    setAllKeysLostRate('');
     onOpenChange(false);
   };
 
@@ -119,6 +125,30 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
               type="number"
               value={programmingRate} 
               onChange={(e) => setProgrammingRate(e.target.value)}
+              placeholder="Leave empty to use default"
+              min={0}
+              step={0.01}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Add Key Rate</Label>
+            <Input 
+              type="number"
+              value={addKeyRate} 
+              onChange={(e) => setAddKeyRate(e.target.value)}
+              placeholder="Leave empty to use default"
+              min={0}
+              step={0.01}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>All Keys Lost Rate</Label>
+            <Input 
+              type="number"
+              value={allKeysLostRate} 
+              onChange={(e) => setAllKeysLostRate(e.target.value)}
               placeholder="Leave empty to use default"
               min={0}
               step={0.01}

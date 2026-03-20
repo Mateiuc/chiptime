@@ -120,8 +120,8 @@ export const ManageClientsDialog = ({
     const hourlyRate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = settings.defaultAllKeysLostRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     
@@ -163,8 +163,8 @@ export const ManageClientsDialog = ({
     const hourlyRate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = settings.defaultAllKeysLostRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     
@@ -368,6 +368,8 @@ export const ManageClientsDialog = ({
       hourlyRate: client.hourlyRate,
       cloningRate: client.cloningRate,
       programmingRate: client.programmingRate,
+      addKeyRate: client.addKeyRate,
+      allKeysLostRate: client.allKeysLostRate,
     });
   };
 
@@ -561,6 +563,26 @@ export const ManageClientsDialog = ({
                                 placeholder="Leave empty for default"
                                 value={editFormData.programmingRate || ''}
                                 onChange={(e) => setEditFormData(prev => ({ ...prev, programmingRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Add Key Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.addKeyRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, addKeyRate: parseFloat(e.target.value) || undefined }))}
+                                className="h-9 text-sm bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">All Keys Lost Rate ($)</Label>
+                              <Input
+                                type="number"
+                                placeholder="Leave empty for default"
+                                value={editFormData.allKeysLostRate || ''}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))}
                                 className="h-9 text-sm bg-background"
                               />
                             </div>

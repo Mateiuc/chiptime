@@ -421,6 +421,16 @@ export const TaskCard = ({
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
+      if (totalAddKey > 0) {
+        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalAllKeysLost > 0) {
+        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
 
       // Table rows - Parts
       if (parts.length > 0) {

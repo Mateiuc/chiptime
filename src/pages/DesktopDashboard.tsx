@@ -213,7 +213,7 @@ const DesktopDashboard = () => {
   // --- Client inline edit ---
   const startEditClient = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
   };
   const saveEditClient = () => {
     if (!editingClientId || !editFormData.name?.trim()) return;

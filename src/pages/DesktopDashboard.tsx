@@ -1248,6 +1248,9 @@ const DesktopDashboard = () => {
                                   ))}
                                 </select>
                               )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(vehicle.id)} title={vehicle.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
+                                <FileUp className={`h-3.5 w-3.5 ${vehicle.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
+                              </Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteVehicle(vehicle.id)} title="Delete Vehicle">
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>

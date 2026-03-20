@@ -107,17 +107,24 @@ export function calculateClientCosts(
   vehicles: Vehicle[],
   tasks: Task[],
   defaultHourlyRate: number,
-  defaultCloningRate?: number
+  defaultCloningRate?: number,
+  defaultProgrammingRate?: number,
+  defaultAddKeyRate?: number,
+  defaultAllKeysLostRate?: number
 ): ClientCostSummary {
   const hourlyRate = client.hourlyRate || defaultHourlyRate;
   const cloningRate = client.cloningRate || defaultCloningRate || 0;
-  const programmingRate = client.programmingRate || 0;
+  const programmingRate = client.programmingRate || defaultProgrammingRate || 0;
+  const addKeyRate = defaultAddKeyRate || 0;
+  const allKeysLostRate = defaultAllKeysLostRate || 0;
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
   
   let grandTotalLabor = 0;
   let grandTotalParts = 0;
   let grandTotalCloning = 0;
   let grandTotalProgramming = 0;
+  let grandTotalAddKey = 0;
+  let grandTotalAllKeysLost = 0;
   let grandTotalMinHourAdj = 0;
 
   const vehicleSummaries: VehicleCostSummary[] = clientVehicles.map(vehicle => {
@@ -126,6 +133,8 @@ export function calculateClientCosts(
     let totalParts = 0;
     let totalCloning = 0;
     let totalProgramming = 0;
+    let totalAddKey = 0;
+    let totalAllKeysLost = 0;
     let totalMinHourAdj = 0;
     
     const sessions: SessionCostDetail[] = [];
@@ -137,6 +146,8 @@ export function calculateClientCosts(
         let minHourAdj = 0;
         let sessionCloningCost = 0;
         let sessionProgrammingCost = 0;
+        let sessionAddKeyCost = 0;
+        let sessionAllKeysLostCost = 0;
         if (task.importedSalary != null) {
           laborCost = task.importedSalary;
         } else {
@@ -144,7 +155,9 @@ export function calculateClientCosts(
           minHourAdj = (session.chargeMinimumHour && duration < 3600) ? ((3600 - duration) / 3600) * hourlyRate : 0;
           sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
           sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
-          laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost;
+          sessionAddKeyCost = (session.isAddKey && addKeyRate > 0) ? addKeyRate : 0;
+          sessionAllKeysLostCost = (session.isAllKeysLost && allKeysLostRate > 0) ? allKeysLostRate : 0;
+          laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost + sessionAddKeyCost + sessionAllKeysLostCost;
         }
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
@@ -152,6 +165,8 @@ export function calculateClientCosts(
         totalParts += partsCost;
         totalCloning += sessionCloningCost;
         totalProgramming += sessionProgrammingCost;
+        totalAddKey += sessionAddKeyCost;
+        totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
 
         sessions.push({
@@ -164,6 +179,8 @@ export function calculateClientCosts(
           laborCost,
           cloningCost: sessionCloningCost,
           programmingCost: sessionProgrammingCost,
+          addKeyCost: sessionAddKeyCost,
+          allKeysLostCost: sessionAllKeysLostCost,
           minHourAdj,
           parts: session.parts || [],
           partsCost,
@@ -179,6 +196,8 @@ export function calculateClientCosts(
     grandTotalParts += totalParts;
     grandTotalCloning += totalCloning;
     grandTotalProgramming += totalProgramming;
+    grandTotalAddKey += totalAddKey;
+    grandTotalAllKeysLost += totalAllKeysLost;
     grandTotalMinHourAdj += totalMinHourAdj;
 
     return {
@@ -188,6 +207,8 @@ export function calculateClientCosts(
       totalParts,
       totalCloning,
       totalProgramming,
+      totalAddKey,
+      totalAllKeysLost,
       totalMinHourAdj,
       vehicleTotal: totalLabor + totalParts,
     };
@@ -200,6 +221,8 @@ export function calculateClientCosts(
     grandTotalParts,
     grandTotalCloning,
     grandTotalProgramming,
+    grandTotalAddKey,
+    grandTotalAllKeysLost,
     grandTotalMinHourAdj,
     grandTotal: grandTotalLabor + grandTotalParts,
   };

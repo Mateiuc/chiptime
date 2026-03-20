@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { TaskInlineEditor } from '@/components/TaskInlineEditor';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { DesktopReportsView } from '@/components/DesktopReportsView';
 import { DesktopInvoiceView } from '@/components/DesktopInvoiceView';
+import { DesktopClientsView } from '@/components/DesktopClientsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
@@ -95,7 +96,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices'>('tree');
+  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -736,6 +737,11 @@ const DesktopDashboard = () => {
               <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
               Save
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'clients' ? 'tree' : 'clients')}
+              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'clients' ? 'bg-primary-foreground/20' : ''}`}
+              title="Manage Clients">
+              <Users className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'invoices' ? 'tree' : 'invoices')}
               className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'invoices' ? 'bg-primary-foreground/20' : ''}`}>
               <Receipt className="h-4 w-4" />
@@ -783,6 +789,18 @@ const DesktopDashboard = () => {
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
       ) : desktopView === 'invoices' ? (
         <DesktopInvoiceView settings={settings} />
+      ) : desktopView === 'clients' ? (
+        <DesktopClientsView
+          clients={clients}
+          vehicles={vehicles}
+          tasks={tasks}
+          settings={settings}
+          onUpdateClient={updateClient}
+          onDeleteClient={deleteClient}
+          onUpdateVehicle={updateVehicle}
+          onDeleteVehicle={deleteVehicle}
+          onMoveVehicle={handleMoveVehicle}
+        />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {filteredTree.length === 0 && (

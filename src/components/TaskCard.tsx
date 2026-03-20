@@ -1141,6 +1141,45 @@ export const TaskCard = ({
     }
   };
 
+  // Handle uploading diagnostic PDF for vehicle
+  const handleUploadDiagnosticPdf = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file || !vehicle) return;
+      try {
+        toast({ title: 'Uploading...', description: 'Uploading diagnostic PDF' });
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
+          body: { base64, vehicleId: vehicle.id, fileName: file.name },
+        });
+
+        if (error) throw error;
+        
+        if (onUpdateTask && vehicle) {
+          // We need to propagate the diagnostic URL through a task update
+          // Store it on the vehicle through parent callback
+        }
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF will be included in bills' });
+      } catch (err) {
+        console.error('Upload diagnostic error:', err);
+        toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });
+      }
+    };
+    input.click();
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'in-progress':

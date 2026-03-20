@@ -106,7 +106,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
   };
 
   const handleSaveClientEdit = (clientId: string) => {

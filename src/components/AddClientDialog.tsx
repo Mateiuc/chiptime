@@ -19,6 +19,8 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [hourlyRate, setHourlyRate] = useState('');
   const [cloningRate, setCloningRate] = useState('');
   const [programmingRate, setProgrammingRate] = useState('');
+  const [addKeyRate, setAddKeyRate] = useState('');
+  const [allKeysLostRate, setAllKeysLostRate] = useState('');
   const { toast } = useNotifications();
 
   const handleSave = () => {

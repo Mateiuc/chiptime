@@ -10,6 +10,8 @@ export interface SessionCostDetail {
   laborCost: number;
   cloningCost: number;
   programmingCost: number;
+  addKeyCost: number;
+  allKeysLostCost: number;
   minHourAdj: number;
   parts: Part[];
   partsCost: number;
@@ -24,6 +26,8 @@ export interface VehicleCostSummary {
   totalParts: number;
   totalCloning: number;
   totalProgramming: number;
+  totalAddKey: number;
+  totalAllKeysLost: number;
   totalMinHourAdj: number;
   vehicleTotal: number;
 }
@@ -35,6 +39,8 @@ export interface ClientCostSummary {
   grandTotalParts: number;
   grandTotalCloning: number;
   grandTotalProgramming: number;
+  grandTotalAddKey: number;
+  grandTotalAllKeysLost: number;
   grandTotalMinHourAdj: number;
   grandTotal: number;
 }
@@ -58,6 +64,8 @@ interface SlimSession {
   clc?: number;
   prc?: number;
   mha?: number;
+  akc?: number;
+  aklc?: number;
 }
 
 interface SlimVehicle {
@@ -73,6 +81,8 @@ interface SlimVehicle {
   tcl?: number;
   tpr?: number;
   tmh?: number;
+  tak?: number;
+  takl?: number;
 }
 
 interface SlimPayload {
@@ -84,6 +94,8 @@ interface SlimPayload {
   tcl?: number;
   tpr?: number;
   tmh?: number;
+  tak?: number;
+  takl?: number;
 }
 
 export function generateAccessCode(): string {
@@ -95,17 +107,24 @@ export function calculateClientCosts(
   vehicles: Vehicle[],
   tasks: Task[],
   defaultHourlyRate: number,
-  defaultCloningRate?: number
+  defaultCloningRate?: number,
+  defaultProgrammingRate?: number,
+  defaultAddKeyRate?: number,
+  defaultAllKeysLostRate?: number
 ): ClientCostSummary {
   const hourlyRate = client.hourlyRate || defaultHourlyRate;
   const cloningRate = client.cloningRate || defaultCloningRate || 0;
-  const programmingRate = client.programmingRate || 0;
+  const programmingRate = client.programmingRate || defaultProgrammingRate || 0;
+  const addKeyRate = defaultAddKeyRate || 0;
+  const allKeysLostRate = defaultAllKeysLostRate || 0;
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
   
   let grandTotalLabor = 0;
   let grandTotalParts = 0;
   let grandTotalCloning = 0;
   let grandTotalProgramming = 0;
+  let grandTotalAddKey = 0;
+  let grandTotalAllKeysLost = 0;
   let grandTotalMinHourAdj = 0;
 
   const vehicleSummaries: VehicleCostSummary[] = clientVehicles.map(vehicle => {
@@ -114,6 +133,8 @@ export function calculateClientCosts(
     let totalParts = 0;
     let totalCloning = 0;
     let totalProgramming = 0;
+    let totalAddKey = 0;
+    let totalAllKeysLost = 0;
     let totalMinHourAdj = 0;
     
     const sessions: SessionCostDetail[] = [];
@@ -125,6 +146,8 @@ export function calculateClientCosts(
         let minHourAdj = 0;
         let sessionCloningCost = 0;
         let sessionProgrammingCost = 0;
+        let sessionAddKeyCost = 0;
+        let sessionAllKeysLostCost = 0;
         if (task.importedSalary != null) {
           laborCost = task.importedSalary;
         } else {
@@ -132,7 +155,9 @@ export function calculateClientCosts(
           minHourAdj = (session.chargeMinimumHour && duration < 3600) ? ((3600 - duration) / 3600) * hourlyRate : 0;
           sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
           sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
-          laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost;
+          sessionAddKeyCost = (session.isAddKey && addKeyRate > 0) ? addKeyRate : 0;
+          sessionAllKeysLostCost = (session.isAllKeysLost && allKeysLostRate > 0) ? allKeysLostRate : 0;
+          laborCost = baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost + sessionAddKeyCost + sessionAllKeysLostCost;
         }
         const partsCost = (session.parts || []).reduce((sum, p) => sum + p.price * p.quantity, 0);
         
@@ -140,6 +165,8 @@ export function calculateClientCosts(
         totalParts += partsCost;
         totalCloning += sessionCloningCost;
         totalProgramming += sessionProgrammingCost;
+        totalAddKey += sessionAddKeyCost;
+        totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
 
         sessions.push({
@@ -152,6 +179,8 @@ export function calculateClientCosts(
           laborCost,
           cloningCost: sessionCloningCost,
           programmingCost: sessionProgrammingCost,
+          addKeyCost: sessionAddKeyCost,
+          allKeysLostCost: sessionAllKeysLostCost,
           minHourAdj,
           parts: session.parts || [],
           partsCost,
@@ -167,6 +196,8 @@ export function calculateClientCosts(
     grandTotalParts += totalParts;
     grandTotalCloning += totalCloning;
     grandTotalProgramming += totalProgramming;
+    grandTotalAddKey += totalAddKey;
+    grandTotalAllKeysLost += totalAllKeysLost;
     grandTotalMinHourAdj += totalMinHourAdj;
 
     return {
@@ -176,6 +207,8 @@ export function calculateClientCosts(
       totalParts,
       totalCloning,
       totalProgramming,
+      totalAddKey,
+      totalAllKeysLost,
       totalMinHourAdj,
       vehicleTotal: totalLabor + totalParts,
     };
@@ -188,6 +221,8 @@ export function calculateClientCosts(
     grandTotalParts,
     grandTotalCloning,
     grandTotalProgramming,
+    grandTotalAddKey,
+    grandTotalAllKeysLost,
     grandTotalMinHourAdj,
     grandTotal: grandTotalLabor + grandTotalParts,
   };
@@ -215,6 +250,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         clc: s.cloningCost > 0 ? Math.round(s.cloningCost * 100) / 100 : undefined,
         prc: s.programmingCost > 0 ? Math.round(s.programmingCost * 100) / 100 : undefined,
         mha: s.minHourAdj > 0 ? Math.round(s.minHourAdj * 100) / 100 : undefined,
+        akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
+        aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -222,6 +259,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
       tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
       tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,
+      tak: vs.totalAddKey > 0 ? Math.round(vs.totalAddKey * 100) / 100 : undefined,
+      takl: vs.totalAllKeysLost > 0 ? Math.round(vs.totalAllKeysLost * 100) / 100 : undefined,
     })),
     tl: Math.round(data.grandTotalLabor * 100) / 100,
     tp: Math.round(data.grandTotalParts * 100) / 100,
@@ -229,6 +268,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     tcl: data.grandTotalCloning > 0 ? Math.round(data.grandTotalCloning * 100) / 100 : undefined,
     tpr: data.grandTotalProgramming > 0 ? Math.round(data.grandTotalProgramming * 100) / 100 : undefined,
     tmh: data.grandTotalMinHourAdj > 0 ? Math.round(data.grandTotalMinHourAdj * 100) / 100 : undefined,
+    tak: data.grandTotalAddKey > 0 ? Math.round(data.grandTotalAddKey * 100) / 100 : undefined,
+    takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
   };
 }
 
@@ -253,6 +294,8 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         laborCost: ss.lc,
         cloningCost: ss.clc || 0,
         programmingCost: ss.prc || 0,
+        addKeyCost: ss.akc || 0,
+        allKeysLostCost: ss.aklc || 0,
         minHourAdj: ss.mha || 0,
         parts: ss.p.map(p => ({ name: p.n, quantity: p.q, price: p.pr })),
         partsCost: ss.pc,
@@ -263,6 +306,8 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
       totalParts: sv.tp,
       totalCloning: sv.tcl || 0,
       totalProgramming: sv.tpr || 0,
+      totalAddKey: sv.tak || 0,
+      totalAllKeysLost: sv.takl || 0,
       totalMinHourAdj: sv.tmh || 0,
       vehicleTotal: sv.vt,
     })),
@@ -270,6 +315,8 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     grandTotalParts: slim.tp,
     grandTotalCloning: slim.tcl || 0,
     grandTotalProgramming: slim.tpr || 0,
+    grandTotalAddKey: slim.tak || 0,
+    grandTotalAllKeysLost: slim.takl || 0,
     grandTotalMinHourAdj: slim.tmh || 0,
     grandTotal: slim.gt,
   };
@@ -449,11 +496,13 @@ if(v.vin)h+='<div class="vin">VIN: '+esc(v.vin)+'</div>';
 h+='</div>';
 v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
-var baseLab=ss.lc-(ss.mha||0)-(ss.clc||0)-(ss.prc||0);
+var baseLab=ss.lc-(ss.mha||0)-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
 h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(baseLab)+'</b></span></div>';
 if(ss.mha&&ss.mha>0)h+='<div class="extra-line">🚩 Min 1 Hour: <b>'+fmt(ss.mha)+'</b></div>';
 if(ss.clc&&ss.clc>0)h+='<div class="extra-line">📋 Cloning: <b>'+fmt(ss.clc)+'</b></div>';
 if(ss.prc&&ss.prc>0)h+='<div class="extra-line">💻 Programming: <b>'+fmt(ss.prc)+'</b></div>';
+if(ss.akc&&ss.akc>0)h+='<div class="extra-line">🔑 Add Key: <b>'+fmt(ss.akc)+'</b></div>';
+if(ss.aklc&&ss.aklc>0)h+='<div class="extra-line">🗝️ All Keys Lost: <b>'+fmt(ss.aklc)+'</b></div>';
 if(ss.ph&&ss.ph.length>0){
 h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
 ss.ph.forEach(function(url){h+='<img src="'+esc(url)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0" loading="lazy">'});
@@ -466,19 +515,23 @@ h+='</table><div style="text-align:right;font-size:11px;font-weight:600;margin-t
 }
 h+='<div style="text-align:right;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:4px;margin-top:8px">Session Total: '+fmt(ss.lc+ss.pc)+'</div></div>';
 });
-var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0);
+var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
 h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(vBaseLab)+'</b></span></div>';
 if(v.tmh&&v.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(v.tmh)+'</b></span></div>';
 if(v.tcl&&v.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(v.tcl)+'</b></span></div>';
 if(v.tpr&&v.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(v.tpr)+'</b></span></div>';
+if(v.tak&&v.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(v.tak)+'</b></span></div>';
+if(v.takl&&v.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(v.takl)+'</b></span></div>';
 h+='<div class="row"><span>Vehicle Parts:</span><span><b>'+fmt(v.tp)+'</b></span></div><div class="row total"><span>Vehicle Total:</span><span>'+fmt(v.vt)+'</span></div></div></div>';
 });
 if(s.v.length>0){
-var gBaseLab=s.tl-(s.tmh||0)-(s.tcl||0)-(s.tpr||0);
+var gBaseLab=s.tl-(s.tmh||0)-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
 h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(gBaseLab)+'</b></span></div>';
 if(s.tmh&&s.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(s.tmh)+'</b></span></div>';
 if(s.tcl&&s.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(s.tcl)+'</b></span></div>';
 if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s.tpr)+'</b></span></div>';
+if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
+if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
 }
 el.innerHTML=h;

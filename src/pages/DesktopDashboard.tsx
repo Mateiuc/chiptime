@@ -272,6 +272,8 @@ const DesktopDashboard = () => {
     if (minHrAdj > 0) { y += 7; doc.text(`Min 1 Hour adjustment (×${minHrCnt}): ${formatCurrency(minHrAdj)}`, 25, y); }
     if (cloneTot > 0) { y += 7; doc.text(`Cloning (×${cloneCnt}): ${formatCurrency(cloneTot)}`, 25, y); }
     if (progTot > 0) { y += 7; doc.text(`Programming (×${progCnt}): ${formatCurrency(progTot)}`, 25, y); }
+    if (addKeyTot > 0) { y += 7; doc.text(`Add Key (×${addKeyCnt}): ${formatCurrency(addKeyTot)}`, 25, y); }
+    if (allKeysLostTot > 0) { y += 7; doc.text(`All Keys Lost (×${allKeysLostCnt}): ${formatCurrency(allKeysLostTot)}`, 25, y); }
 
     const allParts = (task.sessions || []).flatMap(s => s.parts || []);
     if (allParts.length > 0) {
@@ -520,7 +522,7 @@ const DesktopDashboard = () => {
     });
     return {
       totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
-      totalMinHourAdj, totalCloning, totalProgramming,
+      totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost,
       completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
       activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
       totalTasks: clientTasks.length,
@@ -564,7 +566,7 @@ const DesktopDashboard = () => {
         session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
       });
     });
-    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, taskCount: vehicleTasks.length };
+    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost, taskCount: vehicleTasks.length };
   };
 
   const generateClientPDF = (clientId: string) => {
@@ -881,7 +883,7 @@ const DesktopDashboard = () => {
                       } catch (err) {
                         console.warn('[Share] Cloud sync failed, falling back:', err);
                       }
-                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate);
+                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
                       const encoded = await encodeClientData(summary, code);
                       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
                       if (url.length <= 2000) {

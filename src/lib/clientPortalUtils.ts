@@ -10,6 +10,8 @@ export interface SessionCostDetail {
   laborCost: number;
   cloningCost: number;
   programmingCost: number;
+  addKeyCost: number;
+  allKeysLostCost: number;
   minHourAdj: number;
   parts: Part[];
   partsCost: number;
@@ -24,6 +26,8 @@ export interface VehicleCostSummary {
   totalParts: number;
   totalCloning: number;
   totalProgramming: number;
+  totalAddKey: number;
+  totalAllKeysLost: number;
   totalMinHourAdj: number;
   vehicleTotal: number;
 }
@@ -35,6 +39,8 @@ export interface ClientCostSummary {
   grandTotalParts: number;
   grandTotalCloning: number;
   grandTotalProgramming: number;
+  grandTotalAddKey: number;
+  grandTotalAllKeysLost: number;
   grandTotalMinHourAdj: number;
   grandTotal: number;
 }

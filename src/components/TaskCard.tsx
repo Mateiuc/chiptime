@@ -609,6 +609,33 @@ export const TaskCard = ({
         .filter(Boolean)
         .join(' ') || 'your vehicle';
       
+      // Merge diagnostic PDF if available
+      if (vehicle?.diagnosticPdfUrl) {
+        try {
+          const billBlob = doc.output('blob');
+          const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+          const reader = new FileReader();
+          const mergedBase64 = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(mergedBlob);
+          });
+          return {
+            pdfBase64: mergedBase64,
+            fileName,
+            totalCost,
+            vehicleInfo: vehicleInfoStr,
+            clientName: client?.name || 'Customer',
+            clientPhone: client?.phone,
+          };
+        } catch (mergeError) {
+          console.warn('Failed to merge diagnostic PDF:', mergeError);
+        }
+      }
+
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       return {

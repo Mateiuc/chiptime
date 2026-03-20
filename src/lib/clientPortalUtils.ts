@@ -250,6 +250,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         clc: s.cloningCost > 0 ? Math.round(s.cloningCost * 100) / 100 : undefined,
         prc: s.programmingCost > 0 ? Math.round(s.programmingCost * 100) / 100 : undefined,
         mha: s.minHourAdj > 0 ? Math.round(s.minHourAdj * 100) / 100 : undefined,
+        akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
+        aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -257,6 +259,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
       tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
       tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,
+      tak: vs.totalAddKey > 0 ? Math.round(vs.totalAddKey * 100) / 100 : undefined,
+      takl: vs.totalAllKeysLost > 0 ? Math.round(vs.totalAllKeysLost * 100) / 100 : undefined,
     })),
     tl: Math.round(data.grandTotalLabor * 100) / 100,
     tp: Math.round(data.grandTotalParts * 100) / 100,
@@ -264,6 +268,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     tcl: data.grandTotalCloning > 0 ? Math.round(data.grandTotalCloning * 100) / 100 : undefined,
     tpr: data.grandTotalProgramming > 0 ? Math.round(data.grandTotalProgramming * 100) / 100 : undefined,
     tmh: data.grandTotalMinHourAdj > 0 ? Math.round(data.grandTotalMinHourAdj * 100) / 100 : undefined,
+    tak: data.grandTotalAddKey > 0 ? Math.round(data.grandTotalAddKey * 100) / 100 : undefined,
+    takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
   };
 }
 

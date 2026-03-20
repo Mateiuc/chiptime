@@ -440,7 +440,7 @@ export const TaskCard = ({
         parts.forEach((part) => {
           const partNameYPos = yPos;
           doc.setFont('helvetica', 'normal');
-          doc.text(part.name, col1X + 2, partNameYPos);
+          doc.text(stripDiacritics(part.name), col1X + 2, partNameYPos);
           
           // Add description if exists
           if (part.description) {

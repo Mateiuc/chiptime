@@ -285,15 +285,15 @@ export const TaskCard = ({
     doc.text(`Labor (${formatDuration(task.totalTime)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(baseLabor)}`, 20, yPos);
     yPos += 7;
     if (totalMinHourAdj > 0) {
-      doc.text(`Min 1 Hour adjustment (×${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
+      doc.text(`Min 1 Hour adjustment (x${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
       yPos += 7;
     }
     if (totalCloning > 0) {
-      doc.text(`Cloning (×${cloningCount}): ${formatCurrency(totalCloning)}`, 20, yPos);
+      doc.text(`Cloning (x${cloningCount}): ${formatCurrency(totalCloning)}`, 20, yPos);
       yPos += 7;
     }
     if (totalProgramming > 0) {
-      doc.text(`Programming (×${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
+      doc.text(`Programming (x${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
       yPos += 7;
     }
     doc.text(`Parts: ${formatCurrency(partsCost)}`, 20, yPos);
@@ -411,27 +411,27 @@ export const TaskCard = ({
 
       // Billing option line items
       if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalCloning > 0) {
-        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalProgramming > 0) {
-        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAddKey > 0) {
-        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
@@ -759,27 +759,27 @@ export const TaskCard = ({
 
       // Billing option line items
       if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalCloning > 0) {
-        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalProgramming > 0) {
-        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAddKey > 0) {
-        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }

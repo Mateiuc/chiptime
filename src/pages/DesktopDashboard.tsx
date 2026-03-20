@@ -272,6 +272,8 @@ const DesktopDashboard = () => {
     if (minHrAdj > 0) { y += 7; doc.text(`Min 1 Hour adjustment (×${minHrCnt}): ${formatCurrency(minHrAdj)}`, 25, y); }
     if (cloneTot > 0) { y += 7; doc.text(`Cloning (×${cloneCnt}): ${formatCurrency(cloneTot)}`, 25, y); }
     if (progTot > 0) { y += 7; doc.text(`Programming (×${progCnt}): ${formatCurrency(progTot)}`, 25, y); }
+    if (addKeyTot > 0) { y += 7; doc.text(`Add Key (×${addKeyCnt}): ${formatCurrency(addKeyTot)}`, 25, y); }
+    if (allKeysLostTot > 0) { y += 7; doc.text(`All Keys Lost (×${allKeysLostCnt}): ${formatCurrency(allKeysLostTot)}`, 25, y); }
 
     const allParts = (task.sessions || []).flatMap(s => s.parts || []);
     if (allParts.length > 0) {

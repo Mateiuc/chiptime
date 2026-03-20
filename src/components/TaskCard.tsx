@@ -421,6 +421,16 @@ export const TaskCard = ({
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
+      if (totalAddKey > 0) {
+        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalAllKeysLost > 0) {
+        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
 
       // Table rows - Parts
       if (parts.length > 0) {
@@ -730,6 +740,16 @@ export const TaskCard = ({
       if (totalProgramming > 0) {
         doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalAddKey > 0) {
+        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
+        yPos += 8;
+      }
+      if (totalAllKeysLost > 0) {
+        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
 
@@ -1111,16 +1131,20 @@ export const TaskCard = ({
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
   const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
   const programmingRate = client?.programmingRate || (settings as any).defaultProgrammingRate || 0;
-  let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
-  let minHourCount = 0, cloningCount = 0, programmingCount = 0;
+  const addKeyRate = client?.addKeyRate || (settings as any).defaultAddKeyRate || 0;
+  const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
+  let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
+  let minHourCount = 0, cloningCount = 0, programmingCount = 0, addKeyCount = 0, allKeysLostCount = 0;
   (task.sessions || []).forEach(session => {
     const dur = session.periods.reduce((sum, p) => sum + p.duration, 0);
     baseLabor += (dur / 3600) * hourlyRate;
     if (session.chargeMinimumHour && dur < 3600) { totalMinHourAdj += ((3600 - dur) / 3600) * hourlyRate; minHourCount++; }
     if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
     if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
+    if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
+    if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
   });
-  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming;
+  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
   const laborCost = task.importedSalary != null ? task.importedSalary : calculatedLabor;
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);
@@ -1359,6 +1383,8 @@ export const TaskCard = ({
               {totalMinHourAdj > 0 && <div className="flex justify-between"><span>Min 1 Hour (×{minHourCount}):</span><span>{formatCurrency(totalMinHourAdj)}</span></div>}
               {totalCloning > 0 && <div className="flex justify-between"><span>Cloning (×{cloningCount}):</span><span>{formatCurrency(totalCloning)}</span></div>}
               {totalProgramming > 0 && <div className="flex justify-between"><span>Programming (×{programmingCount}):</span><span>{formatCurrency(totalProgramming)}</span></div>}
+              {totalAddKey > 0 && <div className="flex justify-between"><span>Add Key (×{addKeyCount}):</span><span>{formatCurrency(totalAddKey)}</span></div>}
+              {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
             </div>

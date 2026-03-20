@@ -566,7 +566,7 @@ const DesktopDashboard = () => {
         session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
       });
     });
-    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, taskCount: vehicleTasks.length };
+    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost, taskCount: vehicleTasks.length };
   };
 
   const generateClientPDF = (clientId: string) => {

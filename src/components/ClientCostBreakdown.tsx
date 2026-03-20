@@ -314,7 +314,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           <CardContent className="p-4 space-y-1">
             <div className="flex justify-between text-sm">
               <span>Total Labor:</span>
-              <span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj)}</span>
+              <span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj - grandTotalAddKey - grandTotalAllKeysLost)}</span>
             </div>
             {grandTotalMinHourAdj > 0 && (
               <div className="flex justify-between text-sm">

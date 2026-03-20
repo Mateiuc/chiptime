@@ -250,6 +250,8 @@ export const DesktopClientsView = ({
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
                 <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>Add Key Rate ($)</Label><Input type="number" value={editFormData.addKeyRate || ''} onChange={e => setEditFormData(p => ({ ...p, addKeyRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>All Keys Lost Rate ($)</Label><Input type="number" value={editFormData.allKeysLostRate || ''} onChange={e => setEditFormData(p => ({ ...p, allKeysLostRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>

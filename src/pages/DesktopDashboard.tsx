@@ -25,6 +25,7 @@ import { getSessionColorScheme } from '@/lib/sessionColors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { PhoneContact } from '@/services/contactsService';
 import jsPDF from 'jspdf';
+import billBackground from '@/assets/bill-background.jpg';
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
 

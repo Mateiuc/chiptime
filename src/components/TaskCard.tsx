@@ -1111,16 +1111,20 @@ export const TaskCard = ({
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
   const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
   const programmingRate = client?.programmingRate || (settings as any).defaultProgrammingRate || 0;
-  let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0;
-  let minHourCount = 0, cloningCount = 0, programmingCount = 0;
+  const addKeyRate = client?.addKeyRate || (settings as any).defaultAddKeyRate || 0;
+  const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
+  let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
+  let minHourCount = 0, cloningCount = 0, programmingCount = 0, addKeyCount = 0, allKeysLostCount = 0;
   (task.sessions || []).forEach(session => {
     const dur = session.periods.reduce((sum, p) => sum + p.duration, 0);
     baseLabor += (dur / 3600) * hourlyRate;
     if (session.chargeMinimumHour && dur < 3600) { totalMinHourAdj += ((3600 - dur) / 3600) * hourlyRate; minHourCount++; }
     if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
     if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
+    if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
+    if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
   });
-  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming;
+  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
   const laborCost = task.importedSalary != null ? task.importedSalary : calculatedLabor;
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0);

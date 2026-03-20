@@ -13,6 +13,8 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { EditTaskDialog } from './EditTaskDialog';
 import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
 import billBackground from '@/assets/bill-background.jpg';
+import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
+import { supabase } from '@/integrations/supabase/client';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { photoStorageService } from '@/services/photoStorageService';
@@ -34,6 +36,7 @@ interface TaskCardProps {
   onPauseTimer?: () => void;
   onStopTimer?: (taskId: string) => void;
   onUpdateTask?: (updatedTask: Task) => Promise<void> | void;
+  onUpdateVehicle?: (vehicleId: string, updates: Partial<Vehicle>) => void;
   onDelete?: (taskId: string) => void;
   vehicleColorScheme?: VehicleColorScheme;
 }
@@ -48,6 +51,7 @@ export const TaskCard = ({
   onPauseTimer,
   onStopTimer,
   onUpdateTask,
+  onUpdateVehicle,
   onDelete,
   vehicleColorScheme
 }: TaskCardProps) => {
@@ -281,15 +285,15 @@ export const TaskCard = ({
     doc.text(`Labor (${formatDuration(task.totalTime)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(baseLabor)}`, 20, yPos);
     yPos += 7;
     if (totalMinHourAdj > 0) {
-      doc.text(`Min 1 Hour adjustment (×${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
+      doc.text(`Min 1 Hour adjustment (x${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
       yPos += 7;
     }
     if (totalCloning > 0) {
-      doc.text(`Cloning (×${cloningCount}): ${formatCurrency(totalCloning)}`, 20, yPos);
+      doc.text(`Cloning (x${cloningCount}): ${formatCurrency(totalCloning)}`, 20, yPos);
       yPos += 7;
     }
     if (totalProgramming > 0) {
-      doc.text(`Programming (×${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
+      doc.text(`Programming (x${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
       yPos += 7;
     }
     doc.text(`Parts: ${formatCurrency(partsCost)}`, 20, yPos);
@@ -331,7 +335,7 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(client?.name || 'N/A', 20, 53);
+      doc.text(stripDiacritics(client?.name || 'N/A'), 20, 53);
       
       // Vehicle info
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
@@ -339,7 +343,7 @@ export const TaskCard = ({
         .join(' ');
       const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
       const fullVehicleInfo = vehicleInfo ? `${vehicleInfo} ${vinInfo}` : 'Vehicle Info Not Available';
-      doc.text(fullVehicleInfo, 20, 58.5);
+      doc.text(stripDiacritics(fullVehicleInfo), 20, 58.5);
 
       // Table Section
       const tableTop = 66;
@@ -387,7 +391,7 @@ export const TaskCard = ({
         const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
         
         // Get description or use default
-        const description = session.description || 'Work session';
+        const description = stripDiacritics(session.description || 'Work session');
         
         // Render row with text wrapping
         const col1Width = col2X - col1X - 4;
@@ -407,27 +411,27 @@ export const TaskCard = ({
 
       // Billing option line items
       if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalCloning > 0) {
-        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalProgramming > 0) {
-        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAddKey > 0) {
-        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
@@ -438,7 +442,7 @@ export const TaskCard = ({
         parts.forEach((part) => {
           const partNameYPos = yPos;
           doc.setFont('helvetica', 'normal');
-          doc.text(part.name, col1X + 2, partNameYPos);
+          doc.text(stripDiacritics(part.name), col1X + 2, partNameYPos);
           
           // Add description if exists
           if (part.description) {
@@ -447,7 +451,7 @@ export const TaskCard = ({
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
             const col1Width = col2X - col1X - 6;
-            const wrappedPartDesc = doc.splitTextToSize(part.description, col1Width);
+            const wrappedPartDesc = doc.splitTextToSize(stripDiacritics(part.description), col1Width);
             wrappedPartDesc.forEach((line: string, index: number) => {
               doc.text(line, col1X + 4, yPos);
               if (index < wrappedPartDesc.length - 1) {
@@ -607,6 +611,33 @@ export const TaskCard = ({
         .filter(Boolean)
         .join(' ') || 'your vehicle';
       
+      // Merge diagnostic PDF if available
+      if (vehicle?.diagnosticPdfUrl) {
+        try {
+          const billBlob = doc.output('blob');
+          const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+          const reader = new FileReader();
+          const mergedBase64 = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(mergedBlob);
+          });
+          return {
+            pdfBase64: mergedBase64,
+            fileName,
+            totalCost,
+            vehicleInfo: vehicleInfoStr,
+            clientName: client?.name || 'Customer',
+            clientPhone: client?.phone,
+          };
+        } catch (mergeError) {
+          console.warn('Failed to merge diagnostic PDF:', mergeError);
+        }
+      }
+
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       return {
@@ -728,27 +759,27 @@ export const TaskCard = ({
 
       // Billing option line items
       if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (×${minHourCount})`, col1X + 2, yPos);
+        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalCloning > 0) {
-        doc.text(`Cloning (×${cloningCount})`, col1X + 2, yPos);
+        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalProgramming > 0) {
-        doc.text(`Programming (×${programmingCount})`, col1X + 2, yPos);
+        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAddKey > 0) {
-        doc.text(`Add Key (×${addKeyCount})`, col1X + 2, yPos);
+        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
       if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (×${allKeysLostCount})`, col1X + 2, yPos);
+        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
         doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
         yPos += 8;
       }
@@ -1112,6 +1143,41 @@ export const TaskCard = ({
     }
   };
 
+  // Handle uploading diagnostic PDF for vehicle
+  const handleUploadDiagnosticPdf = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file || !vehicle) return;
+      try {
+        toast({ title: 'Uploading...', description: 'Uploading diagnostic PDF' });
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
+          body: { base64, vehicleId: vehicle.id, fileName: file.name },
+        });
+
+        if (error) throw error;
+        onUpdateVehicle?.(vehicle.id, { diagnosticPdfUrl: data.url });
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF will be included in bills' });
+      } catch (err) {
+        console.error('Upload diagnostic error:', err);
+        toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });
+      }
+    };
+    input.click();
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'in-progress':
@@ -1229,6 +1295,10 @@ export const TaskCard = ({
                       Client Portal
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={handleUploadDiagnosticPdf}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    {vehicle?.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
           </div>

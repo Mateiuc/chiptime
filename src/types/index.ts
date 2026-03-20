@@ -21,6 +21,7 @@ export interface Vehicle {
   model?: string;
   year?: number;
   color?: string;
+  diagnosticPdfUrl?: string;
 }
 
 export interface Part {

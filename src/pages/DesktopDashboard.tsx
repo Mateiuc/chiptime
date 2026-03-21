@@ -1126,7 +1126,7 @@ const DesktopDashboard = () => {
                       try {
                         let portalId = client.portalId;
                         if (!portalId) {
-                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
                           updateClient(client.id, { portalId, accessCode: code });
                         } else {
                           await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);

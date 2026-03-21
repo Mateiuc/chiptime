@@ -32,6 +32,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
     setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
     setDefaultAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
     setDefaultAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
+    setPaymentLink(settings.paymentLink || '');
+    setPaymentLabel(settings.paymentLabel || '');
   }, [settings]);
 
   const handleSave = () => {

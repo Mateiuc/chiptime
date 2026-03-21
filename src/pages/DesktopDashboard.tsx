@@ -586,7 +586,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
         .then(portalId => { if (!client.portalId) updateClient(client.id, { portalId }); })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
@@ -599,7 +599,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
         .then(portalId => { if (!client.portalId) updateClient(client.id, { portalId }); })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
@@ -1126,10 +1126,10 @@ const DesktopDashboard = () => {
                       try {
                         let portalId = client.portalId;
                         if (!portalId) {
-                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
+                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
                           updateClient(client.id, { portalId, accessCode: code });
                         } else {
-                          await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
+                          await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
                         }
                         const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
                         await navigator.clipboard.writeText(url);
@@ -1163,7 +1163,7 @@ const DesktopDashboard = () => {
                         if (!portalId) {
                           const clientVehicles = vehicles.filter(v => v.clientId === client.id);
                           const clientTasks = tasks.filter(t => clientVehicles.some(v => v.id === t.vehicleId));
-                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
+                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
                           updateClient(client.id, { portalId });
                         }
                         window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}`, '_blank');

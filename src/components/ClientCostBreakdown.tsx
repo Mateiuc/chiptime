@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { formatDuration, formatCurrency } from '@/lib/formatTime';
-import { Car, Clock, Wrench, DollarSign, Camera } from 'lucide-react';
+import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, FileText, ExternalLink, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ClientCostBreakdownProps {
@@ -29,7 +30,32 @@ const statusColors: Record<string, string> = {
 };
 
 const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const goNext = useCallback(() => {
+    setLightboxIndex(i => (i + 1) % photoUrls.length);
+  }, [photoUrls.length]);
+
+  const goPrev = useCallback(() => {
+    setLightboxIndex(i => (i - 1 + photoUrls.length) % photoUrls.length);
+  }, [photoUrls.length]);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') goNext();
+      else if (e.key === 'ArrowLeft') goPrev();
+      else if (e.key === 'Escape') setLightboxOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxOpen, goNext, goPrev]);
 
   if (photoUrls.length === 0) return null;
 
@@ -43,7 +69,7 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         {photoUrls.map((url, i) => (
           <button
             key={i}
-            onClick={() => setLightboxUrl(url)}
+            onClick={() => openLightbox(i)}
             className="flex-shrink-0 rounded-md overflow-hidden border border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <img
@@ -56,15 +82,49 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         ))}
       </div>
 
-      <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
-        <DialogContent className="max-w-3xl p-2">
-          {lightboxUrl && (
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-4xl p-0 bg-black/95 border-none">
+          <div className="relative flex items-center justify-center min-h-[60vh]">
+            {/* Close button */}
+            <button
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-3 right-3 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-1.5"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Counter */}
+            <div className="absolute top-3 left-3 z-20 text-white/70 text-sm bg-black/50 rounded-full px-3 py-1">
+              {lightboxIndex + 1} / {photoUrls.length}
+            </div>
+
+            {/* Prev */}
+            {photoUrls.length > 1 && (
+              <button
+                onClick={goPrev}
+                className="absolute left-2 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-2"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+            )}
+
+            {/* Image */}
             <img
-              src={lightboxUrl}
-              alt="Full size photo"
-              className="w-full h-auto rounded-md"
+              src={photoUrls[lightboxIndex]}
+              alt={`Photo ${lightboxIndex + 1}`}
+              className="max-w-full max-h-[85vh] object-contain rounded-md"
             />
-          )}
+
+            {/* Next */}
+            {photoUrls.length > 1 && (
+              <button
+                onClick={goNext}
+                className="absolute right-2 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-2"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
@@ -212,6 +272,20 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                       <PhotoGallery photoUrls={session.photoUrls} />
                     )}
 
+                    {/* Diagnostic PDF */}
+                    {session.diagnosticPdfUrl && (
+                      <a
+                        href={session.diagnosticPdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline mt-1"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        View Diagnostic Report
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+
                     {session.parts.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs md:text-sm font-semibold flex items-center gap-1 mb-1">
@@ -356,6 +430,20 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Payment link */}
+      {costSummary.paymentLink && filteredVehicles.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            size="lg"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base px-8"
+            onClick={() => window.open(costSummary.paymentLink!, '_blank')}
+          >
+            <DollarSign className="h-5 w-5 mr-1" />
+            Pay Now{costSummary.paymentLabel ? ` via ${costSummary.paymentLabel}` : ''}
+          </Button>
+        </div>
       )}
 
       {/* Paid tab charts */}

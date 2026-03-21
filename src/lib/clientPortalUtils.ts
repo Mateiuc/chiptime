@@ -17,6 +17,7 @@ export interface SessionCostDetail {
   partsCost: number;
   status: TaskStatus;
   photoUrls: string[];
+  diagnosticPdfUrl?: string;
 }
 
 export interface VehicleCostSummary {
@@ -43,6 +44,8 @@ export interface ClientCostSummary {
   grandTotalAllKeysLost: number;
   grandTotalMinHourAdj: number;
   grandTotal: number;
+  paymentLink?: string;
+  paymentLabel?: string;
 }
 
 // Slim wire format types for compact encoding
@@ -66,6 +69,7 @@ interface SlimSession {
   mha?: number;
   akc?: number;
   aklc?: number;
+  dpdf?: string;
 }
 
 interface SlimVehicle {
@@ -96,6 +100,8 @@ interface SlimPayload {
   tmh?: number;
   tak?: number;
   takl?: number;
+  pl?: string;
+  plbl?: string;
 }
 
 export function generateAccessCode(): string {
@@ -188,6 +194,7 @@ export function calculateClientCosts(
           photoUrls: (session.photos || [])
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
+          diagnosticPdfUrl: task.diagnosticPdfUrl,
         });
       });
     });
@@ -252,6 +259,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         mha: s.minHourAdj > 0 ? Math.round(s.minHourAdj * 100) / 100 : undefined,
         akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
         aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
+        dpdf: s.diagnosticPdfUrl || undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -270,6 +278,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     tmh: data.grandTotalMinHourAdj > 0 ? Math.round(data.grandTotalMinHourAdj * 100) / 100 : undefined,
     tak: data.grandTotalAddKey > 0 ? Math.round(data.grandTotalAddKey * 100) / 100 : undefined,
     takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
+    pl: data.paymentLink || undefined,
+    plbl: data.paymentLabel || undefined,
   };
 }
 
@@ -301,6 +311,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         partsCost: ss.pc,
         status: ss.st as TaskStatus,
         photoUrls: ss.ph || [],
+        diagnosticPdfUrl: ss.dpdf || undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,
@@ -319,6 +330,8 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     grandTotalAllKeysLost: slim.takl || 0,
     grandTotalMinHourAdj: slim.tmh || 0,
     grandTotal: slim.gt,
+    paymentLink: slim.pl || undefined,
+    paymentLabel: slim.plbl || undefined,
   };
 }
 
@@ -505,9 +518,10 @@ if(ss.akc&&ss.akc>0)h+='<div class="extra-line">🔑 Add Key: <b>'+fmt(ss.akc)+'
 if(ss.aklc&&ss.aklc>0)h+='<div class="extra-line">🗝️ All Keys Lost: <b>'+fmt(ss.aklc)+'</b></div>';
 if(ss.ph&&ss.ph.length>0){
 h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
-ss.ph.forEach(function(url){h+='<img src="'+esc(url)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0" loading="lazy">'});
+ss.ph.forEach(function(url,pi){h+='<img src="'+esc(url)+'" onclick="openLB('+JSON.stringify(ss.ph)+','+pi+')" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer" loading="lazy">'});
 h+='</div>';
 }
+if(ss.dpdf){h+='<a href="'+esc(ss.dpdf)+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#34d399;font-weight:600;margin-top:4px;text-decoration:none">📄 View Diagnostic Report ↗</a>'}
 if(ss.p.length>0){
 h+='<div class="parts"><div class="parts-title">🔧 Parts</div><table><tr><th>Part</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr>';
 ss.p.forEach(function(p){h+='<tr><td>'+esc(p.n)+'</td><td class="text-center">'+p.q+'</td><td class="text-right">'+fmt(p.pr)+'</td><td class="text-right"><b>'+fmt(p.pr*p.q)+'</b></td></tr>'});
@@ -533,8 +547,15 @@ if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
 if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
+if(s.pl){h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(s.pl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}
 }
 el.innerHTML=h;
+}
+function openLB(urls,idx){
+var ov=document.createElement('div');ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;align-items:center;justify-content:center';
+var ci=idx;function render(){ov.innerHTML='<div style="position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.7);font-size:14px">'+(ci+1)+'/'+urls.length+'</div><div style="position:absolute;top:12px;right:12px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:24px" onclick="this.parentElement.remove()">✕</div>'+(urls.length>1?'<div style="position:absolute;left:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-prev">‹</div>':'')+'<img src="'+urls[ci]+'" style="max-width:90%;max-height:85vh;object-fit:contain;border-radius:8px">'+(urls.length>1?'<div style="position:absolute;right:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-next">›</div>':'');
+if(urls.length>1){var p=ov.querySelector('#lb-prev');var n=ov.querySelector('#lb-next');if(p)p.onclick=function(){ci=(ci-1+urls.length)%urls.length;render()};if(n)n.onclick=function(){ci=(ci+1)%urls.length;render()}}
+}render();ov.onclick=function(e){if(e.target===ov)ov.remove()};document.body.appendChild(ov);
 }
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 init();
@@ -559,9 +580,13 @@ export async function syncPortalToCloud(
   defaultCloningRate?: number,
   defaultProgrammingRate?: number,
   defaultAddKeyRate?: number,
-  defaultAllKeysLostRate?: number
+  defaultAllKeysLostRate?: number,
+  paymentLink?: string,
+  paymentLabel?: string
 ): Promise<string> {
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
+  summary.paymentLink = paymentLink;
+  summary.paymentLabel = paymentLabel;
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

@@ -89,6 +89,8 @@ export const SettingsDialog = ({
   const [ocrSpaceApiKey, setOcrSpaceApiKey] = useState(settings.ocrSpaceApiKey || '');
   const [ocrProvider, setOcrProvider] = useState<'gemini' | 'grok' | 'ocrspace' | 'tesseract'>(settings.ocrProvider || 'gemini');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
+  const [paymentLink, setPaymentLink] = useState(settings.paymentLink || '');
+  const [paymentLabel, setPaymentLabel] = useState(settings.paymentLabel || '');
 
   useEffect(() => {
     setGoogleApiKey(settings.googleApiKey || '');
@@ -96,7 +98,9 @@ export const SettingsDialog = ({
     setOcrSpaceApiKey(settings.ocrSpaceApiKey || '');
     setOcrProvider(settings.ocrProvider || 'gemini');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
-  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled]);
+    setPaymentLink(settings.paymentLink || '');
+    setPaymentLabel(settings.paymentLabel || '');
+  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentLink, settings.paymentLabel]);
 
   const handleSaveSettings = () => {
     onSave({
@@ -111,6 +115,8 @@ export const SettingsDialog = ({
       ocrProvider,
       backup: settings.backup,
       notificationsEnabled,
+      paymentLink: paymentLink.trim() || undefined,
+      paymentLabel: paymentLabel.trim() || undefined,
     });
     setCurrentView('menu');
   };
@@ -401,6 +407,29 @@ export const SettingsDialog = ({
                   checked={notificationsEnabled}
                   onCheckedChange={setNotificationsEnabled}
                 />
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-base font-bold">Client Payment Link</Label>
+                <div className="space-y-2">
+                  <Label>Payment Label</Label>
+                  <Input
+                    value={paymentLabel}
+                    onChange={(e) => setPaymentLabel(e.target.value)}
+                    placeholder="e.g. Zelle, Cash App"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment URL</Label>
+                  <Input
+                    value={paymentLink}
+                    onChange={(e) => setPaymentLink(e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link shown as "Pay Now" button in the client portal
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">

@@ -324,7 +324,7 @@ const Index = () => {
           ? { ...t, status: 'completed' as const, sessions: updatedSessions, needsFollowUp, startTime: undefined, activeSessionId: undefined }
           : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
         .then(portalId => {
           if (!client.portalId) {
             updateClient(client.id, { portalId });
@@ -432,7 +432,7 @@ const Index = () => {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'billed' as const } : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
         .then(portalId => {
           if (!client.portalId) updateClient(client.id, { portalId });
         })
@@ -451,7 +451,7 @@ const Index = () => {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'paid' as const } : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
         .then(portalId => {
           if (!client.portalId) updateClient(client.id, { portalId });
         })

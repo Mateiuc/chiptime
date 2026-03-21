@@ -17,6 +17,7 @@ export interface SessionCostDetail {
   partsCost: number;
   status: TaskStatus;
   photoUrls: string[];
+  diagnosticPdfUrl?: string;
 }
 
 export interface VehicleCostSummary {

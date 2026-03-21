@@ -409,6 +409,29 @@ export const SettingsDialog = ({
                 />
               </div>
 
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-base font-bold">Client Payment Link</Label>
+                <div className="space-y-2">
+                  <Label>Payment Label</Label>
+                  <Input
+                    value={paymentLabel}
+                    onChange={(e) => setPaymentLabel(e.target.value)}
+                    placeholder="e.g. Zelle, Cash App"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment URL</Label>
+                  <Input
+                    value={paymentLink}
+                    onChange={(e) => setPaymentLink(e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link shown as "Pay Now" button in the client portal
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label>OCR Provider (for VIN Scanning)</Label>
                 <RadioGroup value={ocrProvider} onValueChange={(value) => setOcrProvider(value as 'gemini' | 'grok' | 'ocrspace' | 'tesseract')}>

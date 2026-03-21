@@ -177,30 +177,56 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </Card>
       </div>
 
-      {/* Payment Link */}
+      {/* Payment Methods */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Client Payment Link</CardTitle>
+          <CardTitle className="text-base">Client Payment Methods</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Payment Label</Label>
-            <Input
-              value={paymentLabel}
-              onChange={(e) => setPaymentLabel(e.target.value)}
-              placeholder="e.g. Zelle, Cash App"
-            />
-            <p className="text-xs text-muted-foreground">Name shown on the "Pay Now" button in the client portal</p>
-          </div>
-          <div className="space-y-2">
-            <Label>Payment URL</Label>
-            <Input
-              value={paymentLink}
-              onChange={(e) => setPaymentLink(e.target.value)}
-              placeholder="https://..."
-            />
-            <p className="text-xs text-muted-foreground">Zelle or Cash App link your clients will use to pay</p>
-          </div>
+          {paymentMethods.map((method, idx) => (
+            <div key={idx} className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={method.label}
+                  onChange={(e) => {
+                    const updated = [...paymentMethods];
+                    updated[idx] = { ...updated[idx], label: e.target.value };
+                    setPaymentMethods(updated);
+                  }}
+                  placeholder="e.g. Zelle, Cash App, Venmo"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">URL</Label>
+                <Input
+                  value={method.url}
+                  onChange={(e) => {
+                    const updated = [...paymentMethods];
+                    updated[idx] = { ...updated[idx], url: e.target.value };
+                    setPaymentMethods(updated);
+                  }}
+                  placeholder="https://..."
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-destructive hover:text-destructive"
+                onClick={() => setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPaymentMethods([...paymentMethods, { label: '', url: '' }])}
+          >
+            <Plus className="h-4 w-4 mr-1" /> Add Payment Method
+          </Button>
+          <p className="text-xs text-muted-foreground">These appear as "Pay Now" buttons in the client portal</p>
         </CardContent>
       </Card>
 

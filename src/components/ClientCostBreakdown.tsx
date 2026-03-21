@@ -277,13 +277,20 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {formatDuration(session.duration)}
+                        {formatRoundedDuration(session.duration)}
                       </span>
                       <span className="flex items-center gap-1 font-semibold text-foreground">
                         <DollarSign className="h-3 w-3" />
                         Labor: {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                       </span>
                     </div>
+                    {session.periods && session.periods.length > 0 && (
+                      <div className="flex flex-col gap-0.5 text-[10px] md:text-xs text-muted-foreground">
+                        {session.periods.map((period, pIdx) => (
+                          <span key={pIdx}>🕐 {formatTimeOnly(period.start)} → {formatTimeOnly(period.end)}</span>
+                        ))}
+                      </div>
+                    )}
                     {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0) && (
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] md:text-xs text-muted-foreground mt-0.5">
                         {(session.minHourAdj || 0) > 0 && <span>🚩 Min 1hr: {formatCurrency(session.minHourAdj)}</span>}

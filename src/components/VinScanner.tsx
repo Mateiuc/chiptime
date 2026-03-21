@@ -257,6 +257,39 @@ const VinScanner: React.FC<VinScannerProps> = ({
     }
   };
 
+  // Upload failed OCR frame to cloud for future improvement
+  const uploadFailedFrame = async (base64: string, provider: string, result: OcrResult) => {
+    try {
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      const timestamp = Date.now();
+      const filePath = `${timestamp}_${provider}.jpg`;
+      
+      const { error } = await supabase.storage
+        .from('vin-scan-failures')
+        .upload(filePath, bytes, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+      
+      if (error) {
+        console.warn('[VIN Upload] Failed to upload:', error.message);
+      } else {
+        console.log('[VIN Upload] Saved failed frame:', filePath, {
+          provider,
+          rawText: result.rawText?.substring(0, 100),
+          candidateCount: result.candidates?.length || 0,
+        });
+      }
+    } catch (e) {
+      console.warn('[VIN Upload] Error:', e);
+    }
+  };
+
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());

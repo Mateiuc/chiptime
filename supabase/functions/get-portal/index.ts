@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url)
     const id = url.searchParams.get('id')
+    const preview = url.searchParams.get('preview') === '1'
     const code = url.searchParams.get('code')
 
     if (!id) {
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
     }
 
     // If portal has an access code, validate it server-side
-    if (data.access_code) {
+    if (data.access_code && !preview) {
       // No code provided — return metadata only (requiresCode flag)
       if (!code) {
         return new Response(JSON.stringify({

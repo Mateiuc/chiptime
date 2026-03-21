@@ -30,7 +30,7 @@ const ClientPortal = () => {
     const load = async () => {
       try {
         if (cloudPortalId) {
-          const result = await checkPortalAccess(cloudPortalId);
+          const result = await checkPortalAccess(cloudPortalId, isPreview);
           if (result.requiresCode) {
             setRequiresCode(true);
           } else {

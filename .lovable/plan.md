@@ -1,36 +1,38 @@
 
 
-# Fix: Client Portal Broken After Security Review
+# Show All Client Rates (Including Defaults)
 
 ## Problem
-The portal at `/client-view?id=54uazx5l&preview=1` shows "Failed to load data." because:
-
-1. Preview mode sets `verified=true` immediately (skipping the PIN screen)
-2. But `checkPortalAccess` calls the edge function without a code
-3. The edge function correctly returns `{ requiresCode: true }` without data
-4. The code sets `requiresCode=true` but never fetches the actual data since `verified` is already true
-5. Result: no `costSummary`, so the error state triggers
+Currently, rates like cloning, programming, add-key, and AKL only display in the client info panel when the client has a custom override set. If they're using the default rate from settings, nothing shows — making it look like they have no rate configured.
 
 ## Solution
-Add a `preview` query parameter to the `get-portal` edge function. When `preview=1` is passed, bypass the access code check and return the full data. This is safe because:
-- The mechanic is the one generating the preview link
-- Preview mode is intended for internal use only
+Always show all five rates in the client detail header. Use the client's custom rate if set, otherwise fall back to the global default. No conditional rendering — always display all rate lines.
 
 ## Changes
 
-### 1. `supabase/functions/get-portal/index.ts`
-- Read a `preview` query parameter
-- When `preview=1`, skip the access code check and return data directly
+### `src/components/DesktopClientsView.tsx` (lines 310-318)
+Replace the conditional rate display with always-visible rates using fallbacks:
 
-### 2. `src/lib/clientPortalUtils.ts`
-- Update `checkPortalAccess` to accept an optional `preview` flag
-- Pass `preview=1` to the edge function when in preview mode
+```
+<div className="flex items-center gap-1.5">
+  <DollarSign .../> {selectedClient.hourlyRate || settings.defaultHourlyRate || 0}/hr
+</div>
+<div className="flex items-center gap-1.5">
+  <DollarSign .../> {selectedClient.cloningRate || settings.defaultCloningRate || 0} /clone
+</div>
+<div className="flex items-center gap-1.5">
+  <DollarSign .../> {selectedClient.programmingRate || settings.defaultProgrammingRate || 0} /prog
+</div>
+<div className="flex items-center gap-1.5">
+  <DollarSign .../> {selectedClient.addKeyRate || settings.defaultAddKeyRate || 0} /add-key
+</div>
+<div className="flex items-center gap-1.5">
+  <DollarSign .../> {selectedClient.allKeysLostRate || settings.defaultAllKeysLostRate || 0} /AKL
+</div>
+```
 
-### 3. `src/pages/ClientPortal.tsx`
-- Pass `isPreview` to `checkPortalAccess` so it sends the preview flag to the edge function
+All five rates always visible, falling back to settings defaults when no client override exists.
 
 ## Files to Change
-1. `supabase/functions/get-portal/index.ts` — add preview bypass
-2. `src/lib/clientPortalUtils.ts` — pass preview param
-3. `src/pages/ClientPortal.tsx` — thread preview flag through
+1. `src/components/DesktopClientsView.tsx` — remove conditional rendering on rate lines, add settings fallbacks
 

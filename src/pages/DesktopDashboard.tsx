@@ -662,8 +662,8 @@ const DesktopDashboard = () => {
     const rate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = settings.defaultAllKeysLostRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     const laborCost = (task.sessions || []).reduce((total, session) => {
       const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
       const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;

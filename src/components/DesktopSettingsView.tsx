@@ -22,8 +22,9 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
   const [defaultProgrammingRate, setDefaultProgrammingRate] = useState(settings.defaultProgrammingRate?.toString() || '');
   const [defaultAddKeyRate, setDefaultAddKeyRate] = useState(settings.defaultAddKeyRate?.toString() || '');
   const [defaultAllKeysLostRate, setDefaultAllKeysLostRate] = useState(settings.defaultAllKeysLostRate?.toString() || '');
-  const [paymentLink, setPaymentLink] = useState(settings.paymentLink || '');
-  const [paymentLabel, setPaymentLabel] = useState(settings.paymentLabel || '');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(
+    settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+  );
 
   useEffect(() => {
     setDefaultHourlyRate(settings.defaultHourlyRate?.toString() || '75');

@@ -1357,6 +1357,9 @@ const DesktopDashboard = () => {
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
+                                          <FileUp className={`h-3.5 w-3.5 ${task.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
+                                        </Button>
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(task.id)} title="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>

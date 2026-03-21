@@ -311,11 +311,11 @@ export const DesktopClientsView = ({
                   {selectedClient.companyName && <div className="flex items-center gap-1.5 font-medium">{selectedClient.companyName}</div>}
                   {selectedClient.email && <div className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-primary" />{selectedClient.email}</div>}
                   {selectedClient.phone && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-primary" />{selectedClient.phone}</div>}
-                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.hourlyRate || '—'}/hr</div>
-                  {selectedClient.cloningRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.cloningRate} /clone</div>}
-                  {selectedClient.programmingRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.programmingRate} /prog</div>}
-                  {selectedClient.addKeyRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.addKeyRate} /add-key</div>}
-                  {selectedClient.allKeysLostRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.allKeysLostRate} /AKL</div>}
+                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.hourlyRate || settings.defaultHourlyRate || 0}/hr</div>
+                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.cloningRate || settings.defaultCloningRate || 0} /clone</div>
+                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.programmingRate || settings.defaultProgrammingRate || 0} /prog</div>
+                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.addKeyRate || settings.defaultAddKeyRate || 0} /add-key</div>
+                  <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.allKeysLostRate || settings.defaultAllKeysLostRate || 0} /AKL</div>
                   {selectedClient.itin && <div className="flex items-center gap-1.5 text-muted-foreground">ITIN: {selectedClient.itin}</div>}
                 </div>
                 {(selectedClient.address || selectedClient.city || selectedClient.state) && (

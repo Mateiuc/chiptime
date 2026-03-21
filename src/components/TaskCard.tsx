@@ -697,7 +697,7 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(client?.name || 'N/A', 20, 53);
+      doc.text(client?.companyName || client?.name || 'N/A', 20, 53);
       
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
         .filter(Boolean)

@@ -276,7 +276,7 @@ const DesktopDashboard = () => {
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text(stripDiacritics(client.name || 'N/A'), 20, 53);
+    doc.text(stripDiacritics(client.companyName || client.name || 'N/A'), 20, 53);
 
     // Vehicle info
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');

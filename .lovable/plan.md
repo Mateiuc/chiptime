@@ -1,43 +1,36 @@
 
 
-# Fix: Client Portals Public Data Exposure
+# Fix: Client Portal Broken After Security Review
 
 ## Problem
-The `client_portals` table has a wide-open SELECT policy (`true` for public), meaning anyone can query all client data directly via the Supabase REST API — names, access codes, financial data.
+The portal at `/client-view?id=54uazx5l&preview=1` shows "Failed to load data." because:
+
+1. Preview mode sets `verified=true` immediately (skipping the PIN screen)
+2. But `checkPortalAccess` calls the edge function without a code
+3. The edge function correctly returns `{ requiresCode: true }` without data
+4. The code sets `requiresCode=true` but never fetches the actual data since `verified` is already true
+5. Result: no `costSummary`, so the error state triggers
 
 ## Solution
-Since the app already uses the `get-portal` edge function (with `verify_jwt = false`) to fetch portal data, and the `sync-portal` edge function uses the service role key for writes:
+Add a `preview` query parameter to the `get-portal` edge function. When `preview=1` is passed, bypass the access code check and return the full data. This is safe because:
+- The mechanic is the one generating the preview link
+- Preview mode is intended for internal use only
 
-1. **Restrict the RLS SELECT policy** — change from public `true` to `USING (false)`, blocking all direct table reads.
-2. **Update `get-portal` edge function** — switch from `SUPABASE_ANON_KEY` to `SUPABASE_SERVICE_ROLE_KEY` so the edge function bypasses RLS.
-3. **Stop returning `accessCode` in the response** — instead, accept the PIN in the request and validate server-side. This prevents the access code from being exposed to the client at all.
+## Changes
 
-## Detailed Changes
+### 1. `supabase/functions/get-portal/index.ts`
+- Read a `preview` query parameter
+- When `preview=1`, skip the access code check and return data directly
 
-### Database Migration
-```sql
-DROP POLICY "Anyone can read portals" ON public.client_portals;
-CREATE POLICY "No direct read access to portals"
-ON public.client_portals FOR SELECT
-USING (false);
-```
+### 2. `src/lib/clientPortalUtils.ts`
+- Update `checkPortalAccess` to accept an optional `preview` flag
+- Pass `preview=1` to the edge function when in preview mode
 
-### `supabase/functions/get-portal/index.ts`
-- Use `SUPABASE_SERVICE_ROLE_KEY` instead of `SUPABASE_ANON_KEY`
-- Accept optional `code` query parameter
-- If the portal has an `access_code`, require it to match before returning data
-- Never return `accessCode` in the response — only return `requiresCode: true/false`
-
-### `src/lib/clientPortalUtils.ts` — `fetchPortalFromCloud`
-- First call: fetch with just the ID → get back `requiresCode` flag
-- Second call (if code required): fetch with ID + code → get data
-
-### `src/pages/ClientPortal.tsx`
-- Adapt to two-step flow: load portal metadata first, then submit PIN server-side to unlock data
+### 3. `src/pages/ClientPortal.tsx`
+- Pass `isPreview` to `checkPortalAccess` so it sends the preview flag to the edge function
 
 ## Files to Change
-1. Database migration — replace SELECT policy
-2. `supabase/functions/get-portal/index.ts` — service role key + server-side PIN validation
-3. `src/lib/clientPortalUtils.ts` — two-step fetch
-4. `src/pages/ClientPortal.tsx` — adapt PIN flow
+1. `supabase/functions/get-portal/index.ts` — add preview bypass
+2. `src/lib/clientPortalUtils.ts` — pass preview param
+3. `src/pages/ClientPortal.tsx` — thread preview flag through
 

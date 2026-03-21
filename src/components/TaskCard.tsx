@@ -1245,6 +1245,11 @@ export const TaskCard = ({
                 {vehicle?.year} {vehicle?.make} {vehicle?.model}
               </p>
               <p className="text-xs text-muted-foreground mt-1">VIN: {vehicle?.vin}</p>
+              {task.diagnosticPdfUrl && (
+                <Badge variant="outline" className="text-xs mt-1 text-emerald-600 border-emerald-500/40">
+                  <FileText className="h-3 w-3 mr-1" />Diagnostic PDF
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               

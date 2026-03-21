@@ -453,8 +453,25 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
         </Card>
       )}
 
-      {/* Payment link */}
-      {costSummary.paymentLink && filteredVehicles.length > 0 && (
+      {/* Payment methods */}
+      {filteredVehicles.length > 0 && (costSummary.paymentMethods?.length ?? 0) > 0 && (
+        <div className="flex flex-col items-center gap-2">
+          {costSummary.paymentMethods!.map((method, idx) => (
+            <Button
+              key={idx}
+              size="lg"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base px-8 w-full max-w-xs"
+              onClick={() => window.open(method.url, '_blank')}
+            >
+              <DollarSign className="h-5 w-5 mr-1" />
+              Pay via {method.label}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Legacy single payment link fallback */}
+      {costSummary.paymentLink && filteredVehicles.length > 0 && !(costSummary.paymentMethods?.length) && (
         <div className="flex justify-center">
           <Button
             size="lg"

@@ -69,6 +69,7 @@ interface SlimSession {
   mha?: number;
   akc?: number;
   aklc?: number;
+  dpdf?: string;
 }
 
 interface SlimVehicle {

@@ -1,31 +1,24 @@
 
 
-# Add Address Next to Business Name on Bill PDF
+# Export Architecture Diagram as PDF
 
-## What changes
+## Approach
 
-When a client has a `companyName`, append the address on the same line (e.g., "Acme Corp - 123 Main St, City, ST 12345"). Only when `companyName` exists and address fields are present.
+Since Mermaid diagrams can't be natively rendered to PDF in this environment, I'll create a well-formatted, printable PDF using ReportLab that represents the same architecture visually with styled sections, hierarchy, and connection descriptions.
 
-## Files to change (3 locations)
+## Structure of the PDF
 
-### 1. `src/components/TaskCard.tsx` (line 339)
-Build a display string: if `companyName` exists and address fields exist, append them on the same line separated by " - ". Example: `"Acme Corp - 123 Main St, Miami, FL 33101"`
+1. **Title page** — "ChipTime — Application Architecture"
+2. **Routes** — 3 entry points with descriptions
+3. **Desktop Views** — 5 sub-views
+4. **Core Components** — TaskCard, VinScanner, etc.
+5. **Hooks & State** — useStorage, useCloudSync, etc.
+6. **Services** — Cloud sync, backup, photos
+7. **Storage Layer** — Capacitor + IndexedDB
+8. **Utilities** — VIN decoder, PDF utils, OCR engines
+9. **Backend** — Edge functions + database
+10. **Data Model** — Client → Vehicle → Task → WorkSession hierarchy
+11. **Connections** — Key data flow relationships
 
-### 2. `src/components/TaskCard.tsx` (line 700)
-Same change for the second bill generation function (non-stripDiacritics version).
-
-### 3. `src/pages/DesktopDashboard.tsx` (line 279)
-Same change for the desktop bill generation.
-
-### Logic (all 3 locations)
-```typescript
-let clientLine = client?.companyName || client?.name || 'N/A';
-if (client?.companyName) {
-  const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
-  if (addrParts.length > 0) {
-    clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
-  }
-}
-doc.text(stripDiacritics(clientLine), 20, 53);
-```
+The PDF will use color-coded section headers, indented bullet points, and arrow notation for connections — optimized for printing on letter-size paper.
 

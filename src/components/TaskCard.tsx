@@ -176,7 +176,7 @@ export const TaskCard = ({
     doc.text('Client Information:', 20, yPos);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Name: ${client?.name || 'N/A'}`, 20, yPos + 8);
+    doc.text(`Name: ${client?.companyName || client?.name || 'N/A'}`, 20, yPos + 8);
     doc.text(`Phone: ${client?.phone || 'N/A'}`, 20, yPos + 16);
 
     // Right column: Vehicle Information

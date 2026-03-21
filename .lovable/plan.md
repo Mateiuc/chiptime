@@ -1,40 +1,45 @@
 
 
-# Fix Client Portal PIN Issues
+# Move Diagnostic PDF Link to Vehicle Header
 
-## Problems
+## What changes
 
-1. **PIN not accepted**: The access code stored in `client.accessCode` is synced to the cloud via `syncPortalToCloud`. However, when the mechanic previews the portal, the cloud data might have a stale or different access code than what was set locally. The PIN verification uses `fetchPortalFromCloud` which returns the `access_code` from the database — if it doesn't match what the user enters, it fails.
+Currently the "View Diagnostic Report" link is buried inside individual session blocks (line 277). Move it to the vehicle card header, right after the VIN line (after line 232), using the same emerald/green color styling.
 
-2. **Preview should skip PIN**: When the mechanic clicks "Preview Portal" (the Eye button), they shouldn't need to enter a PIN — they're the owner. Only shared links should require the PIN.
+## Technical approach
 
-3. **Both mobile and desktop should use the same PIN per client**: The access code is already stored per-client in `client.accessCode`. The issue is that some code paths generate a *new* code on share but don't always persist it back to the client, or the preview button opens the portal without re-syncing the latest code.
+### `src/components/ClientCostBreakdown.tsx`
 
-## Solution
+1. **Extract the diagnostic PDF URL at the vehicle level**: Before rendering the card, find the first session that has a `diagnosticPdfUrl` (since we already deduplicated it to only the first session per task).
 
-Add a `preview=1` query parameter when the mechanic opens the portal. In `ClientPortal.tsx`, if `preview=1` is present, skip the PIN screen entirely. For shared links (no `preview` param), keep the PIN gate as-is.
+2. **Add the link in the `CardHeader`** after the VIN paragraph (line 232): render a green link with the `FileText` icon, same emerald color, with a subtle hover effect.
 
-Also ensure the preview button always re-syncs before opening (some paths skip sync if `portalId` already exists).
+3. **Remove the per-session diagnostic PDF block** (lines 276-288) so it no longer appears inside each session.
 
-## Changes
+### Code sketch
 
-### 1. `src/pages/ClientPortal.tsx`
-- Read `searchParams.get('preview')` — if truthy, set `verified = true` immediately (skip PIN)
+In the vehicle card header, after the VIN:
+```tsx
+{v.vin && (
+  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+    VIN: {v.vin}
+  </p>
+)}
+{/* Diagnostic PDF link — extracted from first session */}
+{diagnosticPdfUrl && (
+  <a
+    href={diagnosticPdfUrl}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 transition-colors mt-1"
+  >
+    <FileText className="h-3.5 w-3.5" />
+    View Diagnostic Report
+    <ExternalLink className="h-3 w-3" />
+  </a>
+)}
+```
 
-### 2. `src/pages/DesktopDashboard.tsx` (preview buttons)
-- Line ~1160-1169: The Eye button only syncs if `portalId` is missing. Change to **always re-sync** before opening, so the latest access code and data are pushed. Add `?preview=1` to the URL.
-- Line ~1356: The client list portal button — add `?preview=1`
-
-### 3. `src/components/TaskCard.tsx` (line ~1321)
-- Add `?preview=1` to the portal URL
-
-### 4. `src/components/ManageClientsDialog.tsx` (line ~658)
-- Add `?preview=1` to the portal URL
-- Ensure re-sync before opening
-
-### Files
-1. `src/pages/ClientPortal.tsx`
-2. `src/pages/DesktopDashboard.tsx`
-3. `src/components/TaskCard.tsx`
-4. `src/components/ManageClientsDialog.tsx`
+### File
+- `src/components/ClientCostBreakdown.tsx`
 

@@ -171,20 +171,15 @@ export const DesktopClientsView = ({
   };
 
   const handleShareLink = async (client: Client) => {
-    const code = client.accessCode || generateAccessCode();
-    if (!client.accessCode) onUpdateClient(client.id, { accessCode: code });
     try {
-      let portalId = client.portalId;
-      if (!portalId) {
-        portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-        onUpdateClient(client.id, { portalId, accessCode: code });
-      } else {
-        await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-      }
-      const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
+      const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+      onUpdateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+      const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
       await navigator.clipboard.writeText(url);
-      toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+      toast({ title: 'Link Copied!', description: `Share this link with PIN: ${result.accessCode}` });
     } catch {
+      const code = client.accessCode || generateAccessCode();
+      if (!client.accessCode) onUpdateClient(client.id, { accessCode: code });
       const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
       const encoded = await encodeClientData(summary, code);
       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;

@@ -547,8 +547,15 @@ if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
 if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
+if(s.pl){h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(s.pl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}
 }
 el.innerHTML=h;
+}
+function openLB(urls,idx){
+var ov=document.createElement('div');ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;align-items:center;justify-content:center';
+var ci=idx;function render(){ov.innerHTML='<div style="position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.7);font-size:14px">'+(ci+1)+'/'+urls.length+'</div><div style="position:absolute;top:12px;right:12px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:24px" onclick="this.parentElement.remove()">✕</div>'+(urls.length>1?'<div style="position:absolute;left:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-prev">‹</div>':'')+'<img src="'+urls[ci]+'" style="max-width:90%;max-height:85vh;object-fit:contain;border-radius:8px">'+(urls.length>1?'<div style="position:absolute;right:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-next">›</div>':'');
+if(urls.length>1){var p=ov.querySelector('#lb-prev');var n=ov.querySelector('#lb-next');if(p)p.onclick=function(){ci=(ci-1+urls.length)%urls.length;render()};if(n)n.onclick=function(){ci=(ci+1)%urls.length;render()}}
+}render();ov.onclick=function(e){if(e.target===ov)ov.remove()};document.body.appendChild(ov);
 }
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 init();

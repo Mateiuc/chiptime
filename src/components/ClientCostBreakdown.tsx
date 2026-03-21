@@ -139,6 +139,19 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatTimeOnly = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const formatRoundedDuration = (seconds: number) => {
+    const totalMinutes = Math.round(seconds / 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h ${m}m`;
+  };
+
   const allowedStatuses = filter ? statusMap[filter] : null;
 
   const filteredVehicles = costSummary.vehicles

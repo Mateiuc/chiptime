@@ -325,7 +325,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                     <div key={period.id} className={`flex items-center gap-2 border rounded-md px-3 py-2 ${sc.period}`}>
                       <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">Period {periodIndex + 1}</span>
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <span className="text-[10px] text-muted-foreground shrink-0">Start</span>
+                        <span className="text-[10px] text-green-600 shrink-0">Start</span>
                         <Input type="date"
                           value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.dateValue : formatDateForInput(period.startTime)}
                           onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'date', e.target.value, period)}
@@ -339,7 +339,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                           className="h-8 text-xs w-24 font-medium"
                         />
                         <span className="text-muted-foreground text-xs">→</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">End</span>
+                        <span className="text-[10px] text-red-600 shrink-0">End</span>
                         <Input type="date"
                           value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.dateValue : formatDateForInput(period.endTime)}
                           onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}

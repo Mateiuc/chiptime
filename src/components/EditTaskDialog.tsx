@@ -469,8 +469,8 @@ export const EditTaskDialog = ({
       <>
         {/* Start */}
         <div className={desktop ? "flex items-center gap-2" : ""}>
-          {desktop && <span className="text-xs text-muted-foreground font-medium w-10 shrink-0">Start</span>}
-          {!desktop && <Label className="text-xs font-semibold uppercase tracking-wide">Start</Label>}
+          {desktop && <span className="text-xs text-green-600 font-medium w-10 shrink-0">Start</span>}
+          {!desktop && <Label className="text-xs font-semibold uppercase tracking-wide text-green-600">Start</Label>}
           <div className={`flex ${desktop ? 'gap-2' : 'gap-1'}`}>
             <Input
               type="date"
@@ -502,8 +502,8 @@ export const EditTaskDialog = ({
         </div>
         {/* End */}
         <div className={desktop ? "flex items-center gap-2" : ""}>
-          {desktop && <span className="text-xs text-muted-foreground font-medium w-10 shrink-0">End</span>}
-          {!desktop && <Label className="text-xs font-semibold uppercase tracking-wide">End</Label>}
+          {desktop && <span className="text-xs text-red-600 font-medium w-10 shrink-0">End</span>}
+          {!desktop && <Label className="text-xs font-semibold uppercase tracking-wide text-red-600">End</Label>}
           <div className={`flex ${desktop ? 'gap-2' : 'gap-1'}`}>
             <Input
               type="date"

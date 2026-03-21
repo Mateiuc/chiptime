@@ -146,6 +146,7 @@ export function calculateClientCosts(
     const sessions: SessionCostDetail[] = [];
 
     vehicleTasks.forEach(task => {
+      let diagnosticShown = false;
       task.sessions.forEach(session => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         let laborCost: number;
@@ -175,6 +176,10 @@ export function calculateClientCosts(
         totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
 
+        // Only attach diagnostic PDF to the first session of each task
+        const showDiagnostic = !diagnosticShown && !!task.diagnosticPdfUrl;
+        if (showDiagnostic) diagnosticShown = true;
+
         sessions.push({
           description: session.description || 'Work session',
           date: session.completedAt
@@ -194,7 +199,7 @@ export function calculateClientCosts(
           photoUrls: (session.photos || [])
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
-          diagnosticPdfUrl: task.diagnosticPdfUrl,
+          diagnosticPdfUrl: showDiagnostic ? task.diagnosticPdfUrl : undefined,
         });
       });
     });

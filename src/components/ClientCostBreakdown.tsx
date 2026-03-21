@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { formatDuration, formatCurrency } from '@/lib/formatTime';
 import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, FileText, ExternalLink, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -82,9 +82,9 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         ))}
       </div>
 
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-4xl p-0 bg-black/95 border-none">
-          <div className="relative flex items-center justify-center min-h-[60vh]">
+      {lightboxOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90" onClick={() => setLightboxOpen(false)}>
+          <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {/* Close button */}
             <button
               onClick={() => setLightboxOpen(false)}
@@ -125,8 +125,9 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
               </button>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
-import { ClientCostSummary, calculateClientCosts, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
-import { capacitorStorage } from '@/lib/capacitorStorage';
+import { ClientCostSummary, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
 import { Lock, Wrench } from 'lucide-react';
 
 const ClientPortal = () => {
-  const { clientId } = useParams<{ clientId: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
@@ -23,7 +20,6 @@ const ClientPortal = () => {
   const [expectedCode, setExpectedCode] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'billed' | 'paid'>('pending');
 
-  // Determine mode: cloud (?id=xxx), on-device (/client/:id), or shared (/client-view#data)
   const cloudPortalId = searchParams.get('id');
   const isSharedMode = location.pathname === '/client-view' && !cloudPortalId;
 
@@ -31,12 +27,10 @@ const ClientPortal = () => {
     const load = async () => {
       try {
         if (cloudPortalId) {
-          // Cloud mode: fetch from backend
           const result = await fetchPortalFromCloud(cloudPortalId);
           setCostSummary(result.data);
           setExpectedCode(result.accessCode);
         } else if (isSharedMode) {
-          // Decode data from URL hash
           const hash = location.hash.slice(1);
           if (!hash) {
             setError('No data found in link.');
@@ -46,23 +40,8 @@ const ClientPortal = () => {
           const { data, accessCode } = await decodeClientData(hash);
           setCostSummary(data);
           setExpectedCode(accessCode);
-        } else if (clientId) {
-          // On-device mode: load from local storage
-          const [clients, vehicles, tasks, settings] = await Promise.all([
-            capacitorStorage.getClients(),
-            capacitorStorage.getVehicles(),
-            capacitorStorage.getTasks(),
-            capacitorStorage.getSettings(),
-          ]);
-          const client = clients.find(c => c.id === clientId);
-          if (!client) {
-            setError('Client not found.');
-            setLoading(false);
-            return;
-          }
-          const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
-          setCostSummary(summary);
-          setExpectedCode(client.accessCode || null);
+        } else {
+          setError('Invalid portal link.');
         }
       } catch (e) {
         console.error('Portal load error:', e);
@@ -71,7 +50,7 @@ const ClientPortal = () => {
       setLoading(false);
     };
     load();
-  }, [clientId, cloudPortalId, isSharedMode, location.hash]);
+  }, [cloudPortalId, isSharedMode, location.hash]);
 
   const handleVerify = () => {
     if (!expectedCode) {

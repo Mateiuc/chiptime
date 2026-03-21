@@ -321,6 +321,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         status: ss.st as TaskStatus,
         photoUrls: ss.ph || [],
         diagnosticPdfUrl: ss.dpdf || undefined,
+        periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,

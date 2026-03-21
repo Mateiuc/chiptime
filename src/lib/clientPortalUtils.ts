@@ -600,7 +600,8 @@ export async function syncPortalToCloud(
   defaultAddKeyRate?: number,
   defaultAllKeysLostRate?: number,
   paymentLink?: string,
-  paymentLabel?: string
+  paymentLabel?: string,
+  paymentMethods?: PaymentMethod[]
 ): Promise<{ portalId: string; accessCode: string }> {
   // Generate PIN here if missing — single source of truth
   const accessCode = client.accessCode || generateAccessCode();
@@ -608,6 +609,7 @@ export async function syncPortalToCloud(
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   summary.paymentLink = paymentLink;
   summary.paymentLabel = paymentLabel;
+  summary.paymentMethods = paymentMethods;
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

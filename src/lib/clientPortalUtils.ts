@@ -291,6 +291,9 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
     pl: data.paymentLink || undefined,
     plbl: data.paymentLabel || undefined,
+    pms: data.paymentMethods && data.paymentMethods.length > 0
+      ? data.paymentMethods.map(m => ({ l: m.label, u: m.url, i: m.icon || undefined }))
+      : undefined,
   };
 }
 

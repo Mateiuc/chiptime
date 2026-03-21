@@ -100,6 +100,8 @@ interface SlimPayload {
   tmh?: number;
   tak?: number;
   takl?: number;
+  pl?: string;
+  plbl?: string;
 }
 
 export function generateAccessCode(): string {

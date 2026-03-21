@@ -347,6 +347,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     grandTotal: slim.gt,
     paymentLink: slim.pl || undefined,
     paymentLabel: slim.plbl || undefined,
+    paymentMethods: slim.pms ? slim.pms.map(m => ({ label: m.l, url: m.u, icon: m.i })) : undefined,
   };
 }
 

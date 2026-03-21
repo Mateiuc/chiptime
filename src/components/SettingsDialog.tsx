@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Settings, Task, Client, Vehicle } from '@/types';
+import { Settings, Task, Client, Vehicle, PaymentMethod } from '@/types';
 import { ChevronLeft, ChevronRight, Download, Upload, Cloud } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';

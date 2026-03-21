@@ -704,7 +704,14 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(client?.companyName || client?.name || 'N/A', 20, 53);
+      let clientLine2 = client?.companyName || client?.name || 'N/A';
+      if (client?.companyName) {
+        const addrParts2 = [client.address, client.city, client.state, client.zip].filter(Boolean);
+        if (addrParts2.length > 0) {
+          clientLine2 = `${client.companyName} - ${addrParts2.join(', ')}`;
+        }
+      }
+      doc.text(clientLine2, 20, 53);
       
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
         .filter(Boolean)

@@ -47,6 +47,7 @@ export interface ClientCostSummary {
   grandTotal: number;
   paymentLink?: string;
   paymentLabel?: string;
+  paymentMethods?: PaymentMethod[];
 }
 
 // Slim wire format types for compact encoding

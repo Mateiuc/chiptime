@@ -108,6 +108,12 @@ export interface CloudSyncSettings {
   userEmail?: string;
 }
 
+export interface PaymentMethod {
+  label: string;
+  url: string;
+  icon?: string; // emoji or identifier
+}
+
 export interface Settings {
   defaultHourlyRate: number;
   defaultCloningRate?: number;
@@ -120,7 +126,8 @@ export interface Settings {
   ocrProvider?: 'gemini' | 'grok' | 'ocrspace' | 'tesseract';
   backup?: BackupSettings;
   cloudSync?: CloudSyncSettings;
-  notificationsEnabled?: boolean; // default true - controls popup notifications
-  paymentLink?: string; // Zelle/Cash App URL for client payments
-  paymentLabel?: string; // e.g. "Zelle", "Cash App"
+  notificationsEnabled?: boolean;
+  paymentLink?: string; // @deprecated - use paymentMethods instead
+  paymentLabel?: string; // @deprecated - use paymentMethods instead
+  paymentMethods?: PaymentMethod[];
 }

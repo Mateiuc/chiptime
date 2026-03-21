@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Settings, Task, Client, Vehicle, PaymentMethod } from '@/types';
-import { ChevronLeft, ChevronRight, Download, Upload, Cloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Plus, Trash2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';
 import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/xmlConverter';

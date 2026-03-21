@@ -336,7 +336,14 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(stripDiacritics(client?.companyName || client?.name || 'N/A'), 20, 53);
+      let clientLine = client?.companyName || client?.name || 'N/A';
+      if (client?.companyName) {
+        const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
+        if (addrParts.length > 0) {
+          clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
+        }
+      }
+      doc.text(stripDiacritics(clientLine), 20, 53);
       
       // Vehicle info
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]

@@ -594,16 +594,32 @@ export const ManageClientsDialog = ({
                                   <span>{client.email}</span>
                                 </div>
                               )}
-                              {client.phone && (
+                                {client.phone && (
                                 <div className="flex items-center gap-2">
                                   <Phone className="h-3 w-3 text-primary" />
                                   <span>{client.phone}</span>
+                                </div>
+                              )}
+                              {client.companyName && (
+                                <div className="flex items-center gap-2 font-medium">
+                                  <span>{client.companyName}</span>
                                 </div>
                               )}
                               <div className="flex items-center gap-2">
                                 <DollarSign className="h-3 w-3 text-primary" />
                                 <span className="font-semibold">${client.hourlyRate || '—'}/hr</span>
                               </div>
+                              {client.cloningRate && <div className="flex items-center gap-2"><DollarSign className="h-3 w-3 text-primary" /><span>${client.cloningRate} /clone</span></div>}
+                              {client.programmingRate && <div className="flex items-center gap-2"><DollarSign className="h-3 w-3 text-primary" /><span>${client.programmingRate} /prog</span></div>}
+                              {client.addKeyRate && <div className="flex items-center gap-2"><DollarSign className="h-3 w-3 text-primary" /><span>${client.addKeyRate} /add-key</span></div>}
+                              {client.allKeysLostRate && <div className="flex items-center gap-2"><DollarSign className="h-3 w-3 text-primary" /><span>${client.allKeysLostRate} /AKL</span></div>}
+                              {client.itin && <div className="text-muted-foreground">ITIN: {client.itin}</div>}
+                              {(client.address || client.city || client.state) && (
+                                <div className="text-muted-foreground">
+                                  {[client.address, [client.city, client.state, client.zip].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
+                                </div>
+                              )}
+                              {client.notes && <div className="text-muted-foreground italic">{client.notes}</div>}
                               <div className="text-muted-foreground pt-1 border-t border-border/50 mt-2">
                                 {stats.active} active | {stats.total} total task{stats.total !== 1 ? 's' : ''}
                               </div>

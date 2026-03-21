@@ -4,8 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Settings } from '@/types';
-import { Save } from 'lucide-react';
+import { Settings, PaymentMethod } from '@/types';
+import { Save, Plus, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { BackupView } from './BackupView';
 

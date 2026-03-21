@@ -555,9 +555,13 @@ export async function syncPortalToCloud(
   client: Client,
   vehicles: Vehicle[],
   tasks: Task[],
-  defaultHourlyRate: number
+  defaultHourlyRate: number,
+  defaultCloningRate?: number,
+  defaultProgrammingRate?: number,
+  defaultAddKeyRate?: number,
+  defaultAllKeysLostRate?: number
 ): Promise<string> {
-  const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate);
+  const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

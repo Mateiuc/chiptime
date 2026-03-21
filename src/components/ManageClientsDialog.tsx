@@ -691,7 +691,11 @@ export const ManageClientsDialog = ({
                                         { ...client, accessCode: code },
                                         vehicles,
                                         tasks,
-                                        settings.defaultHourlyRate
+                                        settings.defaultHourlyRate,
+                                        settings.defaultCloningRate,
+                                        settings.defaultProgrammingRate,
+                                        settings.defaultAddKeyRate,
+                                        settings.defaultAllKeysLostRate
                                       );
                                     }
                                     

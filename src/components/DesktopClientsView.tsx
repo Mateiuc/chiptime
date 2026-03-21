@@ -179,7 +179,7 @@ export const DesktopClientsView = ({
         portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
         onUpdateClient(client.id, { portalId, accessCode: code });
       } else {
-        await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate);
+        await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
       }
       const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
       await navigator.clipboard.writeText(url);

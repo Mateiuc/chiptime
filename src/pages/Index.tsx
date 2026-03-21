@@ -451,7 +451,7 @@ const Index = () => {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'paid' as const } : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
         .then(portalId => {
           if (!client.portalId) updateClient(client.id, { portalId });
         })

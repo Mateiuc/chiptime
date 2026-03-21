@@ -330,6 +330,8 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     grandTotalAllKeysLost: slim.takl || 0,
     grandTotalMinHourAdj: slim.tmh || 0,
     grandTotal: slim.gt,
+    paymentLink: slim.pl || undefined,
+    paymentLabel: slim.plbl || undefined,
   };
 }
 

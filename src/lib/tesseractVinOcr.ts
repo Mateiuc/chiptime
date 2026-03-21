@@ -45,6 +45,12 @@ export const readVinWithTesseract = async ({
       logger: () => {} // Suppress progress logs
     });
 
+    // Optimize for VIN-specific single-line text
+    await worker.setParameters({
+      tessedit_pageseg_mode: '7' as any, // Treat image as single text line
+      tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789', // VIN-valid chars only
+    } as any);
+
     // Check abort again after worker creation
     if (signal?.aborted) {
       throw new Error('Aborted');

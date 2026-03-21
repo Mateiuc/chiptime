@@ -10,6 +10,7 @@ import { readVinWithTesseract, type OcrResult as TesseractOcrResult } from '@/li
 import { useNotifications } from '@/hooks/useNotifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/integrations/supabase/client';
 
 type OcrResult = GeminiOcrResult | GrokOcrResult | OcrSpaceOcrResult | TesseractOcrResult;
 
@@ -177,7 +178,11 @@ const VinScanner: React.FC<VinScannerProps> = ({
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -252,6 +257,39 @@ const VinScanner: React.FC<VinScannerProps> = ({
     }
   };
 
+  // Upload failed OCR frame to cloud for future improvement
+  const uploadFailedFrame = async (base64: string, provider: string, result: OcrResult) => {
+    try {
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      const timestamp = Date.now();
+      const filePath = `${timestamp}_${provider}.jpg`;
+      
+      const { error } = await supabase.storage
+        .from('vin-scan-failures')
+        .upload(filePath, bytes, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+      
+      if (error) {
+        console.warn('[VIN Upload] Failed to upload:', error.message);
+      } else {
+        console.log('[VIN Upload] Saved failed frame:', filePath, {
+          provider,
+          rawText: result.rawText?.substring(0, 100),
+          candidateCount: result.candidates?.length || 0,
+        });
+      }
+    } catch (e) {
+      console.warn('[VIN Upload] Error:', e);
+    }
+  };
+
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -314,8 +352,23 @@ const VinScanner: React.FC<VinScannerProps> = ({
     canvas.width = sw;
     canvas.height = sh;
     context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-    const base64 = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    
+    // Apply grayscale + contrast boost for better OCR (especially Tesseract)
+    if (providerToUse === 'tesseract') {
+      const imageData = context.getImageData(0, 0, sw, sh);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        // Convert to grayscale
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        // Boost contrast: stretch around midpoint
+        const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
+        data[i] = data[i + 1] = data[i + 2] = contrasted;
+      }
+      context.putImageData(imageData, 0, 0);
+    }
+    
+    const base64 = canvas.toDataURL('image/jpeg', 0.98).split(',')[1];
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
     
     setLastFrameDataUrl(dataUrl);
 
@@ -345,17 +398,20 @@ const VinScanner: React.FC<VinScannerProps> = ({
           onVinDetected(result.vin);
           stopCamera();
         } else {
+          // Upload failed frame to cloud for improvement
+          uploadFailedFrame(base64, providerToUse, result).catch(() => {});
+          
           const failedChecksum = result.candidates.find(c => c.valid && !c.checksum);
           if (failedChecksum) {
             toast({
               title: 'Possible VIN found but checksum failed',
-              description: 'Adjust framing and try again.',
+              description: 'Photo saved for improvement. Adjust framing and try again.',
               variant: 'destructive'
             });
           } else {
             toast({
               title: 'No valid VIN detected',
-              description: 'Try adjusting the frame or lighting.',
+              description: 'Photo saved for improvement. Try adjusting the frame or lighting.',
             });
           }
         }

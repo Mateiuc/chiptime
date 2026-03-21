@@ -194,6 +194,7 @@ export function calculateClientCosts(
           photoUrls: (session.photos || [])
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
+          diagnosticPdfUrl: task.diagnosticPdfUrl,
         });
       });
     });

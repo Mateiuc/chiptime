@@ -202,6 +202,7 @@ export function calculateClientCosts(
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
           diagnosticPdfUrl: showDiagnostic ? task.diagnosticPdfUrl : undefined,
+          periods: session.periods.map(p => ({ start: new Date(p.startTime), end: new Date(p.endTime) })),
         });
       });
     });

@@ -674,7 +674,7 @@ export const ManageClientsDialog = ({
                                   try {
                                     let portalId = client.portalId;
                                     if (!portalId) {
-                                      portalId = await syncPortalToCloud(
+                                       portalId = await syncPortalToCloud(
                                         { ...client, accessCode: code },
                                         vehicles,
                                         tasks,
@@ -682,7 +682,9 @@ export const ManageClientsDialog = ({
                                         settings.defaultCloningRate,
                                         settings.defaultProgrammingRate,
                                         settings.defaultAddKeyRate,
-                                        settings.defaultAllKeysLostRate
+                                        settings.defaultAllKeysLostRate,
+                                        settings.paymentLink,
+                                        settings.paymentLabel
                                       );
                                       onUpdateClient(client.id, { portalId, accessCode: code });
                                     } else {

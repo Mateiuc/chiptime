@@ -920,6 +920,24 @@ export const TaskCard = ({
         }
       }
 
+      // Merge diagnostic PDF if available (task-level)
+      if (task.diagnosticPdfUrl) {
+        try {
+          const billBlob = doc.output('blob');
+          const mergedBlob = await mergePdfs(billBlob, task.diagnosticPdfUrl);
+          const url = URL.createObjectURL(mergedBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `preview_${sanitizeForFilename(client?.name)}_${sanitizeForFilename(vehicle?.make)}_${formatDateForFilename(task.createdAt)}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast({ title: 'Preview Generated', description: 'Includes diagnostic report' });
+          return;
+        } catch (mergeError) {
+          console.warn('Failed to merge diagnostic PDF in preview:', mergeError);
+        }
+      }
+
       // Save PDF with preview filename
       const clientName = sanitizeForFilename(client?.name);
       const carBrand = sanitizeForFilename(vehicle?.make);

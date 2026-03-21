@@ -1,26 +1,31 @@
 
 
-# Fix Portal Preview Button in Desktop Clients View
+# Add Address Next to Business Name on Bill PDF
 
-## Problem
-The "Portal" button in `DesktopClientsView.tsx` (line 296) navigates to `/client/${selectedClient.id}`, which is a non-existent route causing a 404. It should open the cloud portal URL like the other views do.
+## What changes
 
-## Fix
+When a client has a `companyName`, append the address on the same line (e.g., "Acme Corp - 123 Main St, City, ST 12345"). Only when `companyName` exists and address fields are present.
 
-### `src/components/DesktopClientsView.tsx` (line 296)
-Replace the broken `navigate()` call with `window.open()` using the correct portal URL pattern, matching the behavior in `DesktopDashboard.tsx` and `ManageClientsDialog.tsx`:
+## Files to change (3 locations)
 
-```text
-// Before:
-navigate(`/client/${selectedClient.id}`)
+### 1. `src/components/TaskCard.tsx` (line 339)
+Build a display string: if `companyName` exists and address fields exist, append them on the same line separated by " - ". Example: `"Acme Corp - 123 Main St, Miami, FL 33101"`
 
-// After:
-Force sync to cloud first, then open:
-window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}&preview=1`, '_blank')
+### 2. `src/components/TaskCard.tsx` (line 700)
+Same change for the second bill generation function (non-stripDiacritics version).
+
+### 3. `src/pages/DesktopDashboard.tsx` (line 279)
+Same change for the desktop bill generation.
+
+### Logic (all 3 locations)
+```typescript
+let clientLine = client?.companyName || client?.name || 'N/A';
+if (client?.companyName) {
+  const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
+  if (addrParts.length > 0) {
+    clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
+  }
+}
+doc.text(stripDiacritics(clientLine), 20, 53);
 ```
-
-Also need to:
-- Import `PORTAL_BASE_URL` and `syncPortalToCloud` (check if already imported)
-- Add async logic to sync portal before opening preview (same pattern as the Eye button in DesktopDashboard tree view)
-- Disable the button if no portal data exists yet, or auto-sync on click
 

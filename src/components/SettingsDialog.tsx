@@ -89,8 +89,9 @@ export const SettingsDialog = ({
   const [ocrSpaceApiKey, setOcrSpaceApiKey] = useState(settings.ocrSpaceApiKey || '');
   const [ocrProvider, setOcrProvider] = useState<'gemini' | 'grok' | 'ocrspace' | 'tesseract'>(settings.ocrProvider || 'gemini');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
-  const [paymentLink, setPaymentLink] = useState(settings.paymentLink || '');
-  const [paymentLabel, setPaymentLabel] = useState(settings.paymentLabel || '');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(
+    settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+  );
 
   useEffect(() => {
     setGoogleApiKey(settings.googleApiKey || '');

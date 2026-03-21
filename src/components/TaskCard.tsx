@@ -1143,14 +1143,14 @@ export const TaskCard = ({
     }
   };
 
-  // Handle uploading diagnostic PDF for vehicle
+  // Handle uploading diagnostic PDF for this task
   const handleUploadDiagnosticPdf = async () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file || !vehicle) return;
+      if (!file) return;
       try {
         toast({ title: 'Uploading...', description: 'Uploading diagnostic PDF' });
         const base64 = await new Promise<string>((resolve, reject) => {
@@ -1164,12 +1164,14 @@ export const TaskCard = ({
         });
 
         const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
-          body: { base64, vehicleId: vehicle.id, fileName: file.name },
+          body: { base64, taskId: task.id, fileName: file.name },
         });
 
         if (error) throw error;
-        onUpdateVehicle?.(vehicle.id, { diagnosticPdfUrl: data.url });
-        toast({ title: 'Uploaded', description: 'Diagnostic PDF will be included in bills' });
+        if (onUpdateTask) {
+          onUpdateTask({ ...task, diagnosticPdfUrl: data.url });
+        }
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF attached to this task' });
       } catch (err) {
         console.error('Upload diagnostic error:', err);
         toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });

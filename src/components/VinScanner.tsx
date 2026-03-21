@@ -320,8 +320,23 @@ const VinScanner: React.FC<VinScannerProps> = ({
     canvas.width = sw;
     canvas.height = sh;
     context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-    const base64 = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    
+    // Apply grayscale + contrast boost for better OCR (especially Tesseract)
+    if (providerToUse === 'tesseract') {
+      const imageData = context.getImageData(0, 0, sw, sh);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        // Convert to grayscale
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        // Boost contrast: stretch around midpoint
+        const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
+        data[i] = data[i + 1] = data[i + 2] = contrasted;
+      }
+      context.putImageData(imageData, 0, 0);
+    }
+    
+    const base64 = canvas.toDataURL('image/jpeg', 0.98).split(',')[1];
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
     
     setLastFrameDataUrl(dataUrl);
 

@@ -1159,14 +1159,11 @@ const DesktopDashboard = () => {
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
                       try {
-                        let portalId = client.portalId;
-                        if (!portalId) {
-                          const clientVehicles = vehicles.filter(v => v.clientId === client.id);
-                          const clientTasks = tasks.filter(t => clientVehicles.some(v => v.id === t.vehicleId));
-                          portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                          updateClient(client.id, { portalId });
-                        }
-                        window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}`, '_blank');
+                        const clientVehicles = vehicles.filter(v => v.clientId === client.id);
+                        const clientTasks = tasks.filter(t => clientVehicles.some(v => v.id === t.vehicleId));
+                        const portalId = await syncPortalToCloud(client, clientVehicles, clientTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                        if (!client.portalId) updateClient(client.id, { portalId });
+                        window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}&preview=1`, '_blank');
                       } catch {
                         toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
                       }

@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     }
 
     const safeName = (fileName || 'diagnostic.pdf').replace(/[^a-zA-Z0-9._-]/g, '_')
-    const filePath = `${vehicleId}/${safeName}`
+    const filePath = `${pathPrefix}/${safeName}`
 
     const { error } = await supabase.storage
       .from('diagnostic-pdfs')

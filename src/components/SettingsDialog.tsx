@@ -115,6 +115,8 @@ export const SettingsDialog = ({
       ocrProvider,
       backup: settings.backup,
       notificationsEnabled,
+      paymentLink: paymentLink.trim() || undefined,
+      paymentLabel: paymentLabel.trim() || undefined,
     });
     setCurrentView('menu');
   };

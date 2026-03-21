@@ -1109,35 +1109,34 @@ const DesktopDashboard = () => {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
                       <Printer className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      const code = client.accessCode || generateAccessCode();
-                      if (!client.accessCode) {
-                        updateClient(client.id, { accessCode: code });
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                      if (client.accessCode) {
+                        toast({ title: 'Access Code', description: `PIN: ${client.accessCode}` });
+                      } else {
+                        try {
+                          const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                          updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                          toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                        } catch {
+                          toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
+                        }
                       }
-                      toast({ title: 'Access Code', description: `PIN: ${code}` });
                     }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
                       <KeyRound className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                      const code = client.accessCode || generateAccessCode();
-                      if (!client.accessCode) {
-                        updateClient(client.id, { accessCode: code });
-                      }
                       try {
-                        let portalId = client.portalId;
-                        if (!portalId) {
-                          portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                          updateClient(client.id, { portalId, accessCode: code });
-                        } else {
-                          await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                        }
-                        const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
+                        const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                        updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                        const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
                         await navigator.clipboard.writeText(url);
-                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${result.accessCode}` });
                         return;
                       } catch (err) {
                         console.warn('[Share] Cloud sync failed, falling back:', err);
                       }
+                      const code = client.accessCode || generateAccessCode();
+                      if (!client.accessCode) updateClient(client.id, { accessCode: code });
                       const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
                       const encoded = await encodeClientData(summary, code);
                       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;

@@ -3,6 +3,13 @@ export interface Client {
   name: string;
   email?: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  companyName?: string;
+  itin?: string;
+  notes?: string;
   hourlyRate?: number;
   cloningRate?: number;
   programmingRate?: number;

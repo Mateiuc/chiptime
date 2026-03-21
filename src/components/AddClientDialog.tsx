@@ -89,91 +89,77 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
         <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
           <div className="space-y-2">
             <Label>Name *</Label>
-            <Input 
-              value={name} 
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Client name"
-            />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Company Name</Label>
+            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Business name" />
           </div>
 
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input 
-              type="email"
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="client@example.com"
-            />
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="client@example.com" />
           </div>
 
           <div className="space-y-2">
             <Label>Phone</Label>
-            <Input 
-              type="tel"
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 123-4567"
-            />
+            <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Address</Label>
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
+              <Label>City</Label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
+            </div>
+            <div className="space-y-2">
+              <Label>State</Label>
+              <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="ST" />
+            </div>
+            <div className="space-y-2">
+              <Label>ZIP</Label>
+              <Input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="12345" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>ITIN</Label>
+            <Input value={itin} onChange={(e) => setItin(e.target.value)} placeholder="Individual Taxpayer ID" />
           </div>
 
           <div className="space-y-2">
             <Label>Custom Hourly Rate</Label>
-            <Input 
-              type="number"
-              value={hourlyRate} 
-              onChange={(e) => setHourlyRate(e.target.value)}
-              placeholder="Leave empty to use default"
-              min={0}
-              step={0.01}
-            />
+            <Input type="number" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
           </div>
 
           <div className="space-y-2">
             <Label>Cloning Rate</Label>
-            <Input 
-              type="number"
-              value={cloningRate} 
-              onChange={(e) => setCloningRate(e.target.value)}
-              placeholder="Leave empty to use default"
-              min={0}
-              step={0.01}
-            />
+            <Input type="number" value={cloningRate} onChange={(e) => setCloningRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
           </div>
 
           <div className="space-y-2">
             <Label>Programming Rate</Label>
-            <Input 
-              type="number"
-              value={programmingRate} 
-              onChange={(e) => setProgrammingRate(e.target.value)}
-              placeholder="Leave empty to use default"
-              min={0}
-              step={0.01}
-            />
+            <Input type="number" value={programmingRate} onChange={(e) => setProgrammingRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
           </div>
 
           <div className="space-y-2">
             <Label>Add Key Rate</Label>
-            <Input 
-              type="number"
-              value={addKeyRate} 
-              onChange={(e) => setAddKeyRate(e.target.value)}
-              placeholder="Leave empty to use default"
-              min={0}
-              step={0.01}
-            />
+            <Input type="number" value={addKeyRate} onChange={(e) => setAddKeyRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
           </div>
 
           <div className="space-y-2">
             <Label>All Keys Lost Rate</Label>
-            <Input 
-              type="number"
-              value={allKeysLostRate} 
-              onChange={(e) => setAllKeysLostRate(e.target.value)}
-              placeholder="Leave empty to use default"
-              min={0}
-              step={0.01}
-            />
+            <Input type="number" value={allKeysLostRate} onChange={(e) => setAllKeysLostRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes" />
           </div>
         </div>
 

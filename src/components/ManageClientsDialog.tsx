@@ -516,82 +516,65 @@ export const ManageClientsDialog = ({
                           <div className="space-y-2 p-3 bg-muted/30 rounded-lg mx-2 border border-primary/10">
                             <div className="space-y-1">
                               <Label className="text-xs">Name *</Label>
-                              <Input
-                                placeholder="Client Name"
-                                value={editFormData.name || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input placeholder="Client Name" value={editFormData.name || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Company Name</Label>
+                              <Input placeholder="Business name" value={editFormData.companyName || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, companyName: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Email</Label>
-                              <Input
-                                type="email"
-                                placeholder="email@example.com"
-                                value={editFormData.email || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="email" placeholder="email@example.com" value={editFormData.email || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Phone</Label>
-                              <Input
-                                type="tel"
-                                placeholder="(555) 123-4567"
-                                value={editFormData.phone || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="tel" placeholder="(555) 123-4567" value={editFormData.phone || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Address</Label>
+                              <Input placeholder="Street address" value={editFormData.address || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, address: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">City</Label>
+                                <Input placeholder="City" value={editFormData.city || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, city: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">State</Label>
+                                <Input placeholder="ST" value={editFormData.state || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, state: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">ZIP</Label>
+                                <Input placeholder="12345" value={editFormData.zip || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, zip: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">ITIN</Label>
+                              <Input placeholder="Individual Taxpayer ID" value={editFormData.itin || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, itin: e.target.value || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Hourly Rate ($)</Label>
-                              <Input
-                                type="number"
-                                placeholder="75"
-                                value={editFormData.hourlyRate || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, hourlyRate: parseFloat(e.target.value) || undefined }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="number" placeholder="75" value={editFormData.hourlyRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, hourlyRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Cloning Rate ($)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Leave empty for default"
-                                value={editFormData.cloningRate || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, cloningRate: parseFloat(e.target.value) || undefined }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="number" placeholder="Leave empty for default" value={editFormData.cloningRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, cloningRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Programming Rate ($)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Leave empty for default"
-                                value={editFormData.programmingRate || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, programmingRate: parseFloat(e.target.value) || undefined }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="number" placeholder="Leave empty for default" value={editFormData.programmingRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, programmingRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Add Key Rate ($)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Leave empty for default"
-                                value={editFormData.addKeyRate || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, addKeyRate: parseFloat(e.target.value) || undefined }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="number" placeholder="Leave empty for default" value={editFormData.addKeyRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, addKeyRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">All Keys Lost Rate ($)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Leave empty for default"
-                                value={editFormData.allKeysLostRate || ''}
-                                onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))}
-                                className="h-9 text-sm bg-background"
-                              />
+                              <Input type="number" placeholder="Leave empty for default" value={editFormData.allKeysLostRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Notes</Label>
+                              <textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Internal notes" value={editFormData.notes || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value || undefined }))} />
                             </div>
                             <div className="flex gap-2 pt-1">
                               <Button size="sm" onClick={() => handleSaveClientEdit(client.id)} className="h-8 bg-primary hover:bg-primary/90">

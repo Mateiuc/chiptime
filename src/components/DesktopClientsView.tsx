@@ -299,11 +299,23 @@ export const DesktopClientsView = ({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-6 text-sm">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                  {selectedClient.companyName && <div className="flex items-center gap-1.5 font-medium">{selectedClient.companyName}</div>}
                   {selectedClient.email && <div className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-primary" />{selectedClient.email}</div>}
                   {selectedClient.phone && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-primary" />{selectedClient.phone}</div>}
                   <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.hourlyRate || '—'}/hr</div>
+                  {selectedClient.cloningRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.cloningRate} /clone</div>}
+                  {selectedClient.programmingRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.programmingRate} /prog</div>}
+                  {selectedClient.addKeyRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.addKeyRate} /add-key</div>}
+                  {selectedClient.allKeysLostRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.allKeysLostRate} /AKL</div>}
+                  {selectedClient.itin && <div className="flex items-center gap-1.5 text-muted-foreground">ITIN: {selectedClient.itin}</div>}
                 </div>
+                {(selectedClient.address || selectedClient.city || selectedClient.state) && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {[selectedClient.address, [selectedClient.city, selectedClient.state, selectedClient.zip].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
+                  </div>
+                )}
+                {selectedClient.notes && <div className="text-sm text-muted-foreground mt-2 italic">{selectedClient.notes}</div>}
               </CardContent>
             </Card>
 

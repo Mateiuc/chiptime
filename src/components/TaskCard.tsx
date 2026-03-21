@@ -611,11 +611,11 @@ export const TaskCard = ({
         .filter(Boolean)
         .join(' ') || 'your vehicle';
       
-      // Merge diagnostic PDF if available
-      if (vehicle?.diagnosticPdfUrl) {
+      // Merge diagnostic PDF if available (task-level)
+      if (task.diagnosticPdfUrl) {
         try {
           const billBlob = doc.output('blob');
-          const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+          const mergedBlob = await mergePdfs(billBlob, task.diagnosticPdfUrl);
           const reader = new FileReader();
           const mergedBase64 = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {

@@ -1,24 +1,56 @@
 
 
-# Export Architecture Diagram as PDF
+# Generate Complete App Structure Document (PDF)
 
-## Approach
+## What to build
 
-Since Mermaid diagrams can't be natively rendered to PDF in this environment, I'll create a well-formatted, printable PDF using ReportLab that represents the same architecture visually with styled sections, hierarchy, and connection descriptions.
+A detailed, printable PDF listing every named element in the app: pages, routes, views, dialogs, components, actions/buttons, settings fields, data types, services, hooks, and utilities -- all organized by category with hierarchical nesting.
 
-## Structure of the PDF
+## Content structure
 
-1. **Title page** — "ChipTime — Application Architecture"
-2. **Routes** — 3 entry points with descriptions
-3. **Desktop Views** — 5 sub-views
-4. **Core Components** — TaskCard, VinScanner, etc.
-5. **Hooks & State** — useStorage, useCloudSync, etc.
-6. **Services** — Cloud sync, backup, photos
-7. **Storage Layer** — Capacitor + IndexedDB
-8. **Utilities** — VIN decoder, PDF utils, OCR engines
-9. **Backend** — Edge functions + database
-10. **Data Model** — Client → Vehicle → Task → WorkSession hierarchy
-11. **Connections** — Key data flow relationships
+### 1. Routes & Pages
+- `/` -- Index (Mobile App, phone frame)
+- `/chip` -- DesktopDashboard
+- `/client-view` -- ClientPortal
+- `/*` -- NotFound
 
-The PDF will use color-coded section headers, indented bullet points, and arrow notation for connections — optimized for printing on letter-size paper.
+### 2. Desktop Dashboard Views (5 modes)
+- Tree View (hierarchical client/vehicle/task)
+- Settings View (DesktopSettingsView)
+- Reports View (DesktopReportsView)
+- Invoices View (DesktopInvoiceView)
+- Clients View (DesktopClientsView)
+
+### 3. Mobile Settings Dialog Views (5 modes)
+- Menu, Settings, Billed, Paid, Backup
+
+### 4. All Dialogs
+- AddClientDialog, AddVehicleDialog, CompleteWorkDialog, SettingsDialog, ManageClientsDialog, EditTaskDialog, EditVehicleDialog, ShareBillDialog, VinScanner
+
+### 5. All Actions (buttons/operations) per context
+- Task actions: Start, Pause, Stop, Resume, Mark Billed, Mark Paid, Delete, Edit, Print Bill, Share Bill, Take Photo, View Photos, Upload Diagnostic PDF
+- Client actions: Edit, Delete, Print PDF Report, Portal PIN, Share Link, Portal Preview, Move Vehicle, Import Previous Work
+- Vehicle actions: Edit, Delete, Move to Client
+
+### 6. Settings Fields (all named)
+- Default Hourly Rate, Default Cloning Rate, Default Programming Rate, Default Add Key Rate, Default All Keys Lost Rate
+- OCR Provider (Gemini/Grok/OCR.space/Tesseract), Google API Key, Grok API Key, OCR Space API Key
+- Notifications toggle, Payment Link, Payment Label
+- Backup & Restore, Cloud Sync (Google Drive)
+
+### 7. Data Model (types)
+- Client, Vehicle, Task, WorkSession, WorkPeriod, Part, SessionPhoto
+- TaskStatus enum values
+- Settings, BackupSettings, CloudSyncSettings
+
+### 8. Services & Hooks
+- appSyncService, autoBackupService, cloudSyncService, contactsService, googleDriveService, photoStorageService
+- useStorage (useClients, useVehicles, useTasks, useSettings), useCloudSync, useNotifications, useBackupSettings
+
+### 9. Utilities
+- VIN Decoder, PDF Utils, XLS Importer, XML Converter, Photo Migration, Storage Migration, Capacitor Storage, IndexedDB
+
+## Implementation
+
+Single Python/ReportLab script generating a multi-page PDF at `/mnt/documents/ChipTime_Full_Structure.pdf` with section headers, bullet lists, and sub-items. Optimized for letter-size printing.
 

@@ -629,20 +629,19 @@ export async function syncPortalToCloud(
  * Check if a cloud portal requires an access code.
  * Returns metadata without exposing any data.
  */
-export async function checkPortalAccess(portalId: string): Promise<{
+export async function checkPortalAccess(portalId: string, preview?: boolean): Promise<{
   requiresCode: boolean;
   clientName?: string;
   data?: ClientCostSummary;
 }> {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const resp = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`,
-    {
-      headers: {
-        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-    }
-  );
+  let url = `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`;
+  if (preview) url += '&preview=1';
+  const resp = await fetch(url, {
+    headers: {
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+  });
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: 'Request failed' }));

@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     }
 
     // If portal has an access code, validate it server-side
-    if (data.access_code) {
+    if (data.access_code && !preview) {
       // No code provided — return metadata only (requiresCode flag)
       if (!code) {
         return new Response(JSON.stringify({

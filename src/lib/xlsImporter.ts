@@ -1,4 +1,4 @@
-import ExcelJS from '@zurmokeeper/exceljs';
+// Dynamically imported to code-split the large ExcelJS bundle
 
 export interface ImportedSession {
   tag: string;
@@ -18,7 +18,8 @@ export interface ImportedSession {
  */
 export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]> => {
   const arrayBuffer = await file.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
+  const ExcelJS = await import('@zurmokeeper/exceljs');
+  const workbook = new ExcelJS.default.Workbook();
   await workbook.xlsx.load(arrayBuffer);
   const worksheet = workbook.getWorksheet(1);
   if (!worksheet) return [];

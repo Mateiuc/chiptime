@@ -411,26 +411,53 @@ export const SettingsDialog = ({
               </div>
 
               <div className="space-y-2 border-t pt-4">
-                <Label className="text-base font-bold">Client Payment Link</Label>
-                <div className="space-y-2">
-                  <Label>Payment Label</Label>
-                  <Input
-                    value={paymentLabel}
-                    onChange={(e) => setPaymentLabel(e.target.value)}
-                    placeholder="e.g. Zelle, Cash App"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment URL</Label>
-                  <Input
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="https://..."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Link shown as "Pay Now" button in the client portal
-                  </p>
-                </div>
+                <Label className="text-base font-bold">Client Payment Methods</Label>
+                {paymentMethods.map((method, idx) => (
+                  <div key={idx} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">Label</Label>
+                      <Input
+                        value={method.label}
+                        onChange={(e) => {
+                          const updated = [...paymentMethods];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setPaymentMethods(updated);
+                        }}
+                        placeholder="e.g. Zelle"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">URL</Label>
+                      <Input
+                        value={method.url}
+                        onChange={(e) => {
+                          const updated = [...paymentMethods];
+                          updated[idx] = { ...updated[idx], url: e.target.value };
+                          setPaymentMethods(updated);
+                        }}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-destructive"
+                      onClick={() => setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentMethods([...paymentMethods, { label: '', url: '' }])}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Payment Method
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  These appear as "Pay Now" buttons in the client portal
+                </p>
               </div>
 
               <div className="space-y-2">

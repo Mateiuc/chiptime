@@ -1350,7 +1350,7 @@ const DesktopDashboard = () => {
                                           </Button>
                                         )}
                                         {client.portalId && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}`, '_blank')} title="Client Portal">
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank')} title="Client Portal">
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}

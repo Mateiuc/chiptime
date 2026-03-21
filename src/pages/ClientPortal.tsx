@@ -12,9 +12,11 @@ const ClientPortal = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
+  const isPreview = searchParams.get('preview') === '1';
+
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [verified, setVerified] = useState(false);
+  const [verified, setVerified] = useState(isPreview);
   const [costSummary, setCostSummary] = useState<ClientCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [expectedCode, setExpectedCode] = useState<string | null>(null);

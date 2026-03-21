@@ -1318,7 +1318,7 @@ export const TaskCard = ({
                   {isCompleted && client && (
                     <DropdownMenuItem onClick={() => {
                       if (client.portalId) {
-                        window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}`, '_blank');
+                        window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank');
                       }
                     }} disabled={!client.portalId}>
                       <Eye className="h-4 w-4 mr-2" />

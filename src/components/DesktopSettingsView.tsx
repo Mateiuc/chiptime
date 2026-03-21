@@ -176,6 +176,33 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </Card>
       </div>
 
+      {/* Payment Link */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Client Payment Link</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Payment Label</Label>
+            <Input
+              value={paymentLabel}
+              onChange={(e) => setPaymentLabel(e.target.value)}
+              placeholder="e.g. Zelle, Cash App"
+            />
+            <p className="text-xs text-muted-foreground">Name shown on the "Pay Now" button in the client portal</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Payment URL</Label>
+            <Input
+              value={paymentLink}
+              onChange={(e) => setPaymentLink(e.target.value)}
+              placeholder="https://..."
+            />
+            <p className="text-xs text-muted-foreground">Zelle or Cash App link your clients will use to pay</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Backup & Restore */}
       <Card>
         <CardHeader>

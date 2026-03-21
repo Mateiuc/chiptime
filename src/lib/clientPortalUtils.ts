@@ -572,9 +572,13 @@ export async function syncPortalToCloud(
   defaultCloningRate?: number,
   defaultProgrammingRate?: number,
   defaultAddKeyRate?: number,
-  defaultAllKeysLostRate?: number
+  defaultAllKeysLostRate?: number,
+  paymentLink?: string,
+  paymentLabel?: string
 ): Promise<string> {
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
+  summary.paymentLink = paymentLink;
+  summary.paymentLabel = paymentLabel;
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

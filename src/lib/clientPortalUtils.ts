@@ -44,6 +44,8 @@ export interface ClientCostSummary {
   grandTotalAllKeysLost: number;
   grandTotalMinHourAdj: number;
   grandTotal: number;
+  paymentLink?: string;
+  paymentLabel?: string;
 }
 
 // Slim wire format types for compact encoding

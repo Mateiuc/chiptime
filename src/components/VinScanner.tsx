@@ -366,17 +366,20 @@ const VinScanner: React.FC<VinScannerProps> = ({
           onVinDetected(result.vin);
           stopCamera();
         } else {
+          // Upload failed frame to cloud for improvement
+          uploadFailedFrame(base64, providerToUse, result).catch(() => {});
+          
           const failedChecksum = result.candidates.find(c => c.valid && !c.checksum);
           if (failedChecksum) {
             toast({
               title: 'Possible VIN found but checksum failed',
-              description: 'Adjust framing and try again.',
+              description: 'Photo saved for improvement. Adjust framing and try again.',
               variant: 'destructive'
             });
           } else {
             toast({
               title: 'No valid VIN detected',
-              description: 'Try adjusting the frame or lighting.',
+              description: 'Photo saved for improvement. Try adjusting the frame or lighting.',
             });
           }
         }

@@ -114,4 +114,6 @@ export interface Settings {
   backup?: BackupSettings;
   cloudSync?: CloudSyncSettings;
   notificationsEnabled?: boolean; // default true - controls popup notifications
+  paymentLink?: string; // Zelle/Cash App URL for client payments
+  paymentLabel?: string; // e.g. "Zelle", "Cash App"
 }

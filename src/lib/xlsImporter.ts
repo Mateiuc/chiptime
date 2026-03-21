@@ -1,5 +1,4 @@
 // Dynamically imported to code-split the large ExcelJS bundle
-type ExcelJSType = typeof import('@zurmokeeper/exceljs').default;
 
 export interface ImportedSession {
   tag: string;

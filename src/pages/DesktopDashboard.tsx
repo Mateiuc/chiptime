@@ -476,11 +476,11 @@ const DesktopDashboard = () => {
       }
     }
 
-    // --- Merge diagnostic PDF if available ---
-    if (vehicle.diagnosticPdfUrl) {
+    // --- Merge diagnostic PDF if available (task-level) ---
+    if (task.diagnosticPdfUrl) {
       try {
         const billBlob = doc.output('blob');
-        const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+        const mergedBlob = await mergePdfs(billBlob, task.diagnosticPdfUrl);
         const url = URL.createObjectURL(mergedBlob);
         const a = document.createElement('a');
         a.href = url;
@@ -498,8 +498,8 @@ const DesktopDashboard = () => {
     toast({ title: 'Bill PDF Generated' });
   };
 
-  // --- Upload diagnostic PDF for a vehicle ---
-  const handleUploadDiagnosticPdf = async (vehicleId: string) => {
+  // --- Upload diagnostic PDF for a task ---
+  const handleUploadDiagnosticPdf = async (taskId: string) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf';
@@ -519,12 +519,12 @@ const DesktopDashboard = () => {
         });
 
         const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
-          body: { base64, vehicleId, fileName: file.name },
+          body: { base64, taskId, fileName: file.name },
         });
 
         if (error) throw error;
-        updateVehicle(vehicleId, { diagnosticPdfUrl: data.url });
-        toast({ title: 'Uploaded', description: 'Diagnostic PDF attached to vehicle' });
+        updateTask(taskId, { diagnosticPdfUrl: data.url });
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF attached to this task' });
       } catch (err) {
         console.error('Upload diagnostic error:', err);
         toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });
@@ -1248,9 +1248,6 @@ const DesktopDashboard = () => {
                                   ))}
                                 </select>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(vehicle.id)} title={vehicle.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
-                                <FileUp className={`h-3.5 w-3.5 ${vehicle.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
-                              </Button>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteVehicle(vehicle.id)} title="Delete Vehicle">
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
@@ -1320,6 +1317,11 @@ const DesktopDashboard = () => {
                                         {photoCount > 0 && (
                                           <span className="text-xs text-muted-foreground">📷 {photoCount}</span>
                                         )}
+                                        {task.diagnosticPdfUrl && (
+                                          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-500/40">
+                                            <FileUp className="h-3 w-3 mr-1" />PDF
+                                          </Badge>
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
@@ -1355,6 +1357,9 @@ const DesktopDashboard = () => {
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
+                                          <FileUp className={`h-3.5 w-3.5 ${task.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
+                                        </Button>
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(task.id)} title="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>

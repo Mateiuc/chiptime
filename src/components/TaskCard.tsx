@@ -611,11 +611,11 @@ export const TaskCard = ({
         .filter(Boolean)
         .join(' ') || 'your vehicle';
       
-      // Merge diagnostic PDF if available
-      if (vehicle?.diagnosticPdfUrl) {
+      // Merge diagnostic PDF if available (task-level)
+      if (task.diagnosticPdfUrl) {
         try {
           const billBlob = doc.output('blob');
-          const mergedBlob = await mergePdfs(billBlob, vehicle.diagnosticPdfUrl);
+          const mergedBlob = await mergePdfs(billBlob, task.diagnosticPdfUrl);
           const reader = new FileReader();
           const mergedBase64 = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
@@ -920,6 +920,24 @@ export const TaskCard = ({
         }
       }
 
+      // Merge diagnostic PDF if available (task-level)
+      if (task.diagnosticPdfUrl) {
+        try {
+          const billBlob = doc.output('blob');
+          const mergedBlob = await mergePdfs(billBlob, task.diagnosticPdfUrl);
+          const url = URL.createObjectURL(mergedBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `preview_${sanitizeForFilename(client?.name)}_${sanitizeForFilename(vehicle?.make)}_${formatDateForFilename(task.createdAt)}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast({ title: 'Preview Generated', description: 'Includes diagnostic report' });
+          return;
+        } catch (mergeError) {
+          console.warn('Failed to merge diagnostic PDF in preview:', mergeError);
+        }
+      }
+
       // Save PDF with preview filename
       const clientName = sanitizeForFilename(client?.name);
       const carBrand = sanitizeForFilename(vehicle?.make);
@@ -1143,14 +1161,14 @@ export const TaskCard = ({
     }
   };
 
-  // Handle uploading diagnostic PDF for vehicle
+  // Handle uploading diagnostic PDF for this task
   const handleUploadDiagnosticPdf = async () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file || !vehicle) return;
+      if (!file) return;
       try {
         toast({ title: 'Uploading...', description: 'Uploading diagnostic PDF' });
         const base64 = await new Promise<string>((resolve, reject) => {
@@ -1164,12 +1182,14 @@ export const TaskCard = ({
         });
 
         const { data, error } = await supabase.functions.invoke('upload-diagnostic', {
-          body: { base64, vehicleId: vehicle.id, fileName: file.name },
+          body: { base64, taskId: task.id, fileName: file.name },
         });
 
         if (error) throw error;
-        onUpdateVehicle?.(vehicle.id, { diagnosticPdfUrl: data.url });
-        toast({ title: 'Uploaded', description: 'Diagnostic PDF will be included in bills' });
+        if (onUpdateTask) {
+          onUpdateTask({ ...task, diagnosticPdfUrl: data.url });
+        }
+        toast({ title: 'Uploaded', description: 'Diagnostic PDF attached to this task' });
       } catch (err) {
         console.error('Upload diagnostic error:', err);
         toast({ title: 'Upload Failed', description: 'Could not upload diagnostic PDF', variant: 'destructive' });
@@ -1225,6 +1245,11 @@ export const TaskCard = ({
                 {vehicle?.year} {vehicle?.make} {vehicle?.model}
               </p>
               <p className="text-xs text-muted-foreground mt-1">VIN: {vehicle?.vin}</p>
+              {task.diagnosticPdfUrl && (
+                <Badge variant="outline" className="text-xs mt-1 text-emerald-600 border-emerald-500/40">
+                  <FileText className="h-3 w-3 mr-1" />Diagnostic PDF
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               
@@ -1297,7 +1322,7 @@ export const TaskCard = ({
                   )}
                   <DropdownMenuItem onClick={handleUploadDiagnosticPdf}>
                     <FileText className="h-4 w-4 mr-2" />
-                    {vehicle?.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}
+                    {task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

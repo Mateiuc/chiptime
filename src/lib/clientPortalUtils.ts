@@ -18,6 +18,7 @@ export interface SessionCostDetail {
   status: TaskStatus;
   photoUrls: string[];
   diagnosticPdfUrl?: string;
+  periods: { start: Date; end: Date }[];
 }
 
 export interface VehicleCostSummary {
@@ -70,6 +71,7 @@ interface SlimSession {
   akc?: number;
   aklc?: number;
   dpdf?: string;
+  pds?: [number, number][];
 }
 
 interface SlimVehicle {
@@ -200,6 +202,7 @@ export function calculateClientCosts(
             .filter(p => p.cloudUrl)
             .map(p => p.cloudUrl!),
           diagnosticPdfUrl: showDiagnostic ? task.diagnosticPdfUrl : undefined,
+          periods: session.periods.map(p => ({ start: new Date(p.startTime), end: new Date(p.endTime) })),
         });
       });
     });
@@ -265,6 +268,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
         aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
         dpdf: s.diagnosticPdfUrl || undefined,
+        pds: s.periods.length > 0 ? s.periods.map(p => [Math.floor(new Date(p.start).getTime() / 1000), Math.floor(new Date(p.end).getTime() / 1000)] as [number, number]) : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -317,6 +321,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         status: ss.st as TaskStatus,
         photoUrls: ss.ph || [],
         diagnosticPdfUrl: ss.dpdf || undefined,
+        periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,
@@ -501,8 +506,9 @@ document.getElementById('pin-btn').disabled=true;
 }
 }
 function fmt(n){return'$'+n.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')}
-function fmtDur(s){var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);return h+'h '+m+'m'}
+function fmtDur(s){var tm=Math.round(s/60);var h=Math.floor(tm/60);var m=tm%60;return h+'h '+m+'m'}
 function fmtDate(ts){var d=new Date(ts*1000);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+function fmtTime(ts){var d=new Date(ts*1000);return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}
 function renderContent(){
 var s=D.s;var el=document.getElementById('content');
 el.classList.remove('hidden');
@@ -516,6 +522,7 @@ v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
 var baseLab=ss.lc-(ss.mha||0)-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
 h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(baseLab)+'</b></span></div>';
+if(ss.pds&&ss.pds.length>0){ss.pds.forEach(function(pd){h+='<div class="extra-line">🕐 '+fmtTime(pd[0])+' → '+fmtTime(pd[1])+'</div>'})}
 if(ss.mha&&ss.mha>0)h+='<div class="extra-line">🚩 Min 1 Hour: <b>'+fmt(ss.mha)+'</b></div>';
 if(ss.clc&&ss.clc>0)h+='<div class="extra-line">📋 Cloning: <b>'+fmt(ss.clc)+'</b></div>';
 if(ss.prc&&ss.prc>0)h+='<div class="extra-line">💻 Programming: <b>'+fmt(ss.prc)+'</b></div>';

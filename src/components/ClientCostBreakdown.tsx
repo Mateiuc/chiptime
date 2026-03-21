@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatDuration, formatCurrency } from '@/lib/formatTime';
+import { formatCurrency } from '@/lib/formatTime';
 import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, FileText, ExternalLink, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -139,6 +139,19 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatTimeOnly = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const formatRoundedDuration = (seconds: number) => {
+    const totalMinutes = Math.round(seconds / 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h ${m}m`;
+  };
+
   const allowedStatuses = filter ? statusMap[filter] : null;
 
   const filteredVehicles = costSummary.vehicles
@@ -264,13 +277,20 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {formatDuration(session.duration)}
+                        {formatRoundedDuration(session.duration)}
                       </span>
                       <span className="flex items-center gap-1 font-semibold text-foreground">
                         <DollarSign className="h-3 w-3" />
                         Labor: {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                       </span>
                     </div>
+                    {session.periods && session.periods.length > 0 && (
+                      <div className="flex flex-col gap-0.5 text-[10px] md:text-xs text-muted-foreground">
+                        {session.periods.map((period, pIdx) => (
+                          <span key={pIdx}>🕐 {formatTimeOnly(period.start)} → {formatTimeOnly(period.end)}</span>
+                        ))}
+                      </div>
+                    )}
                     {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0) && (
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] md:text-xs text-muted-foreground mt-0.5">
                         {(session.minHourAdj || 0) > 0 && <span>🚩 Min 1hr: {formatCurrency(session.minHourAdj)}</span>}

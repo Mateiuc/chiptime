@@ -740,8 +740,8 @@ const DesktopDashboard = () => {
     const hourlyRate = client?.hourlyRate || 0;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = settings.defaultAllKeysLostRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     clientTasks.forEach(task => {

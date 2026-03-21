@@ -1,33 +1,57 @@
 
 
-# Color-Code Start (Green) and Stop (Red) Times Everywhere
+# Payment Methods for Client Portal
 
-## Changes
+## Overview
 
-### 1. `src/components/ClientCostBreakdown.tsx` (line 290)
-Currently: `🕐 {formatTimeOnly(period.start)} → {formatTimeOnly(period.end)}`
+Upgrade the single payment link to support multiple payment options (Zelle, Cash App, Venmo, etc.) plus Stripe card payments, giving clients a clean selection when paying for billed work.
 
-Change to render start time in green and end time in red:
-```tsx
-<span className="text-green-500 font-medium">{formatTimeOnly(period.start)}</span>
-<span className="text-muted-foreground"> → </span>
-<span className="text-red-500 font-medium">{formatTimeOnly(period.end)}</span>
+## Phase 1: Multiple Payment Links
+
+### Settings Changes
+
+**`src/types/index.ts`** — Replace single `paymentLink`/`paymentLabel` with an array:
+```typescript
+paymentMethods?: { label: string; url: string; icon?: string }[];
+// Keep old fields for backward compatibility during migration
 ```
 
-### 2. `src/components/EditTaskDialog.tsx` (lines 472-473, 505-506)
-- "Start" label: change `text-muted-foreground` to `text-green-600` (both desktop span and mobile Label)
-- "End" label: change `text-muted-foreground` to `text-red-600` (both desktop span and mobile Label)
+**`src/components/DesktopSettingsView.tsx`** and **`src/components/SettingsDialog.tsx`** — Replace single payment input with a dynamic list:
+- "Add Payment Method" button
+- Each row: Label input + URL input + delete button
+- Pre-filled suggestions: Zelle, Cash App, Venmo
 
-### 3. `src/components/TaskInlineEditor.tsx` (lines 328, 342)
-- "Start" span: change `text-muted-foreground` to `text-green-600`
-- "End" span: change `text-muted-foreground` to `text-red-600`
+### Portal Data Pipeline
 
-### 4. `src/lib/clientPortalUtils.ts` (line 525) — HTML portal generator
-Update the inline JS that renders periods to wrap start time in green and end time in red using inline CSS styles:
-```js
-h+='<div class="extra-line"><span style="color:#22c55e;font-weight:600">'+fmtTime(pd[0])+'</span> → <span style="color:#ef4444;font-weight:600">'+fmtTime(pd[1])+'</span></div>'
-```
+**`src/lib/clientPortalUtils.ts`**:
+- Update `ClientCostSummary` to include `paymentMethods` array
+- Update slim/inflate to encode the array
+- Update `syncPortalToCloud` to pass methods through
+- Update HTML portal generator
 
-## Summary
-4 files, purely cosmetic color changes to Start/Stop time labels and values. Green = start, Red = stop, consistent across the entire app.
+### Portal UI
+
+**`src/components/ClientCostBreakdown.tsx`** — Show payment buttons for each method:
+- Stack of branded buttons (green Zelle, blue Venmo, etc.)
+- Each opens the respective payment URL
+
+## Phase 2: Stripe Card Payments
+
+This requires enabling the Stripe integration first. After enabling:
+- Add a "Pay with Card" button in the portal
+- Create an edge function to generate a Stripe Checkout session for the billed amount
+- Redirect client to Stripe Checkout, then back to portal on success
+
+## Recommended Approach
+
+Start with Phase 1 (multiple payment links) since it works immediately with no external setup. Then enable Stripe for card payments as a follow-up.
+
+## Files to Change (Phase 1)
+
+1. `src/types/index.ts` — Add `paymentMethods` array type
+2. `src/components/DesktopSettingsView.tsx` — Multi-method settings UI
+3. `src/components/SettingsDialog.tsx` — Multi-method settings UI (mobile)
+4. `src/lib/clientPortalUtils.ts` — Data pipeline + HTML generator
+5. `src/components/ClientCostBreakdown.tsx` — Multiple payment buttons
+6. All sync call sites — Pass new payment methods data
 

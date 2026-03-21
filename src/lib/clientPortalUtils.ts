@@ -311,6 +311,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         partsCost: ss.pc,
         status: ss.st as TaskStatus,
         photoUrls: ss.ph || [],
+        diagnosticPdfUrl: ss.dpdf || undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,

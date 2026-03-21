@@ -1299,7 +1299,7 @@ export const TaskCard = ({
                   )}
                   <DropdownMenuItem onClick={handleUploadDiagnosticPdf}>
                     <FileText className="h-4 w-4 mr-2" />
-                    {vehicle?.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}
+                    {task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

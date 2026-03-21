@@ -45,6 +45,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       defaultProgrammingRate: defaultProgrammingRate ? parseFloat(defaultProgrammingRate) : undefined,
       defaultAddKeyRate: defaultAddKeyRate ? parseFloat(defaultAddKeyRate) : undefined,
       defaultAllKeysLostRate: defaultAllKeysLostRate ? parseFloat(defaultAllKeysLostRate) : undefined,
+      paymentLink: paymentLink.trim() || undefined,
+      paymentLabel: paymentLabel.trim() || undefined,
     });
     toast({ title: 'Settings Saved' });
   };

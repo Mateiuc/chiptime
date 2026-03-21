@@ -16,6 +16,13 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [itin, setItin] = useState('');
+  const [notes, setNotes] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
   const [cloningRate, setCloningRate] = useState('');
   const [programmingRate, setProgrammingRate] = useState('');
@@ -37,6 +44,13 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       name: name.trim(),
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
+      address: address.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
+      zip: zip.trim() || undefined,
+      companyName: companyName.trim() || undefined,
+      itin: itin.trim() || undefined,
+      notes: notes.trim() || undefined,
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
       cloningRate: cloningRate ? parseFloat(cloningRate) : undefined,
       programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
@@ -48,6 +62,13 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setName('');
     setEmail('');
     setPhone('');
+    setAddress('');
+    setCity('');
+    setState('');
+    setZip('');
+    setCompanyName('');
+    setItin('');
+    setNotes('');
     setHourlyRate('');
     setCloningRate('');
     setProgrammingRate('');

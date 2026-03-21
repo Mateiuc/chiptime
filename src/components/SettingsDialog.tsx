@@ -98,7 +98,9 @@ export const SettingsDialog = ({
     setOcrSpaceApiKey(settings.ocrSpaceApiKey || '');
     setOcrProvider(settings.ocrProvider || 'gemini');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
-  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled]);
+    setPaymentLink(settings.paymentLink || '');
+    setPaymentLabel(settings.paymentLabel || '');
+  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentLink, settings.paymentLabel]);
 
   const handleSaveSettings = () => {
     onSave({

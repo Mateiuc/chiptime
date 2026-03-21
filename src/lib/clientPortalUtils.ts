@@ -18,6 +18,7 @@ export interface SessionCostDetail {
   status: TaskStatus;
   photoUrls: string[];
   diagnosticPdfUrl?: string;
+  periods: { start: Date; end: Date }[];
 }
 
 export interface VehicleCostSummary {

@@ -112,7 +112,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, address: client.address, city: client.city, state: client.state, zip: client.zip, companyName: client.companyName, itin: client.itin, notes: client.notes, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
   };
 
   const handleSaveClientEdit = (clientId: string) => {
@@ -246,13 +246,22 @@ export const DesktopClientsView = ({
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Name *</Label><Input value={editFormData.name || ''} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Company Name</Label><Input value={editFormData.companyName || ''} onChange={e => setEditFormData(p => ({ ...p, companyName: e.target.value || undefined }))} placeholder="Business name" /></div>
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Phone</Label><Input type="tel" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} /></div>
+                <div className="space-y-2 col-span-2"><Label>Address</Label><Input value={editFormData.address || ''} onChange={e => setEditFormData(p => ({ ...p, address: e.target.value || undefined }))} placeholder="Street address" /></div>
+                <div className="space-y-2"><Label>City</Label><Input value={editFormData.city || ''} onChange={e => setEditFormData(p => ({ ...p, city: e.target.value || undefined }))} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>State</Label><Input value={editFormData.state || ''} onChange={e => setEditFormData(p => ({ ...p, state: e.target.value || undefined }))} /></div>
+                  <div className="space-y-2"><Label>ZIP</Label><Input value={editFormData.zip || ''} onChange={e => setEditFormData(p => ({ ...p, zip: e.target.value || undefined }))} /></div>
+                </div>
+                <div className="space-y-2"><Label>ITIN</Label><Input value={editFormData.itin || ''} onChange={e => setEditFormData(p => ({ ...p, itin: e.target.value || undefined }))} placeholder="Individual Taxpayer ID" /></div>
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
                 <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Add Key Rate ($)</Label><Input type="number" value={editFormData.addKeyRate || ''} onChange={e => setEditFormData(p => ({ ...p, addKeyRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>All Keys Lost Rate ($)</Label><Input type="number" value={editFormData.allKeysLostRate || ''} onChange={e => setEditFormData(p => ({ ...p, allKeysLostRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2 col-span-2"><Label>Notes</Label><textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={editFormData.notes || ''} onChange={e => setEditFormData(p => ({ ...p, notes: e.target.value || undefined }))} placeholder="Internal notes about this client" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>
@@ -290,11 +299,23 @@ export const DesktopClientsView = ({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-6 text-sm">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                  {selectedClient.companyName && <div className="flex items-center gap-1.5 font-medium">{selectedClient.companyName}</div>}
                   {selectedClient.email && <div className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-primary" />{selectedClient.email}</div>}
                   {selectedClient.phone && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-primary" />{selectedClient.phone}</div>}
                   <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.hourlyRate || '—'}/hr</div>
+                  {selectedClient.cloningRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.cloningRate} /clone</div>}
+                  {selectedClient.programmingRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.programmingRate} /prog</div>}
+                  {selectedClient.addKeyRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.addKeyRate} /add-key</div>}
+                  {selectedClient.allKeysLostRate && <div className="flex items-center gap-1.5"><DollarSign className="h-4 w-4 text-primary" />{selectedClient.allKeysLostRate} /AKL</div>}
+                  {selectedClient.itin && <div className="flex items-center gap-1.5 text-muted-foreground">ITIN: {selectedClient.itin}</div>}
                 </div>
+                {(selectedClient.address || selectedClient.city || selectedClient.state) && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {[selectedClient.address, [selectedClient.city, selectedClient.state, selectedClient.zip].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
+                  </div>
+                )}
+                {selectedClient.notes && <div className="text-sm text-muted-foreground mt-2 italic">{selectedClient.notes}</div>}
               </CardContent>
             </Card>
 

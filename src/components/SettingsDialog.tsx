@@ -117,8 +117,7 @@ export const SettingsDialog = ({
       ocrProvider,
       backup: settings.backup,
       notificationsEnabled,
-      paymentLink: paymentLink.trim() || undefined,
-      paymentLabel: paymentLabel.trim() || undefined,
+      paymentMethods: paymentMethods.filter(m => m.label.trim() && m.url.trim()),
     });
     setCurrentView('menu');
   };

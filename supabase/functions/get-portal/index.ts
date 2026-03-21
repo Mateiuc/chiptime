@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url)
     const id = url.searchParams.get('id')
+    const code = url.searchParams.get('code')
 
     if (!id) {
       return new Response(JSON.stringify({ error: 'Missing id parameter' }), {
@@ -21,9 +22,10 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Use service role key to bypass RLS
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
     const { data, error } = await supabase
@@ -46,10 +48,32 @@ Deno.serve(async (req) => {
       })
     }
 
+    // If portal has an access code, validate it server-side
+    if (data.access_code) {
+      // No code provided — return metadata only (requiresCode flag)
+      if (!code) {
+        return new Response(JSON.stringify({
+          requiresCode: true,
+          clientName: data.client_name,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Code provided but incorrect
+      if (code !== data.access_code) {
+        return new Response(JSON.stringify({ error: 'Invalid access code' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // Code valid or no code required — return data (never expose accessCode)
     return new Response(JSON.stringify({
       data: data.data,
-      accessCode: data.access_code,
       clientName: data.client_name,
+      requiresCode: false,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

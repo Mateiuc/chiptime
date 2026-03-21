@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
-import { ClientCostSummary, decodeClientData, fetchPortalFromCloud } from '@/lib/clientPortalUtils';
+import { ClientCostSummary, decodeClientData, checkPortalAccess, fetchPortalWithCode } from '@/lib/clientPortalUtils';
 import { Lock, Wrench } from 'lucide-react';
 
 const ClientPortal = () => {
@@ -19,7 +19,8 @@ const ClientPortal = () => {
   const [verified, setVerified] = useState(isPreview);
   const [costSummary, setCostSummary] = useState<ClientCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expectedCode, setExpectedCode] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [requiresCode, setRequiresCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'pending' | 'billed' | 'paid'>('pending');
 
   const cloudPortalId = searchParams.get('id');
@@ -29,9 +30,13 @@ const ClientPortal = () => {
     const load = async () => {
       try {
         if (cloudPortalId) {
-          const result = await fetchPortalFromCloud(cloudPortalId);
-          setCostSummary(result.data);
-          setExpectedCode(result.accessCode);
+          const result = await checkPortalAccess(cloudPortalId);
+          if (result.requiresCode) {
+            setRequiresCode(true);
+          } else {
+            setCostSummary(result.data!);
+            setVerified(true);
+          }
         } else if (isSharedMode) {
           const hash = location.hash.slice(1);
           if (!hash) {
@@ -41,7 +46,13 @@ const ClientPortal = () => {
           }
           const { data, accessCode } = await decodeClientData(hash);
           setCostSummary(data);
-          setExpectedCode(accessCode);
+          if (!accessCode) {
+            setVerified(true);
+          } else {
+            setRequiresCode(true);
+            // Store for local hash-based validation
+            (window as any).__portalAccessCode = accessCode;
+          }
         } else {
           setError('Invalid portal link.');
         }
@@ -54,18 +65,31 @@ const ClientPortal = () => {
     load();
   }, [cloudPortalId, isSharedMode, location.hash]);
 
-  const handleVerify = () => {
-    if (!expectedCode) {
-      // No code set — allow access
-      setVerified(true);
-      return;
-    }
-    if (pin === expectedCode) {
-      setVerified(true);
+  const handleVerify = async () => {
+    if (cloudPortalId) {
+      // Server-side PIN validation
+      setVerifying(true);
       setError('');
+      try {
+        const result = await fetchPortalWithCode(cloudPortalId, pin);
+        setCostSummary(result.data);
+        setVerified(true);
+      } catch (e: any) {
+        setError(e.message?.includes('Invalid') ? 'Incorrect code. Please try again.' : 'Verification failed.');
+        setPin('');
+      } finally {
+        setVerifying(false);
+      }
     } else {
-      setError('Incorrect code. Please try again.');
-      setPin('');
+      // Local hash-based validation
+      const expectedCode = (window as any).__portalAccessCode;
+      if (!expectedCode || pin === expectedCode) {
+        setVerified(true);
+        setError('');
+      } else {
+        setError('Incorrect code. Please try again.');
+        setPin('');
+      }
     }
   };
 
@@ -77,7 +101,7 @@ const ClientPortal = () => {
     );
   }
 
-  if (error && !costSummary) {
+  if (error && !costSummary && !requiresCode) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 gap-4">
         <p className="text-destructive font-semibold">{error}</p>
@@ -89,7 +113,7 @@ const ClientPortal = () => {
   }
 
   // PIN screen
-  if (!verified && expectedCode) {
+  if (!verified && requiresCode) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <header className="border-b-2 border-border px-4 py-3 flex items-center gap-2 bg-card">
@@ -121,8 +145,8 @@ const ClientPortal = () => {
 
               {error && <p className="text-destructive text-xs font-medium">{error}</p>}
 
-              <Button onClick={handleVerify} disabled={pin.length < 4} className="w-full">
-                View My Costs
+              <Button onClick={handleVerify} disabled={pin.length < 4 || verifying} className="w-full">
+                {verifying ? 'Verifying...' : 'View My Costs'}
               </Button>
             </CardContent>
           </Card>

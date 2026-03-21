@@ -626,12 +626,13 @@ export async function syncPortalToCloud(
 }
 
 /**
- * Fetch portal data from the cloud by portal ID
+ * Check if a cloud portal requires an access code.
+ * Returns metadata without exposing any data.
  */
-export async function fetchPortalFromCloud(portalId: string): Promise<{
-  data: ClientCostSummary;
-  accessCode: string | null;
-  clientName: string;
+export async function checkPortalAccess(portalId: string): Promise<{
+  requiresCode: boolean;
+  clientName?: string;
+  data?: ClientCostSummary;
 }> {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const resp = await fetch(
@@ -649,9 +650,63 @@ export async function fetchPortalFromCloud(portalId: string): Promise<{
   }
 
   const result = await resp.json();
+
+  if (result.requiresCode) {
+    return { requiresCode: true, clientName: result.clientName };
+  }
+
+  // No code required — data is included
+  return {
+    requiresCode: false,
+    clientName: result.clientName,
+    data: inflateSlimPayload(result.data),
+  };
+}
+
+/**
+ * Fetch portal data with access code (server-side PIN validation).
+ */
+export async function fetchPortalWithCode(portalId: string, code: string): Promise<{
+  data: ClientCostSummary;
+  clientName: string;
+}> {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const resp = await fetch(
+    `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}&code=${encodeURIComponent(code)}`,
+    {
+      headers: {
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Invalid access code');
+  }
+
+  const result = await resp.json();
   return {
     data: inflateSlimPayload(result.data),
-    accessCode: result.accessCode,
     clientName: result.clientName,
+  };
+}
+
+/**
+ * @deprecated Use checkPortalAccess + fetchPortalWithCode instead
+ */
+export async function fetchPortalFromCloud(portalId: string): Promise<{
+  data: ClientCostSummary;
+  accessCode: string | null;
+  clientName: string;
+}> {
+  const result = await checkPortalAccess(portalId);
+  if (result.requiresCode) {
+    throw new Error('Portal requires access code');
+  }
+  return {
+    data: result.data!,
+    accessCode: null,
+    clientName: result.clientName || '',
   };
 }

@@ -268,6 +268,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
         aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
         dpdf: s.diagnosticPdfUrl || undefined,
+        pds: s.periods.length > 0 ? s.periods.map(p => [Math.floor(new Date(p.start).getTime() / 1000), Math.floor(new Date(p.end).getTime() / 1000)] as [number, number]) : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,

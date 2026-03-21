@@ -184,7 +184,6 @@ const VinScanner: React.FC<VinScannerProps> = ({
           height: { ideal: 1080 },
         }
       });
-      });
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }

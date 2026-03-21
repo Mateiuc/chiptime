@@ -246,13 +246,22 @@ export const DesktopClientsView = ({
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Name *</Label><Input value={editFormData.name || ''} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Company Name</Label><Input value={editFormData.companyName || ''} onChange={e => setEditFormData(p => ({ ...p, companyName: e.target.value || undefined }))} placeholder="Business name" /></div>
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Phone</Label><Input type="tel" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} /></div>
+                <div className="space-y-2 col-span-2"><Label>Address</Label><Input value={editFormData.address || ''} onChange={e => setEditFormData(p => ({ ...p, address: e.target.value || undefined }))} placeholder="Street address" /></div>
+                <div className="space-y-2"><Label>City</Label><Input value={editFormData.city || ''} onChange={e => setEditFormData(p => ({ ...p, city: e.target.value || undefined }))} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>State</Label><Input value={editFormData.state || ''} onChange={e => setEditFormData(p => ({ ...p, state: e.target.value || undefined }))} /></div>
+                  <div className="space-y-2"><Label>ZIP</Label><Input value={editFormData.zip || ''} onChange={e => setEditFormData(p => ({ ...p, zip: e.target.value || undefined }))} /></div>
+                </div>
+                <div className="space-y-2"><Label>ITIN</Label><Input value={editFormData.itin || ''} onChange={e => setEditFormData(p => ({ ...p, itin: e.target.value || undefined }))} placeholder="Individual Taxpayer ID" /></div>
                 <div className="space-y-2"><Label>Hourly Rate ($)</Label><Input type="number" value={editFormData.hourlyRate || ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: parseFloat(e.target.value) || undefined }))} /></div>
                 <div className="space-y-2"><Label>Cloning Rate ($)</Label><Input type="number" value={editFormData.cloningRate || ''} onChange={e => setEditFormData(p => ({ ...p, cloningRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Add Key Rate ($)</Label><Input type="number" value={editFormData.addKeyRate || ''} onChange={e => setEditFormData(p => ({ ...p, addKeyRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>All Keys Lost Rate ($)</Label><Input type="number" value={editFormData.allKeysLostRate || ''} onChange={e => setEditFormData(p => ({ ...p, allKeysLostRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2 col-span-2"><Label>Notes</Label><textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={editFormData.notes || ''} onChange={e => setEditFormData(p => ({ ...p, notes: e.target.value || undefined }))} placeholder="Internal notes about this client" /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleSaveClientEdit(selectedClient.id)}><Save className="h-4 w-4 mr-1" /> Save</Button>

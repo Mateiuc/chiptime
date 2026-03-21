@@ -171,20 +171,15 @@ export const DesktopClientsView = ({
   };
 
   const handleShareLink = async (client: Client) => {
-    const code = client.accessCode || generateAccessCode();
-    if (!client.accessCode) onUpdateClient(client.id, { accessCode: code });
     try {
-      let portalId = client.portalId;
-      if (!portalId) {
-        portalId = await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-        onUpdateClient(client.id, { portalId, accessCode: code });
-      } else {
-        await syncPortalToCloud({ ...client, accessCode: code }, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-      }
-      const url = `${PORTAL_BASE_URL}/client-view?id=${portalId}`;
+      const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+      onUpdateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+      const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
       await navigator.clipboard.writeText(url);
-      toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+      toast({ title: 'Link Copied!', description: `Share this link with PIN: ${result.accessCode}` });
     } catch {
+      const code = client.accessCode || generateAccessCode();
+      if (!client.accessCode) onUpdateClient(client.id, { accessCode: code });
       const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
       const encoded = await encodeClientData(summary, code);
       const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
@@ -274,10 +269,18 @@ export const DesktopClientsView = ({
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => handleStartEdit(selectedClient)}><Edit className="h-3.5 w-3.5 mr-1" /> Edit</Button>
                   <Button size="sm" variant="outline" onClick={() => generateClientPDF(selectedClient.id)}><Printer className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    const code = selectedClient.accessCode || generateAccessCode();
-                    if (!selectedClient.accessCode) onUpdateClient(selectedClient.id, { accessCode: code });
-                    toast({ title: 'Access Code', description: `PIN: ${code}` });
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    if (selectedClient.accessCode) {
+                      toast({ title: 'Access Code', description: `PIN: ${selectedClient.accessCode}` });
+                    } else {
+                      try {
+                        const result = await syncPortalToCloud(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                        onUpdateClient(selectedClient.id, { portalId: result.portalId, accessCode: result.accessCode });
+                        toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                      } catch {
+                        toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
+                      }
+                    }
                   }}>
                     <KeyRound className="h-3.5 w-3.5 mr-1" /> {selectedClient.accessCode ? `PIN: ${selectedClient.accessCode}` : 'Set PIN'}
                   </Button>

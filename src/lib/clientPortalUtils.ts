@@ -588,7 +588,10 @@ export async function syncPortalToCloud(
   defaultAllKeysLostRate?: number,
   paymentLink?: string,
   paymentLabel?: string
-): Promise<string> {
+): Promise<{ portalId: string; accessCode: string }> {
+  // Generate PIN here if missing — single source of truth
+  const accessCode = client.accessCode || generateAccessCode();
+
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   summary.paymentLink = paymentLink;
   summary.paymentLabel = paymentLabel;
@@ -598,13 +601,13 @@ export async function syncPortalToCloud(
     body: {
       clientLocalId: client.id,
       clientName: client.name,
-      accessCode: client.accessCode || null,
+      accessCode,
       data: slim,
     },
   });
 
   if (error) throw error;
-  return data.id;
+  return { portalId: data.id, accessCode: data.access_code || accessCode };
 }
 
 /**

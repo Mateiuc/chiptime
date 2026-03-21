@@ -269,10 +269,18 @@ export const DesktopClientsView = ({
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => handleStartEdit(selectedClient)}><Edit className="h-3.5 w-3.5 mr-1" /> Edit</Button>
                   <Button size="sm" variant="outline" onClick={() => generateClientPDF(selectedClient.id)}><Printer className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    const code = selectedClient.accessCode || generateAccessCode();
-                    if (!selectedClient.accessCode) onUpdateClient(selectedClient.id, { accessCode: code });
-                    toast({ title: 'Access Code', description: `PIN: ${code}` });
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    if (selectedClient.accessCode) {
+                      toast({ title: 'Access Code', description: `PIN: ${selectedClient.accessCode}` });
+                    } else {
+                      try {
+                        const result = await syncPortalToCloud(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                        onUpdateClient(selectedClient.id, { portalId: result.portalId, accessCode: result.accessCode });
+                        toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                      } catch {
+                        toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
+                      }
+                    }
                   }}>
                     <KeyRound className="h-3.5 w-3.5 mr-1" /> {selectedClient.accessCode ? `PIN: ${selectedClient.accessCode}` : 'Set PIN'}
                   </Button>

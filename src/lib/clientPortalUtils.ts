@@ -259,6 +259,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         mha: s.minHourAdj > 0 ? Math.round(s.minHourAdj * 100) / 100 : undefined,
         akc: s.addKeyCost > 0 ? Math.round(s.addKeyCost * 100) / 100 : undefined,
         aklc: s.allKeysLostCost > 0 ? Math.round(s.allKeysLostCost * 100) / 100 : undefined,
+        dpdf: s.diagnosticPdfUrl || undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,

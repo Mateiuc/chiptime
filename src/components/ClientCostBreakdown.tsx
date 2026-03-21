@@ -286,19 +286,6 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                       <PhotoGallery photoUrls={session.photoUrls} />
                     )}
 
-                    {/* Diagnostic PDF */}
-                    {session.diagnosticPdfUrl && (
-                      <a
-                        href={session.diagnosticPdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline mt-1"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        View Diagnostic Report
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
 
                     {session.parts.length > 0 && (
                       <div className="mt-2">

@@ -11,10 +11,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { base64, vehicleId, fileName } = await req.json()
+    const { base64, vehicleId, taskId, fileName } = await req.json()
 
-    if (!base64 || !vehicleId) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    const pathPrefix = taskId || vehicleId
+    if (!base64 || !pathPrefix) {
+      return new Response(JSON.stringify({ error: 'Missing required fields (base64 and taskId or vehicleId)' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

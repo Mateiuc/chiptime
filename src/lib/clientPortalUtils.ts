@@ -518,9 +518,10 @@ if(ss.akc&&ss.akc>0)h+='<div class="extra-line">🔑 Add Key: <b>'+fmt(ss.akc)+'
 if(ss.aklc&&ss.aklc>0)h+='<div class="extra-line">🗝️ All Keys Lost: <b>'+fmt(ss.aklc)+'</b></div>';
 if(ss.ph&&ss.ph.length>0){
 h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
-ss.ph.forEach(function(url){h+='<img src="'+esc(url)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0" loading="lazy">'});
+ss.ph.forEach(function(url,pi){h+='<img src="'+esc(url)+'" onclick="openLB('+JSON.stringify(ss.ph)+','+pi+')" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer" loading="lazy">'});
 h+='</div>';
 }
+if(ss.dpdf){h+='<a href="'+esc(ss.dpdf)+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#34d399;font-weight:600;margin-top:4px;text-decoration:none">📄 View Diagnostic Report ↗</a>'}
 if(ss.p.length>0){
 h+='<div class="parts"><div class="parts-title">🔧 Parts</div><table><tr><th>Part</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr>';
 ss.p.forEach(function(p){h+='<tr><td>'+esc(p.n)+'</td><td class="text-center">'+p.q+'</td><td class="text-right">'+fmt(p.pr)+'</td><td class="text-right"><b>'+fmt(p.pr*p.q)+'</b></td></tr>'});

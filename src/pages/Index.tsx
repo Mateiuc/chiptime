@@ -433,8 +433,8 @@ const Index = () => {
         t.id === taskId ? { ...t, status: 'billed' as const } : t
       );
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel)
-        .then(portalId => {
-          if (!client.portalId) updateClient(client.id, { portalId });
+        .then(result => {
+          if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }

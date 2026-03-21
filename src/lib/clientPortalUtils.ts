@@ -278,6 +278,8 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     tmh: data.grandTotalMinHourAdj > 0 ? Math.round(data.grandTotalMinHourAdj * 100) / 100 : undefined,
     tak: data.grandTotalAddKey > 0 ? Math.round(data.grandTotalAddKey * 100) / 100 : undefined,
     takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
+    pl: data.paymentLink || undefined,
+    plbl: data.paymentLabel || undefined,
   };
 }
 

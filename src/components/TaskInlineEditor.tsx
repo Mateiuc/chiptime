@@ -339,7 +339,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                           className="h-8 text-xs w-24 font-medium"
                         />
                         <span className="text-muted-foreground text-xs">→</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">End</span>
+                        <span className="text-[10px] text-red-600 shrink-0">End</span>
                         <Input type="date"
                           value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.dateValue : formatDateForInput(period.endTime)}
                           onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}

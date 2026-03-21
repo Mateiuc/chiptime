@@ -287,7 +287,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     {session.periods && session.periods.length > 0 && (
                       <div className="flex flex-col gap-0.5 text-[10px] md:text-xs text-muted-foreground">
                         {session.periods.map((period, pIdx) => (
-                          <span key={pIdx}>🕐 {formatTimeOnly(period.start)} → {formatTimeOnly(period.end)}</span>
+                          <span key={pIdx}>🕐 <span className="text-green-500 font-medium">{formatTimeOnly(period.start)}</span><span className="text-muted-foreground"> → </span><span className="text-red-500 font-medium">{formatTimeOnly(period.end)}</span></span>
                         ))}
                       </div>
                     )}

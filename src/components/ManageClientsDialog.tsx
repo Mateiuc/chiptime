@@ -689,7 +689,7 @@ export const ManageClientsDialog = ({
                                       onUpdateClient(client.id, { portalId, accessCode: code });
                                     } else {
                                       // Re-sync latest data
-                                      await syncPortalToCloud(
+                                       await syncPortalToCloud(
                                         { ...client, accessCode: code },
                                         vehicles,
                                         tasks,
@@ -697,7 +697,9 @@ export const ManageClientsDialog = ({
                                         settings.defaultCloningRate,
                                         settings.defaultProgrammingRate,
                                         settings.defaultAddKeyRate,
-                                        settings.defaultAllKeysLostRate
+                                        settings.defaultAllKeysLostRate,
+                                        settings.paymentLink,
+                                        settings.paymentLabel
                                       );
                                     }
                                     

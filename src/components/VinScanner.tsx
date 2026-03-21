@@ -10,6 +10,7 @@ import { readVinWithTesseract, type OcrResult as TesseractOcrResult } from '@/li
 import { useNotifications } from '@/hooks/useNotifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/integrations/supabase/client';
 
 type OcrResult = GeminiOcrResult | GrokOcrResult | OcrSpaceOcrResult | TesseractOcrResult;
 

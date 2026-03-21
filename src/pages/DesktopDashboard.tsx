@@ -586,7 +586,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate)
         .then(portalId => { if (!client.portalId) updateClient(client.id, { portalId }); })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }

@@ -176,7 +176,7 @@ export const TaskCard = ({
     doc.text('Client Information:', 20, yPos);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Name: ${client?.name || 'N/A'}`, 20, yPos + 8);
+    doc.text(`Name: ${client?.companyName || client?.name || 'N/A'}`, 20, yPos + 8);
     doc.text(`Phone: ${client?.phone || 'N/A'}`, 20, yPos + 16);
 
     // Right column: Vehicle Information
@@ -336,7 +336,7 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(stripDiacritics(client?.name || 'N/A'), 20, 53);
+      doc.text(stripDiacritics(client?.companyName || client?.name || 'N/A'), 20, 53);
       
       // Vehicle info
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
@@ -697,7 +697,7 @@ export const TaskCard = ({
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(client?.name || 'N/A', 20, 53);
+      doc.text(client?.companyName || client?.name || 'N/A', 20, 53);
       
       const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
         .filter(Boolean)

@@ -506,8 +506,9 @@ document.getElementById('pin-btn').disabled=true;
 }
 }
 function fmt(n){return'$'+n.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')}
-function fmtDur(s){var h=Math.floor(s/3600);var m=Math.floor((s%3600)/60);return h+'h '+m+'m'}
+function fmtDur(s){var tm=Math.round(s/60);var h=Math.floor(tm/60);var m=tm%60;return h+'h '+m+'m'}
 function fmtDate(ts){var d=new Date(ts*1000);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+function fmtTime(ts){var d=new Date(ts*1000);return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}
 function renderContent(){
 var s=D.s;var el=document.getElementById('content');
 el.classList.remove('hidden');

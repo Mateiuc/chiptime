@@ -1,24 +1,26 @@
 
 
-# Use Business Name Instead of Personal Name in Bills
+# Fix Portal Preview Button in Desktop Clients View
 
-## What changes
+## Problem
+The "Portal" button in `DesktopClientsView.tsx` (line 296) navigates to `/client/${selectedClient.id}`, which is a non-existent route causing a 404. It should open the cloud portal URL like the other views do.
 
-When a client has a `companyName` (business name) filled in, use it instead of `client.name` in bill PDFs and the invoice preview. Falls back to `client.name` if no business name exists.
+## Fix
 
-## Files to change
+### `src/components/DesktopClientsView.tsx` (line 296)
+Replace the broken `navigate()` call with `window.open()` using the correct portal URL pattern, matching the behavior in `DesktopDashboard.tsx` and `ManageClientsDialog.tsx`:
 
-### 1. `src/pages/DesktopDashboard.tsx` (line 279)
-Change `client.name || 'N/A'` → `client.companyName || client.name || 'N/A'`
+```text
+// Before:
+navigate(`/client/${selectedClient.id}`)
 
-### 2. `src/components/TaskCard.tsx` (line 339)
-Change `client?.name || 'N/A'` → `client?.companyName || client?.name || 'N/A'`
+// After:
+Force sync to cloud first, then open:
+window.open(`${PORTAL_BASE_URL}/client-view?id=${portalId}&preview=1`, '_blank')
+```
 
-### 3. `src/components/TaskCard.tsx` (line 700)
-Same change: `client?.companyName || client?.name || 'N/A'`
-
-### 4. `src/components/DesktopInvoiceView.tsx`
-In the PDF generation (around the `doc.save` line), change the filename from `clientName` to prefer business name. In the preview panel, also prefer business name display if both fields were to be added — but since the invoice view uses manual entry (not from client DB), no change needed here unless you want to add a "Business Name" field to the invoice form.
-
-**Note**: The invoice creator is a standalone manual-entry tool, so this change primarily affects the bill PDFs generated from tasks (TaskCard and DesktopDashboard).
+Also need to:
+- Import `PORTAL_BASE_URL` and `syncPortalToCloud` (check if already imported)
+- Add async logic to sync portal before opening preview (same pattern as the Eye button in DesktopDashboard tree view)
+- Disable the button if no portal data exists yet, or auto-sync on click
 

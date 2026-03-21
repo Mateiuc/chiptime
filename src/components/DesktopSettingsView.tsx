@@ -33,8 +33,9 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
     setDefaultProgrammingRate(settings.defaultProgrammingRate?.toString() || '');
     setDefaultAddKeyRate(settings.defaultAddKeyRate?.toString() || '');
     setDefaultAllKeysLostRate(settings.defaultAllKeysLostRate?.toString() || '');
-    setPaymentLink(settings.paymentLink || '');
-    setPaymentLabel(settings.paymentLabel || '');
+    setPaymentMethods(
+      settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+    );
   }, [settings]);
 
   const handleSave = () => {

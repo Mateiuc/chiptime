@@ -1,31 +1,34 @@
 
 
-# Centralize PIN Generation in the Cloud
+# Add Extended Client Fields (Address, ITIN, etc.)
 
-## Problem
-Every place that needs an access code calls `generateAccessCode()` locally, meaning mobile and desktop can each generate a **different** PIN for the same client if neither has synced yet. The PIN must be generated once and stored in the cloud as the single source of truth.
+## What changes
 
-## Solution
+Add new optional fields to the Client type — address, city, state, zip, ITIN, company name, and notes. Update the desktop "Edit Client" form and the "Add Client" dialog to include all fields. In the client info display, only show fields that have values.
 
-### 1. `syncPortalToCloud` generates the PIN if missing
-In `src/lib/clientPortalUtils.ts`, modify `syncPortalToCloud`:
-- If `client.accessCode` is empty/null, generate the code **inside this function** before sending it to the cloud.
-- **Return both** `portalId` and `accessCode` from the function so callers can persist it locally.
+## Files to change
 
-### 2. `sync-portal` edge function returns the access code
-In `supabase/functions/sync-portal/index.ts`, include `access_code` in the response JSON so the caller always gets the canonical PIN back.
+### 1. `src/types/index.ts` — Add new fields to Client interface
+New optional fields:
+- `address?: string`
+- `city?: string`
+- `state?: string`
+- `zip?: string`
+- `itin?: string` (Individual Taxpayer Identification Number)
+- `companyName?: string`
+- `notes?: string`
 
-### 3. Remove all local `generateAccessCode()` calls from UI components
-In all call sites (`DesktopDashboard.tsx`, `ManageClientsDialog.tsx`, `DesktopClientsView.tsx`):
-- Stop calling `generateAccessCode()` before sync.
-- Instead, call `syncPortalToCloud(client, ...)` which handles PIN generation internally.
-- Use the returned `accessCode` to update the local client.
-- For "Show PIN" buttons: if `client.accessCode` exists, show it. If not, trigger a sync first to generate one.
+### 2. `src/components/DesktopClientsView.tsx`
 
-### Files to change
-1. `src/lib/clientPortalUtils.ts` — move PIN generation into `syncPortalToCloud`, return `{ portalId, accessCode }`
-2. `supabase/functions/sync-portal/index.ts` — return `access_code` in response
-3. `src/pages/DesktopDashboard.tsx` — use returned accessCode from sync
-4. `src/components/ManageClientsDialog.tsx` — same
-5. `src/components/DesktopClientsView.tsx` — same
+**Edit Client form (lines 246-256)**: Add input fields for all new fields in the grid layout.
+
+**Client info display (lines 292-297)**: Add conditional rendering for each new field — only shown when filled. Example: company name, address block, ITIN with a subtle icon.
+
+### 3. `src/components/AddClientDialog.tsx`
+
+Add the same new fields to the mobile/shared "Add Client" dialog form, following the existing pattern of state variables and inputs.
+
+### 4. `src/components/ManageClientsDialog.tsx`
+
+Check if it has its own edit form and add the new fields there too if needed.
 

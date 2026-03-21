@@ -99,9 +99,10 @@ export const SettingsDialog = ({
     setOcrSpaceApiKey(settings.ocrSpaceApiKey || '');
     setOcrProvider(settings.ocrProvider || 'gemini');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
-    setPaymentLink(settings.paymentLink || '');
-    setPaymentLabel(settings.paymentLabel || '');
-  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentLink, settings.paymentLabel]);
+    setPaymentMethods(
+      settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+    );
+  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentMethods, settings.paymentLink, settings.paymentLabel]);
 
   const handleSaveSettings = () => {
     onSave({

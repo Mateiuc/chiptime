@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url)
     const id = url.searchParams.get('id')
+    const preview = url.searchParams.get('preview') === '1'
     const code = url.searchParams.get('code')
 
     if (!id) {

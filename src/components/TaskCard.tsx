@@ -15,6 +15,7 @@ import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
 import billBackground from '@/assets/bill-background.jpg';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { photoStorageService } from '@/services/photoStorageService';
@@ -1315,7 +1316,11 @@ export const TaskCard = ({
                       Print detail
                     </DropdownMenuItem>}
                   {isCompleted && client && (
-                    <DropdownMenuItem onClick={() => navigate(`/client/${client.id}`)}>
+                    <DropdownMenuItem onClick={() => {
+                      if (client.portalId) {
+                        window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}`, '_blank');
+                      }
+                    }} disabled={!client.portalId}>
                       <Eye className="h-4 w-4 mr-2" />
                       Client Portal
                     </DropdownMenuItem>

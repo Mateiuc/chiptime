@@ -654,9 +654,11 @@ export const ManageClientsDialog = ({
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => {
-                                  onOpenChange(false);
-                                  navigate(`/client/${client.id}`);
+                                  if (client.portalId) {
+                                    window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}`, '_blank');
+                                  }
                                 }}
+                                disabled={!client.portalId}
                                 className="h-8 text-xs hover:bg-primary/5 hover:border-primary/30 transition-colors"
                               >
                                 <Eye className="h-3 w-3 mr-1" /> Portal

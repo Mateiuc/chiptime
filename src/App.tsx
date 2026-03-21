@@ -21,7 +21,6 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Portal routes - full screen, no phone frame */}
-            <Route path="/client/:clientId" element={<ClientPortal />} />
             <Route path="/client-view" element={<ClientPortal />} />
             <Route path="/chip" element={<DesktopDashboard />} />
 

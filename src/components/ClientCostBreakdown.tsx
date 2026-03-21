@@ -82,9 +82,9 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         ))}
       </div>
 
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-4xl p-0 bg-black/95 border-none">
-          <div className="relative flex items-center justify-center min-h-[60vh]">
+      {lightboxOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90" onClick={() => setLightboxOpen(false)}>
+          <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {/* Close button */}
             <button
               onClick={() => setLightboxOpen(false)}
@@ -125,8 +125,9 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
               </button>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

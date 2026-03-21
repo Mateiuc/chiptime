@@ -1317,6 +1317,11 @@ const DesktopDashboard = () => {
                                         {photoCount > 0 && (
                                           <span className="text-xs text-muted-foreground">📷 {photoCount}</span>
                                         )}
+                                        {task.diagnosticPdfUrl && (
+                                          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-500/40">
+                                            <FileUp className="h-3 w-3 mr-1" />PDF
+                                          </Badge>
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">

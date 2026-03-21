@@ -1,55 +1,35 @@
 
 
-# Fix Desktop Bill Photos, Diacritics, and Add Diagnostic PDF Upload
+# Move Diagnostic PDF to Task Level + Add Upload Indicator
 
-## Problems
-1. **Desktop bill PDF missing photos**: Mobile `TaskCard.tsx` appends session photos to the bill (lines 503-597), but desktop `generateBillPdf` in `DesktopDashboard.tsx` stops after the total — no photo pages.
-2. **Diacritics not rendering**: jsPDF's built-in `helvetica` font lacks extended Latin characters (é, ñ, ü, etc.). Characters with diacritics render as blank or garbled. Fix: strip diacritics from text before rendering (jsPDF limitation — no custom font embedding without significant overhead).
-3. **Diagnostic PDF per vehicle**: New feature — allow uploading a diagnostic PDF per vehicle, store it in cloud storage, and append its pages to the end of both mobile and desktop bill PDFs.
+## Summary
+Move diagnostic PDF from vehicle-level to task-level. Move upload button to each task's action area on both mobile and desktop. Show visual indicator when a diagnostic file is uploaded. Ensure bill preview and final bill both merge the diagnostic PDF.
 
 ## Changes
 
-### 1. `src/types/index.ts` — Add `diagnosticPdfUrl` to Vehicle
-Add `diagnosticPdfUrl?: string` to the `Vehicle` interface for storing the cloud URL of the uploaded diagnostic PDF.
+### 1. `src/types/index.ts` — Add `diagnosticPdfUrl` to Task
+- Add `diagnosticPdfUrl?: string` to the `Task` interface
+- Keep vehicle-level field for backward compatibility but stop using it in bill generation
 
-### 2. Create utility: `src/lib/pdfUtils.ts`
-- `stripDiacritics(text: string)`: uses `String.normalize('NFD').replace(...)` to remove accent marks
-- Shared helper for both mobile and desktop PDF generation
+### 2. `src/pages/DesktopDashboard.tsx`
+- **Remove** the `FileUp` button from the vehicle header row (line 1251-1253)
+- **Add** an upload diagnostic button to each task's action buttons (lines 1324-1361), next to Bill/Delete
+- **Update** `handleUploadDiagnosticPdf` to accept `taskId` instead of `vehicleId`, save URL to task via `updateTask(taskId, { diagnosticPdfUrl: url })`
+- **Update** `generateBillPdf` (line 480): use `task.diagnosticPdfUrl` instead of `vehicle.diagnosticPdfUrl`
+- **Add** a visual indicator (green icon or badge) on the task row when `task.diagnosticPdfUrl` exists, showing that a diagnostic file is attached
 
-### 3. `src/pages/DesktopDashboard.tsx` — Fix bill PDF
-- Import `stripDiacritics` and wrap all user-facing text (client name, descriptions, part names) through it
-- Add photo pages after the total section (port the logic from TaskCard lines 503-597, using `cloudUrl` fetch since desktop has no local filesystem)
-- Add diagnostic PDF pages: after photos, if `vehicle.diagnosticPdfUrl` exists, fetch the PDF bytes via `pdf-lib`, extract pages, and append them using jsPDF's `addPage` + image rendering (convert PDF pages to images via canvas)
-- Add "Upload Diagnostic PDF" button per vehicle row in the tree view
+### 3. `src/components/TaskCard.tsx`
+- **Update** upload handler to save `diagnosticPdfUrl` on the task (`onUpdateTask`) instead of vehicle (`onUpdateVehicle`)
+- **Update** bill generation merge (line 615): use `task.diagnosticPdfUrl` instead of `vehicle?.diagnosticPdfUrl`
+- **Add** a small visual indicator (badge/icon) when `task.diagnosticPdfUrl` is set, so user knows a file is attached
+- Keep the dropdown menu item but update its label/logic for task-level
 
-### 4. `src/components/TaskCard.tsx` — Fix mobile bill PDF
-- Import `stripDiacritics` and apply to all text in `generateBillingPDF`
-- After the photos section, if `vehicle.diagnosticPdfUrl` exists, fetch and append diagnostic PDF pages
-- Add "Upload Diagnostic" button in the vehicle/task UI
+### 4. `supabase/functions/upload-diagnostic/index.ts`
+- Accept `taskId` in addition to `vehicleId` for the storage path; use `taskId` when provided, fall back to `vehicleId`
 
-### 5. Diagnostic PDF upload flow
-- Upload handler: accepts a PDF file input, converts to base64, calls the existing `upload-photo` edge function pattern (or a new `upload-diagnostic` edge function) to store in a `diagnostic-pdfs` storage bucket
-- On success, save the public URL to `vehicle.diagnosticPdfUrl` via `updateVehicle`
-
-### 6. Storage bucket migration — `diagnostic-pdfs`
-Create a new public storage bucket `diagnostic-pdfs` for storing uploaded diagnostic PDFs.
-
-### 7. Edge function: `supabase/functions/upload-diagnostic/index.ts`
-Similar to `upload-photo` — accepts base64 PDF + vehicleId, uploads to `diagnostic-pdfs` bucket, returns public URL.
-
-### 8. Appending diagnostic PDF to bill
-Since jsPDF can't natively merge existing PDFs, use `pdf-lib` (already available or add as dependency) to:
-- Generate the bill as a PDF blob from jsPDF
-- Load the diagnostic PDF from URL
-- Merge them using `pdf-lib`'s `PDFDocument.load` + `copyPages`
-- Output the final merged PDF
-
-## Files to create/edit
-1. `src/types/index.ts` — add `diagnosticPdfUrl` to Vehicle
-2. `src/lib/pdfUtils.ts` — new file with `stripDiacritics`
-3. `src/pages/DesktopDashboard.tsx` — diacritics fix, add photos, add diagnostic PDF merge, add upload button
-4. `src/components/TaskCard.tsx` — diacritics fix, add diagnostic PDF merge, add upload button
-5. `supabase/functions/upload-diagnostic/index.ts` — new edge function
-6. SQL migration — create `diagnostic-pdfs` storage bucket
-7. `package.json` — add `pdf-lib` dependency
+## Files to edit
+1. `src/types/index.ts`
+2. `src/pages/DesktopDashboard.tsx`
+3. `src/components/TaskCard.tsx`
+4. `supabase/functions/upload-diagnostic/index.ts`
 

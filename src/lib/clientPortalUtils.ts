@@ -1,4 +1,4 @@
-import { Client, Vehicle, Task, TaskStatus, Part } from '@/types';
+import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod } from '@/types';
 
 export const PORTAL_BASE_URL = 'https://chiptime.chipplc.one';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +47,7 @@ export interface ClientCostSummary {
   grandTotal: number;
   paymentLink?: string;
   paymentLabel?: string;
+  paymentMethods?: PaymentMethod[];
 }
 
 // Slim wire format types for compact encoding
@@ -104,6 +105,7 @@ interface SlimPayload {
   takl?: number;
   pl?: string;
   plbl?: string;
+  pms?: { l: string; u: string; i?: string }[];
 }
 
 export function generateAccessCode(): string {
@@ -289,6 +291,9 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     takl: data.grandTotalAllKeysLost > 0 ? Math.round(data.grandTotalAllKeysLost * 100) / 100 : undefined,
     pl: data.paymentLink || undefined,
     plbl: data.paymentLabel || undefined,
+    pms: data.paymentMethods && data.paymentMethods.length > 0
+      ? data.paymentMethods.map(m => ({ l: m.label, u: m.url, i: m.icon || undefined }))
+      : undefined,
   };
 }
 
@@ -342,6 +347,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     grandTotal: slim.gt,
     paymentLink: slim.pl || undefined,
     paymentLabel: slim.plbl || undefined,
+    paymentMethods: slim.pms ? slim.pms.map(m => ({ label: m.l, url: m.u, icon: m.i })) : undefined,
   };
 }
 
@@ -559,7 +565,7 @@ if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
 if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div></div>';
-if(s.pl){h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(s.pl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}
+if(s.pms&&s.pms.length>0){h+='<div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:16px">';s.pms.forEach(function(pm){h+='<a href="'+esc(pm.u)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">'+(pm.i?pm.i+' ':'💵 ')+'Pay via '+esc(pm.l)+'</a>'});h+='</div>'}else if(s.pl){h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(s.pl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}
 }
 el.innerHTML=h;
 }
@@ -594,7 +600,8 @@ export async function syncPortalToCloud(
   defaultAddKeyRate?: number,
   defaultAllKeysLostRate?: number,
   paymentLink?: string,
-  paymentLabel?: string
+  paymentLabel?: string,
+  paymentMethods?: PaymentMethod[]
 ): Promise<{ portalId: string; accessCode: string }> {
   // Generate PIN here if missing — single source of truth
   const accessCode = client.accessCode || generateAccessCode();
@@ -602,6 +609,7 @@ export async function syncPortalToCloud(
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   summary.paymentLink = paymentLink;
   summary.paymentLabel = paymentLabel;
+  summary.paymentMethods = paymentMethods;
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

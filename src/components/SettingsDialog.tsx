@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Settings, Task, Client, Vehicle } from '@/types';
-import { ChevronLeft, ChevronRight, Download, Upload, Cloud } from 'lucide-react';
+import { Settings, Task, Client, Vehicle, PaymentMethod } from '@/types';
+import { ChevronLeft, ChevronRight, Download, Upload, Cloud, Plus, Trash2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { indexedDB } from '@/lib/indexedDB';
 import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/xmlConverter';
@@ -89,8 +89,9 @@ export const SettingsDialog = ({
   const [ocrSpaceApiKey, setOcrSpaceApiKey] = useState(settings.ocrSpaceApiKey || '');
   const [ocrProvider, setOcrProvider] = useState<'gemini' | 'grok' | 'ocrspace' | 'tesseract'>(settings.ocrProvider || 'gemini');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
-  const [paymentLink, setPaymentLink] = useState(settings.paymentLink || '');
-  const [paymentLabel, setPaymentLabel] = useState(settings.paymentLabel || '');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(
+    settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+  );
 
   useEffect(() => {
     setGoogleApiKey(settings.googleApiKey || '');
@@ -98,9 +99,10 @@ export const SettingsDialog = ({
     setOcrSpaceApiKey(settings.ocrSpaceApiKey || '');
     setOcrProvider(settings.ocrProvider || 'gemini');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
-    setPaymentLink(settings.paymentLink || '');
-    setPaymentLabel(settings.paymentLabel || '');
-  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentLink, settings.paymentLabel]);
+    setPaymentMethods(
+      settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
+    );
+  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentMethods, settings.paymentLink, settings.paymentLabel]);
 
   const handleSaveSettings = () => {
     onSave({
@@ -115,8 +117,7 @@ export const SettingsDialog = ({
       ocrProvider,
       backup: settings.backup,
       notificationsEnabled,
-      paymentLink: paymentLink.trim() || undefined,
-      paymentLabel: paymentLabel.trim() || undefined,
+      paymentMethods: paymentMethods.filter(m => m.label.trim() && m.url.trim()),
     });
     setCurrentView('menu');
   };
@@ -410,26 +411,53 @@ export const SettingsDialog = ({
               </div>
 
               <div className="space-y-2 border-t pt-4">
-                <Label className="text-base font-bold">Client Payment Link</Label>
-                <div className="space-y-2">
-                  <Label>Payment Label</Label>
-                  <Input
-                    value={paymentLabel}
-                    onChange={(e) => setPaymentLabel(e.target.value)}
-                    placeholder="e.g. Zelle, Cash App"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment URL</Label>
-                  <Input
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="https://..."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Link shown as "Pay Now" button in the client portal
-                  </p>
-                </div>
+                <Label className="text-base font-bold">Client Payment Methods</Label>
+                {paymentMethods.map((method, idx) => (
+                  <div key={idx} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">Label</Label>
+                      <Input
+                        value={method.label}
+                        onChange={(e) => {
+                          const updated = [...paymentMethods];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setPaymentMethods(updated);
+                        }}
+                        placeholder="e.g. Zelle"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">URL</Label>
+                      <Input
+                        value={method.url}
+                        onChange={(e) => {
+                          const updated = [...paymentMethods];
+                          updated[idx] = { ...updated[idx], url: e.target.value };
+                          setPaymentMethods(updated);
+                        }}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-destructive"
+                      onClick={() => setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentMethods([...paymentMethods, { label: '', url: '' }])}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Payment Method
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  These appear as "Pay Now" buttons in the client portal
+                </p>
               </div>
 
               <div className="space-y-2">

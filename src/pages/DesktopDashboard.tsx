@@ -105,6 +105,7 @@ const DesktopDashboard = () => {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   // Dialog state
   const [showAddClient, setShowAddClient] = useState(false);

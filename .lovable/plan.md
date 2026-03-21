@@ -1,34 +1,24 @@
 
 
-# Add Extended Client Fields (Address, ITIN, etc.)
+# Use Business Name Instead of Personal Name in Bills
 
 ## What changes
 
-Add new optional fields to the Client type — address, city, state, zip, ITIN, company name, and notes. Update the desktop "Edit Client" form and the "Add Client" dialog to include all fields. In the client info display, only show fields that have values.
+When a client has a `companyName` (business name) filled in, use it instead of `client.name` in bill PDFs and the invoice preview. Falls back to `client.name` if no business name exists.
 
 ## Files to change
 
-### 1. `src/types/index.ts` — Add new fields to Client interface
-New optional fields:
-- `address?: string`
-- `city?: string`
-- `state?: string`
-- `zip?: string`
-- `itin?: string` (Individual Taxpayer Identification Number)
-- `companyName?: string`
-- `notes?: string`
+### 1. `src/pages/DesktopDashboard.tsx` (line 279)
+Change `client.name || 'N/A'` → `client.companyName || client.name || 'N/A'`
 
-### 2. `src/components/DesktopClientsView.tsx`
+### 2. `src/components/TaskCard.tsx` (line 339)
+Change `client?.name || 'N/A'` → `client?.companyName || client?.name || 'N/A'`
 
-**Edit Client form (lines 246-256)**: Add input fields for all new fields in the grid layout.
+### 3. `src/components/TaskCard.tsx` (line 700)
+Same change: `client?.companyName || client?.name || 'N/A'`
 
-**Client info display (lines 292-297)**: Add conditional rendering for each new field — only shown when filled. Example: company name, address block, ITIN with a subtle icon.
+### 4. `src/components/DesktopInvoiceView.tsx`
+In the PDF generation (around the `doc.save` line), change the filename from `clientName` to prefer business name. In the preview panel, also prefer business name display if both fields were to be added — but since the invoice view uses manual entry (not from client DB), no change needed here unless you want to add a "Business Name" field to the invoice form.
 
-### 3. `src/components/AddClientDialog.tsx`
-
-Add the same new fields to the mobile/shared "Add Client" dialog form, following the existing pattern of state variables and inputs.
-
-### 4. `src/components/ManageClientsDialog.tsx`
-
-Check if it has its own edit form and add the new fields there too if needed.
+**Note**: The invoice creator is a standalone manual-entry tool, so this change primarily affects the bill PDFs generated from tasks (TaskCard and DesktopDashboard).
 

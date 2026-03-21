@@ -293,7 +293,15 @@ export const DesktopClientsView = ({
                   }}>
                     <KeyRound className="h-3.5 w-3.5 mr-1" /> {selectedClient.accessCode ? `PIN: ${selectedClient.accessCode}` : 'Set PIN'}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => navigate(`/client/${selectedClient.id}`)}><Eye className="h-3.5 w-3.5 mr-1" /> Portal</Button>
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    try {
+                      const result = await syncPortalToCloud(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                      onUpdateClient(selectedClient.id, { portalId: result.portalId, accessCode: result.accessCode });
+                      window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
+                    } catch {
+                      toast({ title: 'Error', description: 'Could not open portal', variant: 'destructive' });
+                    }
+                  }}><Eye className="h-3.5 w-3.5 mr-1" /> Portal</Button>
                   <Button size="sm" variant="outline" onClick={() => handleShareLink(selectedClient)}><Link2 className="h-3.5 w-3.5 mr-1" /> Share</Button>
                   <Button size="sm" variant="destructive" onClick={() => handleDeleteClient(selectedClient.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete</Button>
                 </div>

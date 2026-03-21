@@ -1003,27 +1003,29 @@ const DesktopDashboard = () => {
         </div>
       </header>
 
-      {/* Filter bar */}
-      <div className="px-6 py-2 border-b bg-card shrink-0 flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          {(['all', 'active', 'completed', 'billed', 'paid'] as FilterType[]).map(f => (
-            <Button
-              key={f}
-              variant={filter === f ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(f)}
-              className="capitalize"
-            >
-              {f} ({countByStatus[f]})
-            </Button>
-          ))}
+      {/* Filter bar — only for non-tree views */}
+      {desktopView !== 'tree' && (
+        <div className="px-6 py-2 border-b bg-card shrink-0 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {(['all', 'active', 'completed', 'billed', 'paid'] as FilterType[]).map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter(f)}
+                className="capitalize"
+              >
+                {f} ({countByStatus[f]})
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span><strong className="text-foreground">{filteredTree.length}</strong> clients</span>
+            <span><strong className="text-foreground">{filteredTree.reduce((s, c) => s + c.vehicles.length, 0)}</strong> vehicles</span>
+            <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> total</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span><strong className="text-foreground">{filteredTree.length}</strong> clients</span>
-          <span><strong className="text-foreground">{filteredTree.reduce((s, c) => s + c.vehicles.length, 0)}</strong> vehicles</span>
-          <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> total</span>
-        </div>
-      </div>
+      )}
 
       {/* Main content */}
       {desktopView === 'settings' ? (
@@ -1047,186 +1049,383 @@ const DesktopDashboard = () => {
           onMoveVehicle={handleMoveVehicle}
         />
       ) : (
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {filteredTree.length === 0 && (
-            <div className="text-center py-20 text-muted-foreground text-lg">
-              No {filter === 'all' ? 'clients' : `${filter} tasks`} found.
-            </div>
-          )}
-
-          {/* Client tree */}
-          {filteredTree.map(({ client, vehicles: clientVehicles }) => {
-            const clientColor = getVehicleColorScheme(client.id);
-            const isExpanded = expandedClients.has(client.id);
-            const rate = client.hourlyRate || settings.defaultHourlyRate;
-
-            return (
-              <div key={client.id} className={`rounded-xl border-2 overflow-hidden ${clientColor.border}`}>
-                {/* Client header */}
-                <div
-                  className={`${clientColor.gradient} px-5 py-3 cursor-pointer flex items-center justify-between`}
-                  onClick={() => toggleClient(client.id)}
+        /* === NEW TWO-PANEL TREE VIEW === */
+        <div className="flex-1 flex overflow-hidden">
+          {/* LEFT SIDEBAR */}
+          <div className="w-[280px] shrink-0 border-r bg-card flex flex-col overflow-hidden">
+            {/* Status filter pills */}
+            <div className="p-3 space-y-1.5 border-b">
+              {([
+                { key: 'all' as FilterType, label: 'All', color: 'bg-muted text-foreground' },
+                { key: 'active' as FilterType, label: 'Active', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' },
+                { key: 'completed' as FilterType, label: 'Completed', color: 'bg-green-500/15 text-green-700 dark:text-green-400' },
+                { key: 'billed' as FilterType, label: 'Billed', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-400' },
+                { key: 'paid' as FilterType, label: 'Paid', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' },
+              ]).map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => { setFilter(f.key); setSelectedClientId(null); }}
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    filter === f.key
+                      ? `${f.color} ring-2 ring-primary/30`
+                      : 'hover:bg-muted/50 text-muted-foreground'
+                  }`}
                 >
-                  <div className="flex items-center gap-4">
-                    {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                    <h2 className="text-lg font-bold">{client.name}</h2>
-                    {editingClientId !== client.id && (
-                      <>
-                        {client.email && (
-                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5" /> {client.email}
-                          </span>
+                  <span className="capitalize">{f.label}</span>
+                  <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${filter === f.key ? 'bg-background/50' : 'bg-muted'}`}>
+                    {countByStatus[f.key]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Summary stats */}
+            <div className="px-3 py-2 border-b text-xs text-muted-foreground flex justify-between">
+              <span>{filteredTree.length} clients</span>
+              <span>{filteredTree.reduce((s, c) => s + c.vehicles.length, 0)} vehicles</span>
+              <span className="font-semibold text-foreground">{formatCurrency(totalRevenue)}</span>
+            </div>
+
+            {/* Client list */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredTree.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No {filter === 'all' ? 'clients' : `${filter} tasks`} found.
+                </div>
+              )}
+              {filteredTree.map(({ client, vehicles: clientVehicles }) => {
+                const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                const taskCount = clientVehicles.flatMap(v => v.tasks).length;
+                const isSelected = selectedClientId === client.id;
+
+                return (
+                  <button
+                    key={client.id}
+                    onClick={() => setSelectedClientId(isSelected ? null : client.id)}
+                    className={`w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors ${
+                      isSelected
+                        ? 'bg-primary/10 border-l-4 border-l-primary'
+                        : 'hover:bg-muted/50 border-l-4 border-l-transparent'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm truncate">{client.name}</div>
+                    <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                      <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
+                      {clientRevenue > 0 && (
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* RIGHT CONTENT PANEL */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {!selectedClientId ? (
+              /* Overview — no client selected */
+              <div>
+                <h2 className="text-lg font-bold mb-4 text-muted-foreground">
+                  {filter === 'all' ? 'All Clients' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Tasks`} — Select a client from the left
+                </h2>
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+                  {filteredTree.map(({ client, vehicles: clientVehicles }) => {
+                    const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                    const taskCount = clientVehicles.flatMap(v => v.tasks).length;
+                    const clientColor = getVehicleColorScheme(client.id);
+                    return (
+                      <div
+                        key={client.id}
+                        className={`rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-shadow ${clientColor.border} ${clientColor.gradient}`}
+                        onClick={() => setSelectedClientId(client.id)}
+                      >
+                        <div className="font-bold text-base">{client.name}</div>
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span>{clientVehicles.length} vehicles</span>
+                          <span>{taskCount} tasks</span>
+                        </div>
+                        {clientRevenue > 0 && (
+                          <div className="mt-2 text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</div>
                         )}
-                        {client.phone && (
-                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" /> {client.phone}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
-                          <CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                    <Badge variant="secondary" className="text-xs">{clientVehicles.length} vehicles</Badge>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditClient(client)} title="Edit Client">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAddVehicleForClient(client.id)} title="Add Vehicle">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      setImportingClientId(client.id);
-                      const input = document.getElementById(`xls-import-${client.id}`) as HTMLInputElement;
-                      input?.click();
-                    }} title="Import XLS Work History">
-                      <Upload className="h-4 w-4" />
-                    </Button>
-                    <input
-                      id={`xls-import-${client.id}`}
-                      type="file"
-                      accept=".xls,.xlsx"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImportXls(file, client.id);
-                        e.target.value = '';
-                      }}
-                    />
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                      if (client.accessCode) {
-                        toast({ title: 'Access Code', description: `PIN: ${client.accessCode}` });
-                      } else {
-                        try {
-                          const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                          updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                          toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
-                        } catch {
-                          toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
-                        }
-                      }
-                    }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
-                      <KeyRound className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                      try {
-                        const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                        updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                        const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
-                        await navigator.clipboard.writeText(url);
-                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${result.accessCode}` });
-                        return;
-                      } catch (err) {
-                        console.warn('[Share] Cloud sync failed, falling back:', err);
-                      }
-                      const code = client.accessCode || generateAccessCode();
-                      if (!client.accessCode) updateClient(client.id, { accessCode: code });
-                      const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
-                      const encoded = await encodeClientData(summary, code);
-                      const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
-                      if (url.length <= 2000) {
-                        await navigator.clipboard.writeText(url);
-                        toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
-                      } else {
-                        const htmlBlob = generatePortalHtmlFile(summary, code);
-                        const file = new File([htmlBlob], `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`, { type: 'text/html' });
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(htmlBlob);
-                        a.download = file.name;
-                        a.click();
-                        URL.revokeObjectURL(a.href);
-                        toast({ title: 'File Downloaded', description: `Send it to your client. PIN: ${code}` });
-                      }
-                    }} title="Share Portal Link">
-                      <Link2 className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                      try {
-                        const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
-                        updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                        window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
-                      } catch {
-                        toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
-                      }
-                    }} title="Client Portal">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
+                        {client.phone && <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Phone className="h-3 w-3" />{client.phone}</div>}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Inline client edit form */}
-                {editingClientId === client.id && (
-                  <div className="px-5 py-3 bg-card/50 border-b flex items-center gap-3 flex-wrap" onClick={e => e.stopPropagation()}>
-                    <Input className="w-48 h-8 text-sm" placeholder="Name" value={editFormData.name || ''} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} />
-                    <Input className="w-48 h-8 text-sm" placeholder="Email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} />
-                    <Input className="w-40 h-8 text-sm" placeholder="Phone" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} />
-                    <Input className="w-28 h-8 text-sm" type="number" placeholder="Rate" value={editFormData.hourlyRate ?? ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined }))} />
-                    <Button size="sm" className="h-8" onClick={saveEditClient}><Save className="h-3.5 w-3.5 mr-1" />Save</Button>
-                    <Button size="sm" variant="ghost" className="h-8" onClick={cancelEditClient}><X className="h-3.5 w-3.5" /></Button>
+                {/* Money Over Time Chart in overview */}
+                <div className="mt-6 rounded-xl border-2 bg-card p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      {drillMonth ? (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => { setDrillMonth(null); setDrillSortField('date'); setDrillSortDir('desc'); setDrillShowCompleted(true); setDrillShowBilled(true); setDrillShowPaid(true); }} className="mr-1 h-7 px-2">
+                            ← Back
+                          </Button>
+                          Details for {drillMonth}
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-5 w-5" />
+                          Money Over Time
+                        </>
+                      )}
+                    </h3>
+                    {!drillMonth && (
+                      <select
+                        value={chartClient}
+                        onChange={e => { setChartClient(e.target.value); setDrillMonth(null); }}
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="all">All Clients</option>
+                        {clients.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
-                )}
+                  {drillMonth ? (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                        <Button variant={drillShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowCompleted(v => !v)}>Completed</Button>
+                        <Button variant={drillShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowBilled(v => !v)}>Billed</Button>
+                        <Button variant={drillShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowPaid(v => !v)}>Paid</Button>
+                      </div>
+                      <div className="h-[220px] overflow-auto">
+                        {drillDownData.length > 0 ? (
+                          <table className="w-full text-sm">
+                            <thead className="sticky top-0 bg-card">
+                              <tr className="border-b">
+                                <th className="text-left py-2 px-2 font-medium text-muted-foreground">Vehicle</th>
+                                <th className="text-left py-2 px-2 font-medium text-muted-foreground">Description</th>
+                                <th className="text-left py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'date') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('date'); setDrillSortDir('desc'); } }}>
+                                  Date {drillSortField === 'date' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
+                                </th>
+                                <th className="text-left py-2 px-2 font-medium text-muted-foreground">Time</th>
+                                <th className="text-left py-2 px-2 font-medium text-muted-foreground">Client</th>
+                                <th className="text-right py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'cost') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('cost'); setDrillSortDir('desc'); } }}>
+                                  Cost {drillSortField === 'cost' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {drillDownData.map((row, i) => (
+                                <tr key={row.id || i} className="border-b border-border/50">
+                                  <td className="py-2 px-2">
+                                    {row.vehicle ? `${row.vehicle.year || ''} ${row.vehicle.make || ''} ${row.vehicle.model || ''}`.trim() || row.vehicle.vin : 'Unknown'}
+                                  </td>
+                                  <td className="py-2 px-2 text-muted-foreground">{row.description}</td>
+                                  <td className="py-2 px-2 text-muted-foreground">{row.date}</td>
+                                  <td className="py-2 px-2 font-mono text-muted-foreground">{row.timeWorked}</td>
+                                  <td className="py-2 px-2">{row.client}</td>
+                                  <td className="py-2 px-2 text-right font-medium">{formatCurrency(row.cost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="sticky bottom-0 bg-card">
+                              <tr className="border-t-2">
+                                <td colSpan={5} className="py-2 px-2 font-bold">Total</td>
+                                <td className="py-2 px-2 text-right font-bold">{formatCurrency(drillDownData.reduce((s, r) => s + r.cost, 0))}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        ) : (
+                          <p className="text-muted-foreground text-center py-8">No data for this month</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                        <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
+                        <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
+                        <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
+                      </div>
+                      {monthlyRevenueData.length > 0 ? (
+                        <div className="h-[250px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthlyRevenueData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                              <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data: any) => { setDrillMonth(data.month); setDrillShowCompleted(chartShowCompleted); setDrillShowBilled(chartShowBilled); setDrillShowPaid(chartShowPaid); }} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">No data</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Selected client detail view */
+              (() => {
+                const clientData = filteredTree.find(c => c.client.id === selectedClientId);
+                if (!clientData) {
+                  return (
+                    <div className="text-center py-20 text-muted-foreground">
+                      <p>Client not found in current filter.</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setSelectedClientId(null)}>Back to Overview</Button>
+                    </div>
+                  );
+                }
+                const { client, vehicles: clientVehicles } = clientData;
+                const clientColor = getVehicleColorScheme(client.id);
+                const rate = client.hourlyRate || settings.defaultHourlyRate;
 
-                {/* Client body — vehicles */}
-                {isExpanded && (
-                  <div className="p-4 space-y-3">
+                return (
+                  <div className="space-y-4">
+                    {/* Client header card */}
+                    <div className={`rounded-xl border-2 overflow-hidden ${clientColor.border}`}>
+                      <div className={`${clientColor.gradient} px-5 py-4`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h2 className="text-xl font-bold">{client.name}</h2>
+                            <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                              {client.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {client.email}</span>}
+                              {client.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {client.phone}</span>}
+                              <span className="flex items-center gap-1 font-semibold"><CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditClient(client)} title="Edit Client">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAddVehicleForClient(client.id)} title="Add Vehicle">
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                              setImportingClientId(client.id);
+                              const input = document.getElementById(`xls-import-${client.id}`) as HTMLInputElement;
+                              input?.click();
+                            }} title="Import XLS">
+                              <Upload className="h-4 w-4" />
+                            </Button>
+                            <input
+                              id={`xls-import-${client.id}`}
+                              type="file"
+                              accept=".xls,.xlsx"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) handleImportXls(file, client.id);
+                                e.target.value = '';
+                              }}
+                            />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                              if (client.accessCode) {
+                                toast({ title: 'Access Code', description: `PIN: ${client.accessCode}` });
+                              } else {
+                                try {
+                                  const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                                  updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                                  toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                                } catch {
+                                  toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
+                                }
+                              }
+                            }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                              try {
+                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                                updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                                const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
+                                await navigator.clipboard.writeText(url);
+                                toast({ title: 'Link Copied!', description: `Share this link with PIN: ${result.accessCode}` });
+                                return;
+                              } catch (err) {
+                                console.warn('[Share] Cloud sync failed, falling back:', err);
+                              }
+                              const code = client.accessCode || generateAccessCode();
+                              if (!client.accessCode) updateClient(client.id, { accessCode: code });
+                              const summary = calculateClientCosts(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate);
+                              const encoded = await encodeClientData(summary, code);
+                              const url = `${PORTAL_BASE_URL}/client-view#${encoded}`;
+                              if (url.length <= 2000) {
+                                await navigator.clipboard.writeText(url);
+                                toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
+                              } else {
+                                const htmlBlob = generatePortalHtmlFile(summary, code);
+                                const a = document.createElement('a');
+                                a.href = URL.createObjectURL(htmlBlob);
+                                a.download = `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                                toast({ title: 'File Downloaded', description: `Send it to your client. PIN: ${code}` });
+                              }
+                            }} title="Share Portal Link">
+                              <Link2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                              try {
+                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel);
+                                updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                                window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
+                              } catch {
+                                toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
+                              }
+                            }} title="Client Portal">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inline client edit form */}
+                      {editingClientId === client.id && (
+                        <div className="px-5 py-3 bg-card/50 border-b flex items-center gap-3 flex-wrap" onClick={e => e.stopPropagation()}>
+                          <Input className="w-48 h-8 text-sm" placeholder="Name" value={editFormData.name || ''} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} />
+                          <Input className="w-48 h-8 text-sm" placeholder="Email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} />
+                          <Input className="w-40 h-8 text-sm" placeholder="Phone" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} />
+                          <Input className="w-28 h-8 text-sm" type="number" placeholder="Rate" value={editFormData.hourlyRate ?? ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined }))} />
+                          <Button size="sm" className="h-8" onClick={saveEditClient}><Save className="h-3.5 w-3.5 mr-1" />Save</Button>
+                          <Button size="sm" variant="ghost" className="h-8" onClick={cancelEditClient}><X className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Vehicles as cards */}
                     {clientVehicles.length === 0 && (
-                      <div className="text-sm text-muted-foreground py-4 text-center">No vehicles{filter !== 'all' ? ` with ${filter} tasks` : ''}.</div>
+                      <div className="text-sm text-muted-foreground py-8 text-center border rounded-xl bg-muted/20">
+                        No vehicles{filter !== 'all' ? ` with ${filter} tasks` : ''}.
+                      </div>
                     )}
                     {clientVehicles.map(({ vehicle, tasks: vehicleTasks }) => {
                       const vColor = getVehicleColorScheme(vehicle.id);
                       const isVExpanded = expandedVehicles.has(vehicle.id);
                       const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown Vehicle';
+                      const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
 
                       return (
-                        <div key={vehicle.id} className={`rounded-lg border-2 overflow-hidden ${vColor.border}`}>
+                        <div key={vehicle.id} className={`rounded-xl border-2 overflow-hidden ${vColor.border}`}>
                           {/* Vehicle header */}
                           <div
-                            className={`${vColor.card} px-4 py-2.5 cursor-pointer flex items-center justify-between`}
+                            className={`${vColor.card} px-4 py-3 cursor-pointer flex items-center justify-between`}
                             onClick={() => toggleVehicle(vehicle.id)}
                           >
                             <div className="flex items-center gap-3">
                               {isVExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               <Car className="h-4 w-4" />
                               <span className="font-bold">{vehicleLabel}</span>
-                              {vehicle.vin && (
-                                <span className="text-xs font-mono text-muted-foreground">VIN: {vehicle.vin}</span>
+                              {vehicle.vin && <span className="text-xs font-mono text-muted-foreground">VIN: {vehicle.vin}</span>}
+                              {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
+                              {vehicleCost > 0 && (
+                                <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">{formatCurrency(vehicleCost)}</span>
                               )}
-                              {vehicle.color && (
-                                <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>
-                              )}
-                              {(() => {
-                                const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
-                                return vehicleCost > 0 ? (
-                                  <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-2">{formatCurrency(vehicleCost)}</span>
-                                ) : null;
-                              })()}
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
@@ -1236,7 +1435,6 @@ const DesktopDashboard = () => {
                               }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              {/* Move vehicle dropdown — simple select */}
                               {clients.length > 1 && (
                                 <select
                                   className="h-7 text-xs border rounded px-1 bg-background"
@@ -1293,7 +1491,7 @@ const DesktopDashboard = () => {
                             </div>
                           )}
 
-                          {/* Vehicle body — tasks/sessions */}
+                          {/* Tasks table within vehicle */}
                           {isVExpanded && (
                             <div className="p-3 space-y-2">
                               {vehicleTasks.length === 0 && (
@@ -1305,10 +1503,10 @@ const DesktopDashboard = () => {
                                 const photoCount = (task.sessions || []).reduce((s, ses) => s + (ses.photos?.length || 0), 0);
 
                                 return (
-                                  <div key={task.id} className={`rounded-lg border p-4 ${sessionColor.session}`}>
+                                  <div key={task.id} className={`rounded-lg border p-3 ${sessionColor.session}`}>
                                     {/* Task header row */}
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-bold text-sm">Task {tIdx + 1}</span>
                                         <span className="text-xs text-muted-foreground">
                                           {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : ''}
@@ -1316,9 +1514,7 @@ const DesktopDashboard = () => {
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
-                                        {photoCount > 0 && (
-                                          <span className="text-xs text-muted-foreground">📷 {photoCount}</span>
-                                        )}
+                                        {photoCount > 0 && <span className="text-xs text-muted-foreground">📷 {photoCount}</span>}
                                         {task.diagnosticPdfUrl && (
                                           <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-500/40">
                                             <FileUp className="h-3 w-3 mr-1" />PDF
@@ -1334,7 +1530,7 @@ const DesktopDashboard = () => {
                                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Preview Bill">
                                               <FileText className="h-3.5 w-3.5 mr-1" />Bill
                                             </Button>
-                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleGenerateBillAndMarkBilled(task)} title="Generate Bill & Mark Billed">
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleGenerateBillAndMarkBilled(task)} title="Bill & Mark Billed">
                                               <Receipt className="h-3.5 w-3.5 mr-1" />Bill & Mark
                                             </Button>
                                           </>
@@ -1380,27 +1576,20 @@ const DesktopDashboard = () => {
                                     {editingTaskId !== task.id && (task.sessions || []).map((session, sIdx) => {
                                       const sDur = getSessionDuration(session);
                                       return (
-                                        <div key={session.id} className={`rounded-md border px-3 py-2 mt-2 ${sessionColor.period}`}>
-                                          <div className="flex items-center gap-3 text-sm">
-                                            <span className="font-semibold">Session {sIdx + 1}</span>
-                                            <span className="text-xs text-muted-foreground">
-                                              {session.createdAt ? new Date(session.createdAt).toLocaleDateString() : ''}
-                                            </span>
-                                            <span className="font-mono text-xs">{formatDuration(sDur)}</span>
+                                        <div key={session.id || sIdx} className={`rounded-md p-2 mt-1 ${sessionColor.session}`}>
+                                          <div className="flex items-center gap-2 text-xs flex-wrap">
+                                            <span className="font-medium">Session {sIdx + 1}</span>
+                                            <span className="font-mono">{formatDuration(sDur)}</span>
+                                            {session.description && <span className="text-muted-foreground">— {session.description}</span>}
+                                            {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}
+                                            {session.isCloning && <Badge variant="outline" className="text-[10px] px-1">Cloning</Badge>}
+                                            {session.isProgramming && <Badge variant="outline" className="text-[10px] px-1">Programming</Badge>}
+                                            {session.isAddKey && <Badge variant="outline" className="text-[10px] px-1">Add Key</Badge>}
+                                            {session.isAllKeysLost && <Badge variant="outline" className="text-[10px] px-1">All Keys Lost</Badge>}
                                           </div>
-                                          {/* Periods inline */}
-                                          {(session.periods || []).length > 0 && (
-                                            <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
-                                              {session.periods.map((p, pIdx) => (
-                                                <span key={p.id || pIdx}>
-                                                  {formatTime(p.startTime)}→{formatTime(p.endTime)} ({formatDuration(p.duration)})
-                                                </span>
-                                              ))}
-                                            </div>
-                                          )}
                                           {/* Parts inline */}
                                           {(session.parts || []).length > 0 && (
-                                            <div className={`flex flex-wrap gap-2 mt-2`}>
+                                            <div className="flex flex-wrap gap-2 mt-1">
                                               {session.parts.map((part, pi) => (
                                                 <span key={pi} className={`text-xs px-2 py-0.5 rounded border ${sessionColor.part}`}>
                                                   {part.name} ×{part.quantity} = {formatCurrency(part.price * part.quantity)}
@@ -1410,14 +1599,14 @@ const DesktopDashboard = () => {
                                           )}
                                           {/* Photos */}
                                           {(session.photos || []).length > 0 && (
-                                            <div className="flex gap-2 mt-2">
+                                            <div className="flex gap-2 mt-1">
                                               {session.photos!.filter(p => p.cloudUrl).map(photo => (
                                                 <a key={photo.id} href={photo.cloudUrl} target="_blank" rel="noopener noreferrer">
-                                                  <img src={photo.cloudUrl} alt="Photo" className="h-12 w-12 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
+                                                  <img src={photo.cloudUrl} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
                                                 </a>
                                               ))}
                                               {session.photos!.filter(p => !p.cloudUrl).length > 0 && (
-                                                <div className="h-12 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
+                                                <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
                                                   <ImageOff className="h-3 w-3" />
                                                   {session.photos!.filter(p => !p.cloudUrl).length} device only
                                                 </div>
@@ -1435,193 +1624,56 @@ const DesktopDashboard = () => {
                         </div>
                       );
                     })}
+
+                    {/* Expected Gain — shown on completed filter */}
+                    {filter === 'completed' && clientVehicles.length > 0 && (() => {
+                      const completedTasks = clientVehicles.flatMap(v => v.tasks);
+                      const totalGain = completedTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+                      if (completedTasks.length === 0) return null;
+                      return (
+                        <div className="rounded-xl border-2 p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border-amber-300 dark:border-amber-700">
+                          <div className="flex items-center gap-2 mb-3">
+                            <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            <h3 className="font-bold text-lg">Expected Gain</h3>
+                          </div>
+                          <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(totalGain)}</div>
+                          <div className="text-sm text-muted-foreground mt-1">{completedTasks.length} completed tasks</div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Revenue Charts — shown on paid filter */}
+                    {filter === 'paid' && revenueChartData.length > 0 && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-xl border-2 p-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-emerald-300 dark:border-emerald-700">
+                          <h3 className="font-bold mb-3">Monthly Revenue</h3>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={revenueChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                              <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="rounded-xl border-2 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-300 dark:border-blue-700">
+                          <h3 className="font-bold mb-3">Cars by Month</h3>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={revenueChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="cars" fill="hsl(var(--chart-2, 220 70% 50%))" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Expected Gain — shown on completed filter */}
-          {filter === 'completed' && filteredTree.length > 0 && (() => {
-            const clientGains = filteredTree.map(({ client, vehicles: cvs }) => {
-              const completedTasks = cvs.flatMap(v => v.tasks);
-              const gain = completedTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
-              return { client, taskCount: completedTasks.length, gain };
-            }).filter(c => c.taskCount > 0);
-            const totalGain = clientGains.reduce((sum, c) => sum + c.gain, 0);
-            const totalTasks = clientGains.reduce((sum, c) => sum + c.taskCount, 0);
-            return (
-              <div className="rounded-xl border-2 p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border-amber-300 dark:border-amber-700 mt-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  <h3 className="font-bold text-lg">Expected Gain</h3>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-amber-300/50 dark:border-amber-700/50">
-                      <th className="text-left py-2 font-semibold">Client</th>
-                      <th className="text-center py-2 font-semibold">Completed Tasks</th>
-                      <th className="text-right py-2 font-semibold">Expected Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientGains.map(({ client, taskCount, gain }) => (
-                      <tr key={client.id} className="border-b border-amber-200/40 dark:border-amber-800/40">
-                        <td className="py-2 font-medium">{client.name}</td>
-                        <td className="py-2 text-center">{taskCount}</td>
-                        <td className="py-2 text-right font-mono font-semibold text-amber-700 dark:text-amber-400">{formatCurrency(gain)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-amber-400 dark:border-amber-600">
-                      <td className="py-2 font-bold">Total</td>
-                      <td className="py-2 text-center font-bold">{totalTasks}</td>
-                      <td className="py-2 text-right font-mono font-bold text-amber-800 dark:text-amber-300 text-base">{formatCurrency(totalGain)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            );
-          })()}
-
-          {/* Revenue Charts — shown on paid filter */}
-          {filter === 'paid' && revenueChartData.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="rounded-xl border-2 p-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-emerald-300 dark:border-emerald-700">
-                <h3 className="font-bold mb-3">Monthly Revenue</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={revenueChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                    <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="rounded-xl border-2 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-300 dark:border-blue-700">
-                <h3 className="font-bold mb-3">Cars by Month</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={revenueChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="cars" fill="hsl(var(--chart-2, 220 70% 50%))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Money Over Time Chart */}
-          <div className="mt-6 rounded-xl border-2 bg-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                {drillMonth ? (
-                  <>
-                    <Button variant="ghost" size="sm" onClick={() => { setDrillMonth(null); setDrillSortField('date'); setDrillSortDir('desc'); setDrillShowCompleted(true); setDrillShowBilled(true); setDrillShowPaid(true); }} className="mr-1 h-7 px-2">
-                      ← Back
-                    </Button>
-                    Details for {drillMonth}
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="h-5 w-5" />
-                    Money Over Time
-                  </>
-                )}
-              </h3>
-              {!drillMonth && (
-                <select
-                  value={chartClient}
-                  onChange={e => { setChartClient(e.target.value); setDrillMonth(null); }}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="all">All Clients</option>
-                  {clients.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-            {drillMonth ? (
-              <div>
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground mr-1">Show:</span>
-                  <Button variant={drillShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowCompleted(v => !v)}>Completed</Button>
-                  <Button variant={drillShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowBilled(v => !v)}>Billed</Button>
-                  <Button variant={drillShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setDrillShowPaid(v => !v)}>Paid</Button>
-                </div>
-                <div className="h-[220px] overflow-auto">
-                {drillDownData.length > 0 ? (
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-card">
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Vehicle</th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Description</th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'date') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('date'); setDrillSortDir('desc'); } }}>
-                          Date {drillSortField === 'date' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
-                        </th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Time Worked</th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Client</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => { if (drillSortField === 'cost') setDrillSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setDrillSortField('cost'); setDrillSortDir('desc'); } }}>
-                          Cost {drillSortField === 'cost' && (drillSortDir === 'asc' ? <ArrowUp className="inline h-3 w-3" /> : <ArrowDown className="inline h-3 w-3" />)}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {drillDownData.map((row, i) => (
-                        <tr key={row.id || i} className="border-b border-border/50">
-                          <td className="py-2 px-2">
-                            {row.vehicle ? `${row.vehicle.year || ''} ${row.vehicle.make || ''} ${row.vehicle.model || ''}`.trim() || row.vehicle.vin : 'Unknown'}
-                            {row.vehicle?.vin && <span className="text-muted-foreground text-xs ml-2">{row.vehicle.vin}</span>}
-                          </td>
-                          <td className="py-2 px-2 text-muted-foreground">{row.description}</td>
-                          <td className="py-2 px-2 text-muted-foreground">{row.date}</td>
-                          <td className="py-2 px-2 font-mono text-muted-foreground">{row.timeWorked}</td>
-                          <td className="py-2 px-2">{row.client}</td>
-                          <td className="py-2 px-2 text-right font-medium">{formatCurrency(row.cost)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="sticky bottom-0 bg-card">
-                      <tr className="border-t-2">
-                        <td colSpan={5} className="py-2 px-2 font-bold">Total</td>
-                        <td className="py-2 px-2 text-right font-bold">{formatCurrency(drillDownData.reduce((s, r) => s + r.cost, 0))}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No data for this month</p>
-                )}
-              </div>
-              </div>
-            ) : (
-              <>
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="text-xs text-muted-foreground mr-1">Show:</span>
-                <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
-                <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
-                <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
-              </div>
-              {monthlyRevenueData.length > 0 ? (
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyRevenueData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Bar dataKey="revenue" fill="hsl(var(--chart-1, 12 76% 61%))" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data: any) => { setDrillMonth(data.month); setDrillShowCompleted(chartShowCompleted); setDrillShowBilled(chartShowBilled); setDrillShowPaid(chartShowPaid); }} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">No data for selected client</p>
-            )}
-              </>
+                );
+              })()
             )}
           </div>
         </div>

@@ -1,57 +1,45 @@
 
 
-# Payment Methods for Client Portal
+# Upload Failed VIN Scan Photos to Cloud + Camera Optimization
 
 ## Overview
+When Tesseract (or any provider) fails to recognize a VIN during manual capture, automatically upload the captured frame to cloud storage. This builds a library of failed scans for future OCR improvement. Also optimize camera settings for better VIN readability.
 
-Upgrade the single payment link to support multiple payment options (Zelle, Cash App, Venmo, etc.) plus Stripe card payments, giving clients a clean selection when paying for billed work.
+## Changes
 
-## Phase 1: Multiple Payment Links
-
-### Settings Changes
-
-**`src/types/index.ts`** — Replace single `paymentLink`/`paymentLabel` with an array:
-```typescript
-paymentMethods?: { label: string; url: string; icon?: string }[];
-// Keep old fields for backward compatibility during migration
+### 1. Create storage bucket for VIN scan photos
+**Database migration** — Create a `vin-scan-failures` storage bucket:
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('vin-scan-failures', 'vin-scan-failures', false);
+-- Allow anonymous uploads (no auth in this app)
+CREATE POLICY "Allow anon uploads to vin-scan-failures"
+ON storage.objects FOR INSERT TO anon, authenticated
+WITH CHECK (bucket_id = 'vin-scan-failures');
 ```
 
-**`src/components/DesktopSettingsView.tsx`** and **`src/components/SettingsDialog.tsx`** — Replace single payment input with a dynamic list:
-- "Add Payment Method" button
-- Each row: Label input + URL input + delete button
-- Pre-filled suggestions: Zelle, Cash App, Venmo
+### 2. Upload failed frames in `VinScanner.tsx`
+In the `captureSingleFrame` function, after OCR returns no valid VIN:
+- Upload the base64 frame to `vin-scan-failures` bucket via the Supabase client
+- File path: `{timestamp}_{provider}.jpg`
+- Include metadata: provider used, raw OCR text, candidates found
+- Fire-and-forget (don't block UI), show a subtle toast "Photo saved for improvement"
 
-### Portal Data Pipeline
+### 3. Camera optimization for VIN readability
+In `startCamera()`:
+- Request higher resolution: `video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }`
+- Enable autofocus continuous mode if supported
+- For Tesseract specifically, apply image preprocessing before OCR:
+  - Increase JPEG quality to 0.98
+  - Add grayscale conversion + contrast boost on the canvas before extracting base64
 
-**`src/lib/clientPortalUtils.ts`**:
-- Update `ClientCostSummary` to include `paymentMethods` array
-- Update slim/inflate to encode the array
-- Update `syncPortalToCloud` to pass methods through
-- Update HTML portal generator
+### 4. Tesseract OCR settings improvement
+In `src/lib/tesseractVinOcr.ts`:
+- Set Tesseract parameters for single-line text mode (`tessedit_pageseg_mode: '7'` — treat as single line)
+- Set character whitelist to VIN-valid characters only (`tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789'`)
+- These dramatically improve accuracy for VIN-specific scanning
 
-### Portal UI
-
-**`src/components/ClientCostBreakdown.tsx`** — Show payment buttons for each method:
-- Stack of branded buttons (green Zelle, blue Venmo, etc.)
-- Each opens the respective payment URL
-
-## Phase 2: Stripe Card Payments
-
-This requires enabling the Stripe integration first. After enabling:
-- Add a "Pay with Card" button in the portal
-- Create an edge function to generate a Stripe Checkout session for the billed amount
-- Redirect client to Stripe Checkout, then back to portal on success
-
-## Recommended Approach
-
-Start with Phase 1 (multiple payment links) since it works immediately with no external setup. Then enable Stripe for card payments as a follow-up.
-
-## Files to Change (Phase 1)
-
-1. `src/types/index.ts` — Add `paymentMethods` array type
-2. `src/components/DesktopSettingsView.tsx` — Multi-method settings UI
-3. `src/components/SettingsDialog.tsx` — Multi-method settings UI (mobile)
-4. `src/lib/clientPortalUtils.ts` — Data pipeline + HTML generator
-5. `src/components/ClientCostBreakdown.tsx` — Multiple payment buttons
-6. All sync call sites — Pass new payment methods data
+## Files to Change
+1. **Database migration** — new `vin-scan-failures` bucket
+2. `src/components/VinScanner.tsx` — upload failed frames + camera resolution boost
+3. `src/lib/tesseractVinOcr.ts` — optimize Tesseract settings for VIN text
 

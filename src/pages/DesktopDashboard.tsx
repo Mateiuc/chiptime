@@ -70,6 +70,8 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
+  const [showSyncPrompt, setShowSyncPrompt] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     setCloudPushEnabled(false);
@@ -77,8 +79,16 @@ const DesktopDashboard = () => {
   }, []);
 
   useEffect(() => {
-    refresh();
+    refresh().then(() => setInitialLoadDone(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show sync key prompt if desktop loaded with empty data after initial pull
+  useEffect(() => {
+    if (!initialLoadDone) return;
+    if (clients.length === 0 && tasks.length === 0) {
+      setShowSyncPrompt(true);
+    }
+  }, [initialLoadDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveToCloud = async () => {
     setSaving(true);

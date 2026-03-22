@@ -63,9 +63,20 @@ export const SyncKeySection = () => {
             {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Copy this key to link another device. Anyone with this key can access your data.
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            Copy this key to link another device. Anyone with this key can access your data.
+          </p>
+          {cloudStatus === 'checking' ? null : cloudStatus === 'found' ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 shrink-0">
+              <Cloud className="h-3 w-3" /> Data found
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+              <CloudOff className="h-3 w-3" /> No cloud data
+            </span>
+          )}
+        </div>
       </div>
 
       {!showLinkInput ? (

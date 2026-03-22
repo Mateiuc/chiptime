@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings as SettingsIcon, Plus } from 'lucide-react';
+import { SyncKeyPrompt } from '@/components/SyncKeyPrompt';
+import { appSyncService } from '@/services/appSyncService';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -34,12 +36,38 @@ const Index = () => {
   const { toast } = useNotifications();
 
   // Cloud sync: pull on mount if remote is newer
-  useCloudSync({
+  const { syncing } = useCloudSync({
     clients: clientsHook,
     vehicles: vehiclesHook,
     tasks: tasksHook,
     settings: settingsHook,
   });
+
+  // Show SyncKeyPrompt if after sync, data is still empty (lost key scenario)
+  const [showSyncKeyPrompt, setShowSyncKeyPrompt] = useState(false);
+  const [syncChecked, setSyncChecked] = useState(false);
+
+  useEffect(() => {
+    if (syncing || syncChecked) return;
+    // Wait a tick after syncing completes to let state settle
+    const timer = setTimeout(async () => {
+      const localTs = await appSyncService.getLocalUpdatedAt();
+      if (clients.length === 0 && tasks.length === 0 && !localTs) {
+        setShowSyncKeyPrompt(true);
+      }
+      setSyncChecked(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [syncing, syncChecked, clients.length, tasks.length]);
+
+  const handleSyncKeyLinked = useCallback(() => {
+    setShowSyncKeyPrompt(false);
+    window.location.reload();
+  }, []);
+
+  const handleStartFresh = useCallback(() => {
+    setShowSyncKeyPrompt(false);
+  }, []);
 
   // Perform one-time migration from IndexedDB to Capacitor Preferences
   useEffect(() => {
@@ -809,6 +837,11 @@ const Index = () => {
         onDeleteVehicle={handleDeleteVehicle}
         onStartWork={handleStartTimer}
         onMoveVehicle={handleMoveVehicle}
+      />
+      <SyncKeyPrompt
+        open={showSyncKeyPrompt}
+        onLinked={handleSyncKeyLinked}
+        onStartFresh={handleStartFresh}
       />
     </div>
   );

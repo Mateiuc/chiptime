@@ -1440,11 +1440,11 @@ const DesktopDashboard = () => {
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
-                                  <span className="font-bold text-sm text-destructive ml-1">Prepaid: {formatCurrency(vehicle.prepaidAmount!)}</span>
+                                   <span className="font-bold text-sm text-destructive ml-1">Deposit: {formatCurrency(vehicle.prepaidAmount!)}</span>
                                   {vehicle.prepaidAmount! >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
-                                    <span className="font-bold text-sm text-orange-500 ml-1">Remaining: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
+                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
                                   )}
                                 </>
                               )}

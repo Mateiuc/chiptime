@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Copy, Check, Link } from 'lucide-react';
+import { Eye, EyeOff, Copy, Check, Link, Cloud, CloudOff } from 'lucide-react';
 import { appSyncService } from '@/services/appSyncService';
 import { useNotifications } from '@/hooks/useNotifications';
 
@@ -12,6 +12,13 @@ export const SyncKeySection = () => {
   const [copied, setCopied] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<'checking' | 'found' | 'none'>('checking');
+
+  useEffect(() => {
+    appSyncService.getRemoteUpdatedAt().then(ts => {
+      setCloudStatus(ts ? 'found' : 'none');
+    }).catch(() => setCloudStatus('none'));
+  }, []);
 
   const syncKey = appSyncService.getSyncId();
   const maskedKey = syncKey.slice(0, 4) + '••••••••••••••••••••••••' + syncKey.slice(-4);

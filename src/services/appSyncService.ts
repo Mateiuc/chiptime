@@ -33,6 +33,15 @@ async function migrateLocalStorageToPreferences(): Promise<void> {
   }
 }
 
+async function invokeSync(body: Record<string, unknown>): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('sync-data', { body });
+  if (error) {
+    console.error('[AppSync] Edge function error:', error);
+    throw error;
+  }
+  return data;
+}
+
 export interface SyncData {
   clients: Client[];
   vehicles: Vehicle[];
@@ -78,97 +87,66 @@ export const appSyncService = {
    * sync_id to the new key, and store the key locally.
    */
   async migrateFromFixedId(): Promise<void> {
-    // Run localStorage → Preferences migration first
     await migrateLocalStorageToPreferences();
 
     const { value: existingKey } = await Preferences.get({ key: SYNC_KEY });
     if (existingKey) return;
 
-    const { data, error } = await supabase
-      .from('app_sync')
-      .select('sync_id, updated_at')
-      .eq('sync_id', OLD_FIXED_SYNC_ID)
-      .maybeSingle();
-
-    if (error || !data) return;
-
     const newKey = generateSyncKey();
 
-    const { error: updateError } = await supabase
-      .from('app_sync')
-      .update({ sync_id: newKey })
-      .eq('sync_id', OLD_FIXED_SYNC_ID);
+    const result = await invokeSync({
+      action: 'migrate',
+      old_sync_id: OLD_FIXED_SYNC_ID,
+      new_sync_id: newKey,
+    });
 
-    if (updateError) {
-      console.error('[AppSync] Migration failed:', updateError);
-      return;
-    }
+    if (!result?.found) return;
 
     await Preferences.set({ key: SYNC_KEY, value: newKey });
-    await this.setLocalUpdatedAt(data.updated_at);
+    await this.setLocalUpdatedAt(result.updated_at);
     console.log('[AppSync] Migrated from fixed sync_id to secret key');
   },
 
   async pushToCloud(data: SyncData): Promise<void> {
     const syncId = await this.getSyncId();
-    const now = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('app_sync')
-      .upsert({
-        sync_id: syncId,
-        data: data as any,
-        updated_at: now,
-      }, { onConflict: 'sync_id' });
+    const result = await invokeSync({
+      action: 'push',
+      sync_id: syncId,
+      data,
+    });
 
-    if (error) {
-      console.error('[AppSync] Push failed:', error);
-      throw error;
-    }
-
-    await this.setLocalUpdatedAt(now);
-    console.log('[AppSync] Pushed to cloud at', now);
+    await this.setLocalUpdatedAt(result.updated_at);
+    console.log('[AppSync] Pushed to cloud at', result.updated_at);
   },
 
   async pullFromCloud(): Promise<{ data: SyncData; updatedAt: string } | null> {
     const syncId = await this.getSyncId();
 
-    const { data, error } = await supabase
-      .from('app_sync')
-      .select('data, updated_at')
-      .eq('sync_id', syncId)
-      .maybeSingle();
+    const result = await invokeSync({
+      action: 'pull',
+      sync_id: syncId,
+    });
 
-    if (error) {
-      console.error('[AppSync] Pull failed:', error);
-      throw error;
-    }
-
-    if (!data) {
+    if (!result?.data) {
       console.log('[AppSync] No remote data found for sync_id');
       return null;
     }
 
-    const syncData = data.data as unknown as SyncData;
-    console.log('[AppSync] Pulled from cloud, updated_at:', data.updated_at);
-    return { data: syncData, updatedAt: data.updated_at };
+    const syncData = result.data as SyncData;
+    console.log('[AppSync] Pulled from cloud, updated_at:', result.updated_at);
+    return { data: syncData, updatedAt: result.updated_at };
   },
 
   async getRemoteUpdatedAt(): Promise<string | null> {
     const syncId = await this.getSyncId();
 
-    const { data, error } = await supabase
-      .from('app_sync')
-      .select('updated_at')
-      .eq('sync_id', syncId)
-      .maybeSingle();
+    const result = await invokeSync({
+      action: 'check',
+      sync_id: syncId,
+    });
 
-    if (error) {
-      console.error('[AppSync] Failed to get remote updated_at:', error);
-      return null;
-    }
-
-    return data?.updated_at || null;
+    return result?.updated_at || null;
   },
 
   async isRemoteNewer(remoteUpdatedAt: string | null): Promise<boolean> {

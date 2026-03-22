@@ -18,13 +18,13 @@ export const SyncKeyPrompt = ({ open, onLinked, onStartFresh }: SyncKeyPromptPro
   const [keyInput, setKeyInput] = useState('');
   const [mode, setMode] = useState<'choose' | 'paste'>('choose');
 
-  const handleApply = () => {
+  const handleApply = async () => {
     const trimmed = keyInput.trim();
     if (trimmed.length !== 32 || !/^[0-9a-f]+$/i.test(trimmed)) {
       toast({ title: 'Invalid sync key', description: 'Key must be 32 hex characters', variant: 'destructive' });
       return;
     }
-    appSyncService.setSyncId(trimmed);
+    await appSyncService.setSyncId(trimmed);
     toast({ title: 'Sync key applied', description: 'Pulling data from cloud...' });
     onLinked();
   };

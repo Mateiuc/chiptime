@@ -8,6 +8,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 
 export const SyncKeySection = () => {
   const { toast } = useNotifications();
+  const [syncKey, setSyncKey] = useState<string>('');
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
   const [linkInput, setLinkInput] = useState('');
@@ -15,13 +16,13 @@ export const SyncKeySection = () => {
   const [cloudStatus, setCloudStatus] = useState<'checking' | 'found' | 'none'>('checking');
 
   useEffect(() => {
+    appSyncService.getSyncId().then(setSyncKey);
     appSyncService.getRemoteUpdatedAt().then(ts => {
       setCloudStatus(ts ? 'found' : 'none');
     }).catch(() => setCloudStatus('none'));
   }, []);
 
-  const syncKey = appSyncService.getSyncId();
-  const maskedKey = syncKey.slice(0, 4) + '••••••••••••••••••••••••' + syncKey.slice(-4);
+  const maskedKey = syncKey ? syncKey.slice(0, 4) + '••••••••••••••••••••••••' + syncKey.slice(-4) : '';
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(syncKey);
@@ -30,7 +31,7 @@ export const SyncKeySection = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleLinkDevice = () => {
+  const handleLinkDevice = async () => {
     const trimmed = linkInput.trim();
     if (trimmed.length !== 32 || !/^[0-9a-f]+$/i.test(trimmed)) {
       toast({ title: 'Invalid sync key', description: 'Key must be 32 hex characters', variant: 'destructive' });
@@ -40,11 +41,14 @@ export const SyncKeySection = () => {
       toast({ title: 'Same key', description: 'This device already uses this key' });
       return;
     }
-    appSyncService.setSyncId(trimmed);
+    await appSyncService.setSyncId(trimmed);
+    setSyncKey(trimmed);
     setLinkInput('');
     setShowLinkInput(false);
     toast({ title: 'Sync key updated', description: 'Reload to pull data from the linked device' });
   };
+
+  if (!syncKey) return null;
 
   return (
     <div className="space-y-3">

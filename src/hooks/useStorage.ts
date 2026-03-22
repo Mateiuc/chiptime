@@ -315,7 +315,7 @@ export const useCloudSync = (deps: {
         if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
         if (d.tasks) deps.tasks.replaceAll(d.tasks);
         if (d.settings) deps.settings.replaceAll(d.settings);
-        appSyncService.setLocalUpdatedAt(result.updatedAt);
+        await appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         console.log('[CloudSync] Applied remote data');
       }
@@ -341,7 +341,7 @@ export const useCloudSync = (deps: {
         }
 
         const remoteTs = await appSyncService.getRemoteUpdatedAt();
-        if (appSyncService.isRemoteNewer(remoteTs)) {
+        if (await appSyncService.isRemoteNewer(remoteTs)) {
           await pullAndApply();
         } else if (!remoteTs) {
           // No remote data — only seed if local actually has data

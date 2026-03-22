@@ -1,7 +1,8 @@
+import { Preferences } from '@capacitor/preferences';
 import { supabase } from '@/integrations/supabase/client';
 import { Client, Vehicle, Task, Settings } from '@/types';
 
-const SYNC_KEY_STORAGE_KEY = 'chiptime_sync_key';
+const SYNC_KEY = 'chiptime_sync_key';
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
 const OLD_FIXED_SYNC_ID = 'chiptime-default';
 
@@ -9,6 +10,27 @@ function generateSyncKey(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** One-time: migrate sync metadata from localStorage → Preferences */
+async function migrateLocalStorageToPreferences(): Promise<void> {
+  const { value: existing } = await Preferences.get({ key: SYNC_KEY });
+  if (existing) return; // already in Preferences
+
+  const lsKey = localStorage.getItem(SYNC_KEY);
+  if (lsKey) {
+    await Preferences.set({ key: SYNC_KEY, value: lsKey });
+    localStorage.removeItem(SYNC_KEY);
+  }
+
+  const { value: existingTs } = await Preferences.get({ key: LOCAL_UPDATED_AT_KEY });
+  if (!existingTs) {
+    const lsTs = localStorage.getItem(LOCAL_UPDATED_AT_KEY);
+    if (lsTs) {
+      await Preferences.set({ key: LOCAL_UPDATED_AT_KEY, value: lsTs });
+      localStorage.removeItem(LOCAL_UPDATED_AT_KEY);
+    }
+  }
 }
 
 export interface SyncData {
@@ -19,31 +41,35 @@ export interface SyncData {
 }
 
 export const appSyncService = {
-  getSyncId(): string {
-    let key = localStorage.getItem(SYNC_KEY_STORAGE_KEY);
-    if (!key) {
-      key = generateSyncKey();
-      localStorage.setItem(SYNC_KEY_STORAGE_KEY, key);
-    }
-    return key;
+  async getSyncId(): Promise<string> {
+    await migrateLocalStorageToPreferences();
+    const { value } = await Preferences.get({ key: SYNC_KEY });
+    if (value) return value;
+
+    const newKey = generateSyncKey();
+    await Preferences.set({ key: SYNC_KEY, value: newKey });
+    return newKey;
   },
 
-  setSyncId(key: string) {
-    localStorage.setItem(SYNC_KEY_STORAGE_KEY, key);
+  async setSyncId(key: string): Promise<void> {
+    await Preferences.set({ key: SYNC_KEY, value: key });
     // Clear local updated_at so next sync pulls fresh from cloud
-    localStorage.removeItem(LOCAL_UPDATED_AT_KEY);
+    await Preferences.remove({ key: LOCAL_UPDATED_AT_KEY });
   },
 
-  hasSyncKey(): boolean {
-    return !!localStorage.getItem(SYNC_KEY_STORAGE_KEY);
+  async hasSyncKey(): Promise<boolean> {
+    await migrateLocalStorageToPreferences();
+    const { value } = await Preferences.get({ key: SYNC_KEY });
+    return !!value;
   },
 
-  getLocalUpdatedAt(): string | null {
-    return localStorage.getItem(LOCAL_UPDATED_AT_KEY);
+  async getLocalUpdatedAt(): Promise<string | null> {
+    const { value } = await Preferences.get({ key: LOCAL_UPDATED_AT_KEY });
+    return value;
   },
 
-  setLocalUpdatedAt(ts: string) {
-    localStorage.setItem(LOCAL_UPDATED_AT_KEY, ts);
+  async setLocalUpdatedAt(ts: string): Promise<void> {
+    await Preferences.set({ key: LOCAL_UPDATED_AT_KEY, value: ts });
   },
 
   /**
@@ -52,8 +78,11 @@ export const appSyncService = {
    * sync_id to the new key, and store the key locally.
    */
   async migrateFromFixedId(): Promise<void> {
-    // Only run if user has no key yet
-    if (localStorage.getItem(SYNC_KEY_STORAGE_KEY)) return;
+    // Run localStorage → Preferences migration first
+    await migrateLocalStorageToPreferences();
+
+    const { value: existingKey } = await Preferences.get({ key: SYNC_KEY });
+    if (existingKey) return;
 
     const { data, error } = await supabase
       .from('app_sync')
@@ -65,7 +94,6 @@ export const appSyncService = {
 
     const newKey = generateSyncKey();
 
-    // Update the row's sync_id to the new secret key
     const { error: updateError } = await supabase
       .from('app_sync')
       .update({ sync_id: newKey })
@@ -76,13 +104,13 @@ export const appSyncService = {
       return;
     }
 
-    localStorage.setItem(SYNC_KEY_STORAGE_KEY, newKey);
-    this.setLocalUpdatedAt(data.updated_at);
+    await Preferences.set({ key: SYNC_KEY, value: newKey });
+    await this.setLocalUpdatedAt(data.updated_at);
     console.log('[AppSync] Migrated from fixed sync_id to secret key');
   },
 
   async pushToCloud(data: SyncData): Promise<void> {
-    const syncId = this.getSyncId();
+    const syncId = await this.getSyncId();
     const now = new Date().toISOString();
 
     const { error } = await supabase
@@ -98,12 +126,12 @@ export const appSyncService = {
       throw error;
     }
 
-    this.setLocalUpdatedAt(now);
+    await this.setLocalUpdatedAt(now);
     console.log('[AppSync] Pushed to cloud at', now);
   },
 
   async pullFromCloud(): Promise<{ data: SyncData; updatedAt: string } | null> {
-    const syncId = this.getSyncId();
+    const syncId = await this.getSyncId();
 
     const { data, error } = await supabase
       .from('app_sync')
@@ -127,7 +155,7 @@ export const appSyncService = {
   },
 
   async getRemoteUpdatedAt(): Promise<string | null> {
-    const syncId = this.getSyncId();
+    const syncId = await this.getSyncId();
 
     const { data, error } = await supabase
       .from('app_sync')
@@ -143,9 +171,9 @@ export const appSyncService = {
     return data?.updated_at || null;
   },
 
-  isRemoteNewer(remoteUpdatedAt: string | null): boolean {
+  async isRemoteNewer(remoteUpdatedAt: string | null): Promise<boolean> {
     if (!remoteUpdatedAt) return false;
-    const localUpdatedAt = this.getLocalUpdatedAt();
+    const localUpdatedAt = await this.getLocalUpdatedAt();
     if (!localUpdatedAt) return true;
     return new Date(remoteUpdatedAt) > new Date(localUpdatedAt);
   },

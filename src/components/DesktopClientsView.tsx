@@ -69,7 +69,7 @@ export const DesktopClientsView = ({
   };
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  const formatDuration = (seconds: number) => { const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); return `${h}h ${m}m`; };
+  const formatDuration = (seconds: number) => { const totalMin = Math.round(seconds / 60); const h = Math.floor(totalMin / 60); const m = totalMin % 60; return `${h}h ${m}m`; };
 
   const getClientFinancials = (clientId: string) => {
     const clientTasks = tasks.filter(t => t.clientId === clientId);

@@ -81,6 +81,7 @@ interface SlimVehicle {
   md?: string;
   yr?: number;
   cl?: string;
+  pa?: number;
   s: SlimSession[];
   tl: number;
   tp: number;

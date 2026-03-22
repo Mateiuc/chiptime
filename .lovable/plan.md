@@ -1,32 +1,30 @@
 
 
-# Fix: Move Sync Key from localStorage to Capacitor Preferences
+# Fix: Data Not Loading After Security Changes
 
-## Problem
-The sync key and `local_updated_at` are stored in `localStorage`, but all app data (clients, vehicles, tasks) is stored in Capacitor Preferences. On the native mobile app, `localStorage` and Capacitor Preferences are separate stores, so the native app generates/reads a different sync key than expected, causing it to write to a different cloud row than the browser.
+## What Happened
 
-## Solution
-Move sync key and local_updated_at into Capacitor Preferences (same store as everything else). Make the affected methods async. Migrate existing localStorage values on first run so no one loses their key.
+The security fix replaced the hardcoded sync ID (`chiptime-default`) with a random key. This is correct for security, but created a problem: every time the browser cache clears (including Lovable preview reloads), a brand new empty sync key is generated. The app then looks up that new key in the cloud, finds nothing, and shows empty data.
 
-## Changes
+Your data is safe in the cloud — 12 clients, 30 vehicles, 29 tasks including Session 8 (the ~6h GLS session) — all under sync key `c2c4cedb36129ec1a2541c195c3d1875`.
 
-### 1. `src/services/appSyncService.ts`
-- Replace all `localStorage.getItem/setItem` calls with `Preferences.get/set`
-- Make `getSyncId()`, `setSyncId()`, `hasSyncKey()`, `getLocalUpdatedAt()`, `setLocalUpdatedAt()` all **async**
-- Add one-time migration: on first async call, check if localStorage has a key but Preferences doesn't — if so, copy it over
-- Update `migrateFromFixedId` to use async getters
-- Update `pushToCloud`, `pullFromCloud`, `getRemoteUpdatedAt` to await the sync key
+## Root Cause
 
-### 2. All callers of appSyncService sync key methods — update to await
-- `src/hooks/useStorage.ts` — `debouncedPushToCloud`, `pushNow`, `useCloudSync` already async, just add awaits
-- `src/components/SyncKeySection.tsx` — load key with useEffect + async call
-- `src/components/SyncKeyPrompt.tsx` — await `setSyncId()`
+The mobile page (`src/pages/Index.tsx`) has NO recovery prompt. The desktop has `SyncKeyPrompt`, but the mobile view just silently shows empty data when the key is lost.
 
-### 3. No changes to desktop behavior
-- No auto-refresh, no polling, no restrictions. Everything else stays exactly as-is.
+## Fix
 
-## Technical Detail
-- Capacitor Preferences key: `chiptime_sync_key` (same name)
-- Capacitor Preferences key: `app_sync_local_updated_at` (same name)  
-- Migration: `if Preferences empty && localStorage has value → copy to Preferences, remove from localStorage`
+### 1. Add SyncKeyPrompt to mobile Index page (`src/pages/Index.tsx`)
+- After cloud sync completes, if clients AND tasks are both empty AND no `localUpdatedAt` exists, show the `SyncKeyPrompt` dialog
+- When user pastes their key or chooses "Start fresh", proceed normally
+- Same component already used by desktop — just wire it into mobile
+
+### 2. No other file changes
+- `appSyncService.ts` — no changes
+- `useStorage.ts` — no changes
+- `SyncKeyPrompt.tsx` — no changes (already works correctly)
+
+### What this fixes
+- After any cache clear on mobile web or Lovable preview, the app prompts you to enter your existing sync key instead of silently creating an empty row
+- Once you paste key `c2c4cedb36129ec1a2541c195c3d1875`, all 12 clients and 29 tasks load immediately
 

@@ -1,20 +1,39 @@
 
 
-# Copy Data to chiptime-default Row
+# Round Seconds in All Duration Displays
 
 ## Problem
-The app queries `sync_id = 'chiptime-default'` but that row doesn't exist. The real data lives under `sync_id = 'c2c4cedb36129ec1a2541c195c3d1875'`.
+Duration displays throughout the app show raw seconds (HH:MM:SS format). The user wants seconds rounded to the nearest minute everywhere.
 
-## Fix
-Use the database insert tool to copy the data from the existing row into a new `chiptime-default` row.
+## Changes
 
-```sql
-INSERT INTO public.app_sync (sync_id, data, updated_at)
-SELECT 'chiptime-default', data, now()
-FROM public.app_sync
-WHERE sync_id = 'c2c4cedb36129ec1a2541c195c3d1875'
-ON CONFLICT (sync_id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at;
+### 1. Update `src/lib/formatTime.ts` — `formatDuration` function
+Change from `HH:MM:SS` to `HH:MM` format with seconds rounded to the nearest minute:
+- If seconds >= 30, round minutes up
+- If seconds < 30, round minutes down
+- Keep the `HH:MM` format (no seconds shown)
+
+### 2. Update local `formatDuration` variants
+Several components define their own inline `formatDuration` — these already show `Xh Xm` without seconds but don't round. Add rounding:
+
+- **`src/components/DesktopClientsView.tsx`** (line 72): Local `formatDuration` — add rounding of remaining seconds
+- **`src/components/ManageClientsDialog.tsx`** (line 111-114): Local `formatDuration` — add rounding
+
+### 3. Update `formatDurationHHMM` in TaskCard PDF generation
+- **`src/components/TaskCard.tsx`** (lines 376-380 and 738-742): Two duplicate `formatDurationHHMM` functions used for PDF bills — add second-rounding to minutes
+
+### 4. Files affected (no changes needed)
+These files import `formatDuration` from `formatTime.ts` and will automatically get the fix:
+- `TaskCard.tsx` (card display)
+- `TaskInlineEditor.tsx` (inline editor)
+- `DesktopReportsView.tsx` (reports table)
+- `EditTaskDialog.tsx` (edit dialog)
+
+## Technical Detail
+Rounding logic applied everywhere:
+```typescript
+const totalMinutes = Math.round(seconds / 60);
+const hours = Math.floor(totalMinutes / 60);
+const minutes = totalMinutes % 60;
 ```
-
-No code changes needed — `appSyncService.ts` already reads from `chiptime-default`.
 

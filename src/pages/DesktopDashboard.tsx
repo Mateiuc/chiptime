@@ -114,7 +114,7 @@ const DesktopDashboard = () => {
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
+  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   const [chartClient, setChartClient] = useState<string>('all');
   const [drillMonth, setDrillMonth] = useState<string | null>(null);

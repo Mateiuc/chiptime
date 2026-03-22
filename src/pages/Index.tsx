@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Settings as SettingsIcon, Plus } from 'lucide-react';
 import { SyncKeyPrompt } from '@/components/SyncKeyPrompt';
 import { appSyncService } from '@/services/appSyncService';

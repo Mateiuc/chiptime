@@ -256,6 +256,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       md: vs.vehicle.model || undefined,
       yr: vs.vehicle.year || undefined,
       cl: vs.vehicle.color || undefined,
+      pa: vs.vehicle.prepaidAmount && vs.vehicle.prepaidAmount > 0 ? Math.round(vs.vehicle.prepaidAmount * 100) / 100 : undefined,
       s: vs.sessions.map(s => ({
         d: s.description,
         dt: Math.floor(new Date(s.date).getTime() / 1000),

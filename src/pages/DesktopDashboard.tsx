@@ -961,6 +961,11 @@ const DesktopDashboard = () => {
 
   return (
     <div className="h-screen flex flex-col bg-background">
+      <SyncKeyPrompt
+        open={showSyncPrompt}
+        onLinked={() => { setShowSyncPrompt(false); refresh(); }}
+        onStartFresh={() => setShowSyncPrompt(false)}
+      />
       {/* Header */}
       <header className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 shadow-lg shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">

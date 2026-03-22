@@ -45,20 +45,34 @@ const Index = () => {
 
   // Show SyncKeyPrompt if after sync, data is still empty (lost key scenario)
   const [showSyncKeyPrompt, setShowSyncKeyPrompt] = useState(false);
-  const [syncChecked, setSyncChecked] = useState(false);
+  const syncCheckedRef = useRef(false);
+  const wasSyncingRef = useRef(false);
 
   useEffect(() => {
-    if (syncing || syncChecked) return;
-    // Wait a tick after syncing completes to let state settle
+    // Track when syncing starts
+    if (syncing) {
+      wasSyncingRef.current = true;
+      return;
+    }
+    // Only run once: when syncing transitions from true → false
+    if (!wasSyncingRef.current || syncCheckedRef.current) return;
+    syncCheckedRef.current = true;
+
+    // Wait for replaceAll state updates to settle before checking emptiness
     const timer = setTimeout(async () => {
-      const localTs = await appSyncService.getLocalUpdatedAt();
-      if (clients.length === 0 && tasks.length === 0 && !localTs) {
+      // Read directly from storage instead of relying on React state
+      const { capacitorStorage } = await import('@/lib/capacitorStorage');
+      const [storedClients, storedTasks, localTs] = await Promise.all([
+        capacitorStorage.getClients(),
+        capacitorStorage.getTasks(),
+        appSyncService.getLocalUpdatedAt(),
+      ]);
+      if (storedClients.length === 0 && storedTasks.length === 0 && !localTs) {
         setShowSyncKeyPrompt(true);
       }
-      setSyncChecked(true);
-    }, 500);
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [syncing, syncChecked, clients.length, tasks.length]);
+  }, [syncing]);
 
   const handleSyncKeyLinked = useCallback(() => {
     setShowSyncKeyPrompt(false);

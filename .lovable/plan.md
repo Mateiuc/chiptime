@@ -1,30 +1,54 @@
 
 
-# Fix: Data Not Loading After Security Changes
+# Fix: Secure the `app_sync` Table
 
-## What Happened
+## Problem
 
-The security fix replaced the hardcoded sync ID (`chiptime-default`) with a random key. This is correct for security, but created a problem: every time the browser cache clears (including Lovable preview reloads), a brand new empty sync key is generated. The app then looks up that new key in the cloud, finds nothing, and shows empty data.
+The `app_sync` table has RLS policies that allow **anyone** (including anonymous users) to SELECT, INSERT, and UPDATE **all rows**. This means any person can read all client data, access codes, and API keys stored in the JSONB `data` column.
 
-Your data is safe in the cloud — 12 clients, 30 vehicles, 29 tasks including Session 8 (the ~6h GLS session) — all under sync key `c2c4cedb36129ec1a2541c195c3d1875`.
+## Approach
 
-## Root Cause
+Route all `app_sync` access through an edge function that uses the service role key (same pattern already used for `client_portals` / `get-portal`). Then lock down the table with `USING (false)` RLS policies.
 
-The mobile page (`src/pages/Index.tsx`) has NO recovery prompt. The desktop has `SyncKeyPrompt`, but the mobile view just silently shows empty data when the key is lost.
+This keeps the existing sync-key-based architecture intact — no authentication required, no app logic changes beyond swapping direct Supabase calls for edge function calls.
 
-## Fix
+## Changes
 
-### 1. Add SyncKeyPrompt to mobile Index page (`src/pages/Index.tsx`)
-- After cloud sync completes, if clients AND tasks are both empty AND no `localUpdatedAt` exists, show the `SyncKeyPrompt` dialog
-- When user pastes their key or chooses "Start fresh", proceed normally
-- Same component already used by desktop — just wire it into mobile
+### 1. Create edge function `sync-data` (`supabase/functions/sync-data/index.ts`)
 
-### 2. No other file changes
-- `appSyncService.ts` — no changes
-- `useStorage.ts` — no changes
-- `SyncKeyPrompt.tsx` — no changes (already works correctly)
+Handles three operations based on `action` parameter:
+- **`push`**: Receives `{ sync_id, data }`, upserts to `app_sync` using service role key
+- **`pull`**: Receives `{ sync_id }`, returns `{ data, updated_at }` or `null`
+- **`check`**: Receives `{ sync_id }`, returns `{ updated_at }` only
+- **`migrate`**: Receives `{ old_sync_id, new_sync_id }`, updates the row's sync_id
 
-### What this fixes
-- After any cache clear on mobile web or Lovable preview, the app prompts you to enter your existing sync key instead of silently creating an empty row
-- Once you paste key `c2c4cedb36129ec1a2541c195c3d1875`, all 12 clients and 29 tasks load immediately
+All operations require `sync_id` in the request body — the sync key acts as the authentication secret. No one can read/write data without knowing the key.
+
+### 2. Lock down `app_sync` RLS (database migration)
+
+```sql
+DROP POLICY "Anyone can read app_sync" ON public.app_sync;
+DROP POLICY "Anyone can insert app_sync" ON public.app_sync;
+DROP POLICY "Anyone can update app_sync" ON public.app_sync;
+
+CREATE POLICY "No direct access to app_sync" ON public.app_sync
+  FOR ALL USING (false);
+```
+
+### 3. Update `src/services/appSyncService.ts`
+
+Replace all 5 direct `supabase.from('app_sync')` calls with `supabase.functions.invoke('sync-data', ...)` calls. The sync_id is still sent in the request body. No other files change.
+
+### 4. Add to `supabase/config.toml`
+
+```toml
+[functions.sync-data]
+verify_jwt = false
+```
+
+## What stays the same
+- Sync key generation, storage, and migration logic
+- `useStorage.ts`, `useCloudSync.ts`, `SyncKeyPrompt.tsx` — untouched
+- All UI components — untouched
+- The sync key remains the "password" to access data, but now it's validated server-side instead of being a simple query filter on a public table
 

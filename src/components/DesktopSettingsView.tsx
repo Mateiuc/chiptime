@@ -8,6 +8,7 @@ import { Settings, PaymentMethod } from '@/types';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { BackupView } from './BackupView';
+import { SyncKeySection } from './SyncKeySection';
 
 interface DesktopSettingsViewProps {
   settings: Settings;

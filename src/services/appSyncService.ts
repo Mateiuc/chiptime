@@ -1,8 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Client, Vehicle, Task, Settings } from '@/types';
 
-const FIXED_SYNC_ID = 'chiptime-default';
+const SYNC_KEY_STORAGE_KEY = 'chiptime_sync_key';
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
+const OLD_FIXED_SYNC_ID = 'chiptime-default';
+
+function generateSyncKey(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export interface SyncData {
   clients: Client[];
@@ -13,7 +20,22 @@ export interface SyncData {
 
 export const appSyncService = {
   getSyncId(): string {
-    return FIXED_SYNC_ID;
+    let key = localStorage.getItem(SYNC_KEY_STORAGE_KEY);
+    if (!key) {
+      key = generateSyncKey();
+      localStorage.setItem(SYNC_KEY_STORAGE_KEY, key);
+    }
+    return key;
+  },
+
+  setSyncId(key: string) {
+    localStorage.setItem(SYNC_KEY_STORAGE_KEY, key);
+    // Clear local updated_at so next sync pulls fresh from cloud
+    localStorage.removeItem(LOCAL_UPDATED_AT_KEY);
+  },
+
+  hasSyncKey(): boolean {
+    return !!localStorage.getItem(SYNC_KEY_STORAGE_KEY);
   },
 
   getLocalUpdatedAt(): string | null {
@@ -22,6 +44,41 @@ export const appSyncService = {
 
   setLocalUpdatedAt(ts: string) {
     localStorage.setItem(LOCAL_UPDATED_AT_KEY, ts);
+  },
+
+  /**
+   * One-time migration: if the old hardcoded 'chiptime-default' row exists
+   * and the user has no sync key yet, generate a new key, update the row's
+   * sync_id to the new key, and store the key locally.
+   */
+  async migrateFromFixedId(): Promise<void> {
+    // Only run if user has no key yet
+    if (localStorage.getItem(SYNC_KEY_STORAGE_KEY)) return;
+
+    const { data, error } = await supabase
+      .from('app_sync')
+      .select('sync_id, updated_at')
+      .eq('sync_id', OLD_FIXED_SYNC_ID)
+      .maybeSingle();
+
+    if (error || !data) return;
+
+    const newKey = generateSyncKey();
+
+    // Update the row's sync_id to the new secret key
+    const { error: updateError } = await supabase
+      .from('app_sync')
+      .update({ sync_id: newKey })
+      .eq('sync_id', OLD_FIXED_SYNC_ID);
+
+    if (updateError) {
+      console.error('[AppSync] Migration failed:', updateError);
+      return;
+    }
+
+    localStorage.setItem(SYNC_KEY_STORAGE_KEY, newKey);
+    this.setLocalUpdatedAt(data.updated_at);
+    console.log('[AppSync] Migrated from fixed sync_id to secret key');
   },
 
   async pushToCloud(data: SyncData): Promise<void> {
@@ -60,7 +117,7 @@ export const appSyncService = {
     }
 
     if (!data) {
-      console.log('[AppSync] No remote data found for sync_id:', syncId);
+      console.log('[AppSync] No remote data found for sync_id');
       return null;
     }
 

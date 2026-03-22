@@ -8,6 +8,7 @@ import { Settings, PaymentMethod } from '@/types';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { BackupView } from './BackupView';
+import { SyncKeySection } from './SyncKeySection';
 
 interface DesktopSettingsViewProps {
   settings: Settings;
@@ -227,6 +228,16 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
             <Plus className="h-4 w-4 mr-1" /> Add Payment Method
           </Button>
           <p className="text-xs text-muted-foreground">These appear as "Pay Now" buttons in the client portal</p>
+        </CardContent>
+      </Card>
+
+      {/* Cloud Sync Key */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Cloud Sync</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SyncKeySection />
         </CardContent>
       </Card>
 

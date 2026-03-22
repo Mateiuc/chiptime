@@ -1,35 +1,40 @@
 
 
-# Fix: High Severity Dependency Vulnerabilities
+# Secure app_sync with Secret Sync Key
 
 ## Problem
-Two dependencies have known high-severity vulnerabilities:
-- **xlsx (SheetJS) ^0.18.5** — Prototype Pollution + ReDoS
-- **vite-plugin-pwa ^1.2.0** — outdated
+The `app_sync` table uses a hardcoded `sync_id` ('chiptime-default') visible in source code, combined with fully open RLS policies (`USING (true)`). Anyone can read or overwrite all business data.
 
 ## Solution
+Replace the hardcoded sync ID with a cryptographically random 32-character key generated on first use and stored locally. The key acts as a shared secret between devices. Users can view/copy it in Settings to link a second device.
 
-### 1. Replace `xlsx` with `@zurmokeeper/exceljs`
-The `xlsx` package is no longer maintained on npm and has unpatched vulnerabilities. Replace it with `@zurmokeeper/exceljs` (an actively maintained fork of ExcelJS, compatible API, MIT license).
+**Note:** Without full authentication, RLS policies cannot truly restrict access by user identity. The security improvement comes from making the sync_id a 128-bit unguessable secret rather than a publicly known string. This is a pragmatic trade-off matching the user's preference.
 
-Only one file uses `xlsx`: `src/lib/xlsImporter.ts`.
+## Changes
 
-**Changes to `package.json`:**
-- Remove `xlsx`
-- Add `@zurmokeeper/exceljs`
+### 1. Migration: Clean up old data row
+- Rename the existing `chiptime-default` row's sync_id to a new random value via a one-time migration (or leave it — the app will create a new row with the new key)
+- No schema changes needed; `sync_id` column already supports arbitrary text
 
-**Rewrite `src/lib/xlsImporter.ts`:**
-- Replace `import * as XLSX from 'xlsx'` with ExcelJS imports
-- Use `new ExcelJS.Workbook()` + `workbook.xlsx.load(arrayBuffer)` to read the file
-- Iterate rows using ExcelJS's `worksheet.eachRow()` API
-- Adapt date/time parsing: ExcelJS returns JS Date objects for date-formatted cells, so `parseExcelDate` and `combineDateTime` need minor adjustments
-- Keep all exported types and the `parseWorkHistoryXls` function signature identical so no consumer code changes are needed
+### 2. `src/services/appSyncService.ts`
+- Remove `FIXED_SYNC_ID` constant
+- Add `SYNC_KEY_STORAGE_KEY = 'chiptime_sync_key'`
+- `getSyncId()` → reads from `localStorage`. If not found, generates a 32-char hex key using `crypto.getRandomValues()`, saves it, and returns it
+- Add `setSyncId(key: string)` for manual entry from another device
+- Add `hasSyncKey(): boolean` helper
+- On first launch with no key: check if old `chiptime-default` row exists. If so, generate new key, update the row's `sync_id` to the new key, and store locally (one-time migration)
 
-### 2. Update `vite-plugin-pwa`
-- Update `vite-plugin-pwa` from `^1.2.0` to latest (`^1.2.1` or newer) to pick up dependency patches
-- No code changes needed — the config in `vite.config.ts` is compatible
+### 3. `src/components/DesktopSettingsView.tsx`
+- Add a "Sync Key" section at the bottom of settings:
+  - Display the current key (masked by default, with show/copy toggle)
+  - "Link Another Device" input field to paste a key from another device
+  - Warning text explaining the key is needed to sync across devices
+
+### 4. `src/pages/Index.tsx` (mobile settings)
+- Add the same sync key display/entry UI in the mobile settings dialog
 
 ## Files to Change
-1. `package.json` — swap `xlsx` for `@zurmokeeper/exceljs`, bump `vite-plugin-pwa`
-2. `src/lib/xlsImporter.ts` — rewrite to use ExcelJS API (same exports, same behavior)
+1. `src/services/appSyncService.ts` — replace hardcoded sync_id with generated secret key
+2. `src/components/DesktopSettingsView.tsx` — add sync key management UI
+3. `src/pages/Index.tsx` or `src/components/SettingsDialog.tsx` — add sync key UI for mobile
 

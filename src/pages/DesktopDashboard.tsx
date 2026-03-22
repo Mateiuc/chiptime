@@ -893,7 +893,17 @@ const DesktopDashboard = () => {
         doc.text(`Parts Cost: ${formatCurrency(vFin.totalPartsCost)}`, 30, yPos); yPos += 5;
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);
-        doc.setFont('helvetica', 'normal'); yPos += 8;
+        doc.setFont('helvetica', 'normal'); yPos += 5;
+        const vDeposit = vehicle.prepaidAmount || 0;
+        if (vDeposit > 0) {
+          doc.setTextColor(200, 0, 0);
+          doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos); yPos += 5;
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Balance Due: ${formatCurrency(Math.max(0, vFin.totalCost - vDeposit))}`, 30, yPos);
+          doc.setFont('helvetica', 'normal');
+        }
+        yPos += 8;
       });
     }
     const sanitizedName = client.name.replace(/[^a-zA-Z0-9]/g, '_');

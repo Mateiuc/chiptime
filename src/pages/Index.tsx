@@ -36,12 +36,38 @@ const Index = () => {
   const { toast } = useNotifications();
 
   // Cloud sync: pull on mount if remote is newer
-  useCloudSync({
+  const { syncing } = useCloudSync({
     clients: clientsHook,
     vehicles: vehiclesHook,
     tasks: tasksHook,
     settings: settingsHook,
   });
+
+  // Show SyncKeyPrompt if after sync, data is still empty (lost key scenario)
+  const [showSyncKeyPrompt, setShowSyncKeyPrompt] = useState(false);
+  const [syncChecked, setSyncChecked] = useState(false);
+
+  useEffect(() => {
+    if (syncing || syncChecked) return;
+    // Wait a tick after syncing completes to let state settle
+    const timer = setTimeout(async () => {
+      const localTs = await appSyncService.getLocalUpdatedAt();
+      if (clients.length === 0 && tasks.length === 0 && !localTs) {
+        setShowSyncKeyPrompt(true);
+      }
+      setSyncChecked(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [syncing, syncChecked, clients.length, tasks.length]);
+
+  const handleSyncKeyLinked = useCallback(() => {
+    setShowSyncKeyPrompt(false);
+    window.location.reload();
+  }, []);
+
+  const handleStartFresh = useCallback(() => {
+    setShowSyncKeyPrompt(false);
+  }, []);
 
   // Perform one-time migration from IndexedDB to Capacitor Preferences
   useEffect(() => {

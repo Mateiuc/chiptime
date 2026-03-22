@@ -397,7 +397,7 @@ const DesktopDashboard = () => {
       doc.text('Subtotal:', col3X - 45, yPos - 14);
       doc.text(formatCurrency(total), col3X + 2, yPos - 14, { align: 'right' });
       doc.setTextColor(200, 0, 0);
-      doc.text('Prepaid:', col3X - 45, yPos - 7);
+      doc.text('Deposit:', col3X - 45, yPos - 7);
       doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos - 7, { align: 'right' });
       doc.setTextColor(0, 0, 0);
     }

@@ -838,6 +838,11 @@ const Index = () => {
         onStartWork={handleStartTimer}
         onMoveVehicle={handleMoveVehicle}
       />
+      <SyncKeyPrompt
+        open={showSyncKeyPrompt}
+        onLinked={handleSyncKeyLinked}
+        onStartFresh={handleStartFresh}
+      />
     </div>
   );
 };

@@ -231,6 +231,16 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </CardContent>
       </Card>
 
+      {/* Cloud Sync Key */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Cloud Sync</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SyncKeySection />
+        </CardContent>
+      </Card>
+
       {/* Backup & Restore */}
       <Card>
         <CardHeader>

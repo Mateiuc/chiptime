@@ -193,6 +193,18 @@ export const EditVehicleDialog = ({
                 className="h-10"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>Prepaid Amount ($)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={prepaidAmount}
+                onChange={(e) => setPrepaidAmount(e.target.value)}
+                placeholder="0.00"
+                className="h-10"
+              />
+            </div>
           </div>
 
           <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm flex gap-2">

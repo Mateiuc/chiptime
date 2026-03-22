@@ -388,12 +388,24 @@ const DesktopDashboard = () => {
       });
     }
 
-    // Total
+    // Prepaid & Total
     yPos = 261;
+    const prepaid = vehicle.prepaidAmount || 0;
+    if (prepaid > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Subtotal:', col3X - 45, yPos - 14);
+      doc.text(formatCurrency(total), col3X + 2, yPos - 14, { align: 'right' });
+      doc.setTextColor(200, 0, 0);
+      doc.text('Prepaid:', col3X - 45, yPos - 7);
+      doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos - 7, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    }
+    const finalTotal = Math.max(0, total - prepaid);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL:', col3X - 45, yPos);
-    doc.text(formatCurrency(total), col3X + 2, yPos, { align: 'right' });
+    doc.text(formatCurrency(finalTotal), col3X + 2, yPos, { align: 'right' });
 
     // Timestamp
     const now = new Date();

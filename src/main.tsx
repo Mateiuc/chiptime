@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { autoBackupService } from "./services/autoBackupService";
+import { appSyncService } from "./services/appSyncService";
 
 // Import PWA Elements for Capacitor Camera to work in web/PWA
 import { defineCustomElements } from '@ionic/pwa-elements/loader';

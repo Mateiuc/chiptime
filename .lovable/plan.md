@@ -1,35 +1,45 @@
 
 
-# Add Prepaid Amount Tracking to Vehicles
+# Add "Deposit" Tracking Everywhere
 
-## What it does
-- Add a `prepaidAmount` field to vehicles, editable when editing a vehicle
-- Show prepaid (red) and remaining balance next to vehicle cost in the dashboard header
-- Add a "Prepaid" / "Remaining" line in the bill PDF, subtracted from total
+## Terminology
+The professional term in auto mechanics for prepaid amounts is **"Deposit"** (sometimes "Deposit Received"). All references to "Prepaid" will be renamed to "Deposit" and the remaining amount will show as **"Balance Due"**.
 
-## Changes
+## Places that need updates
 
-### 1. Vehicle type — `src/types/index.ts`
-Add `prepaidAmount?: number` to the `Vehicle` interface
+### 1. Rename "Prepaid" → "Deposit" and "Remaining" → "Balance Due" everywhere
 
-### 2. Desktop inline vehicle edit — `src/pages/DesktopDashboard.tsx`
-- Add `prepaidAmount` to `vehicleEditData` state type (line 117)
-- Add "Prepaid $" input in inline edit form (after Color input, ~line 1464)
-- Include `prepaidAmount` in save handler (line 1476-1482)
-- Populate when entering edit mode (line 1434)
+**`src/pages/DesktopDashboard.tsx`**:
+- Vehicle header display: `Prepaid:` → `Deposit:`, `Remaining:` → `Balance Due:`
+- Inline edit placeholder: `Prepaid $` → `Deposit $`
+- Bill PDF: `Prepaid:` → `Deposit:`, `Subtotal` label stays, TOTAL shows "Balance Due"
 
-### 3. Vehicle header display — `src/pages/DesktopDashboard.tsx` (~line 1426-1428)
-After the green total cost, if `vehicle.prepaidAmount > 0`:
-- Show prepaid in red: `Prepaid: $500.00`
-- Show remaining in orange: `Remaining: $3,213.53`
-- If fully paid (prepaid >= cost), show "Paid" in green
+**`src/components/EditVehicleDialog.tsx`**:
+- Label: `Prepaid Amount` → `Deposit`
 
-### 4. Bill PDF — `src/pages/DesktopDashboard.tsx` (~line 391-396)
-After parts and before TOTAL line, if `vehicle.prepaidAmount > 0`:
-- Add line: "Prepaid" with negative amount in red
-- Change TOTAL to show `total - prepaidAmount` (or $0 if overpaid)
-- Keep original total visible as "Subtotal" before the prepaid line
+### 2. Add deposit/balance to **Client Report PDF** (the missing one)
 
-### 5. Mobile edit dialog — `src/components/EditVehicleDialog.tsx`
-- Add `prepaidAmount` state, input field, include in save
+**`src/pages/DesktopDashboard.tsx`** — `generateClientPDF` function (~line 830):
+- Per-vehicle section: after `Total:`, add `Deposit:` and `Balance Due:` lines if vehicle has a deposit
+- Client summary section: sum all vehicle deposits, show total deposits and total balance due after Grand Total
+
+**`src/components/DesktopClientsView.tsx`** — `generateClientPDF` function (~line 138):
+- Same changes: per-vehicle deposit/balance lines, and client-level totals
+
+### 3. Add deposit/balance to **Client Portal** (ClientCostBreakdown)
+
+**`src/lib/clientPortalUtils.ts`**:
+- Include `prepaidAmount` in `VehicleCostSummary` (from the vehicle object)
+- Include it in slim wire format for portal sync
+
+**`src/components/ClientCostBreakdown.tsx`**:
+- Per-vehicle card: after "Vehicle Total", show `Deposit` (red) and `Balance Due` if deposit exists
+- Grand Total card: sum all deposits, show `Total Deposits` and `Balance Due` after Grand Total
+
+### 4. Dashboard vehicle header display already works — just rename labels
+
+## Technical Detail
+- No type changes needed (`prepaidAmount` already exists on `Vehicle`)
+- Balance calculation: `Balance Due = max(0, vehicleTotal - deposit)`
+- Total client deposit: `sum of all vehicle.prepaidAmount`
 

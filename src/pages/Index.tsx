@@ -95,6 +95,7 @@ const Index = () => {
   const [showCompleteWork, setShowCompleteWork] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
+  const pendingStopDataRef = useRef<{ taskId: string; sessions: WorkSession[]; totalTime: number; activeSessionId?: string } | null>(null);
 
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);

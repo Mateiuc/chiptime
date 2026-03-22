@@ -390,6 +390,18 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <span>Vehicle Total:</span>
                     <span>{formatCurrency(vehicleSummary.vehicleTotal)}</span>
                   </div>
+                  {(vehicleSummary.vehicle.prepaidAmount || 0) > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm text-destructive">
+                        <span>Deposit:</span>
+                        <span className="font-semibold">-{formatCurrency(vehicleSummary.vehicle.prepaidAmount!)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-sm text-orange-500">
+                        <span>Balance Due:</span>
+                        <span>{formatCurrency(Math.max(0, vehicleSummary.vehicleTotal - vehicleSummary.vehicle.prepaidAmount!))}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>

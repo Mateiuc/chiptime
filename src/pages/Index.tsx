@@ -312,13 +312,17 @@ const Index = () => {
   };
 
   const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, chargeMinimumHour: boolean = false, isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false) => {
-    const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+    const pendingData = pendingStopDataRef.current;
+    const taskId = pendingData?.taskId || stoppingTaskId;
+    const activeTask = taskId ? tasks.find(t => t.id === taskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
-    // Update the active session with description and parts
-    const updatedSessions = [...(activeTask.sessions || [])];
-    let targetSession = activeTask.activeSessionId 
-      ? updatedSessions.find(s => s.id === activeTask.activeSessionId)
+    // Use pre-computed sessions from the ref (includes final period) instead of stale React state
+    const updatedSessions = [...(pendingData?.sessions || activeTask.sessions || [])];
+    const finalTotalTime = pendingData?.totalTime ?? activeTask.totalTime;
+    
+    let targetSession = (pendingData?.activeSessionId || activeTask.activeSessionId)
+      ? updatedSessions.find(s => s.id === (pendingData?.activeSessionId || activeTask.activeSessionId))
       : updatedSessions.find(s => s.periods && s.periods.length > 0);
     
     if (targetSession) {
@@ -332,14 +336,17 @@ const Index = () => {
       targetSession.isAllKeysLost = isAllKeysLost;
     }
 
+    // Single authoritative write — no competing paused write
     updateTask(activeTask.id, {
       status: 'completed',
       sessions: updatedSessions,
+      totalTime: finalTotalTime,
       startTime: undefined,
       activeSessionId: undefined,
       needsFollowUp,
     });
 
+    pendingStopDataRef.current = null;
     setShowCompleteWork(false);
     setStoppingTaskId(null);
     toast({ 
@@ -352,7 +359,7 @@ const Index = () => {
     if (client) {
       const updatedTasks = tasks.map(t =>
         t.id === activeTask.id
-          ? { ...t, status: 'completed' as const, sessions: updatedSessions, needsFollowUp, startTime: undefined, activeSessionId: undefined }
+          ? { ...t, status: 'completed' as const, sessions: updatedSessions, totalTime: finalTotalTime, needsFollowUp, startTime: undefined, activeSessionId: undefined }
           : t
       );
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
@@ -363,6 +370,27 @@ const Index = () => {
         })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
+  };
+
+  // Handle cancel from CompleteWorkDialog — write paused state so no data is lost
+  const handleCompleteWorkDialogClose = (open: boolean) => {
+    if (!open && pendingStopDataRef.current) {
+      const pendingData = pendingStopDataRef.current;
+      const activeTask = tasks.find(t => t.id === pendingData.taskId);
+      if (activeTask) {
+        // User cancelled — write paused state with computed sessions
+        updateTask(activeTask.id, {
+          status: 'paused',
+          sessions: pendingData.sessions,
+          totalTime: pendingData.totalTime,
+          startTime: undefined,
+          activeSessionId: pendingData.activeSessionId,
+        });
+      }
+      pendingStopDataRef.current = null;
+      setStoppingTaskId(null);
+    }
+    setShowCompleteWork(open);
   };
 
   const handleRestartTimer = (taskId: string) => {

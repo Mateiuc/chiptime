@@ -859,7 +859,16 @@ const DesktopDashboard = () => {
     if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos); yPos += 6; }
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
-    doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
+    doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
+    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    if (totalDeposits > 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 0, 0);
+      doc.text(`Total Deposits: -${formatCurrency(totalDeposits)}`, 25, yPos); yPos += 6;
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalDeposits))}`, 25, yPos);
+    }
     doc.setFont('helvetica', 'normal'); yPos += 12;
     if (clientVehicles.length > 0) {
       doc.setFontSize(14); doc.setFont('helvetica', 'bold');

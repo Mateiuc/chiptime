@@ -1,39 +1,35 @@
 
 
-# Round Seconds in All Duration Displays
+# Add Prepaid Amount Tracking to Vehicles
 
-## Problem
-Duration displays throughout the app show raw seconds (HH:MM:SS format). The user wants seconds rounded to the nearest minute everywhere.
+## What it does
+- Add a `prepaidAmount` field to vehicles, editable when editing a vehicle
+- Show prepaid (red) and remaining balance next to vehicle cost in the dashboard header
+- Add a "Prepaid" / "Remaining" line in the bill PDF, subtracted from total
 
 ## Changes
 
-### 1. Update `src/lib/formatTime.ts` — `formatDuration` function
-Change from `HH:MM:SS` to `HH:MM` format with seconds rounded to the nearest minute:
-- If seconds >= 30, round minutes up
-- If seconds < 30, round minutes down
-- Keep the `HH:MM` format (no seconds shown)
+### 1. Vehicle type — `src/types/index.ts`
+Add `prepaidAmount?: number` to the `Vehicle` interface
 
-### 2. Update local `formatDuration` variants
-Several components define their own inline `formatDuration` — these already show `Xh Xm` without seconds but don't round. Add rounding:
+### 2. Desktop inline vehicle edit — `src/pages/DesktopDashboard.tsx`
+- Add `prepaidAmount` to `vehicleEditData` state type (line 117)
+- Add "Prepaid $" input in inline edit form (after Color input, ~line 1464)
+- Include `prepaidAmount` in save handler (line 1476-1482)
+- Populate when entering edit mode (line 1434)
 
-- **`src/components/DesktopClientsView.tsx`** (line 72): Local `formatDuration` — add rounding of remaining seconds
-- **`src/components/ManageClientsDialog.tsx`** (line 111-114): Local `formatDuration` — add rounding
+### 3. Vehicle header display — `src/pages/DesktopDashboard.tsx` (~line 1426-1428)
+After the green total cost, if `vehicle.prepaidAmount > 0`:
+- Show prepaid in red: `Prepaid: $500.00`
+- Show remaining in orange: `Remaining: $3,213.53`
+- If fully paid (prepaid >= cost), show "Paid" in green
 
-### 3. Update `formatDurationHHMM` in TaskCard PDF generation
-- **`src/components/TaskCard.tsx`** (lines 376-380 and 738-742): Two duplicate `formatDurationHHMM` functions used for PDF bills — add second-rounding to minutes
+### 4. Bill PDF — `src/pages/DesktopDashboard.tsx` (~line 391-396)
+After parts and before TOTAL line, if `vehicle.prepaidAmount > 0`:
+- Add line: "Prepaid" with negative amount in red
+- Change TOTAL to show `total - prepaidAmount` (or $0 if overpaid)
+- Keep original total visible as "Subtotal" before the prepaid line
 
-### 4. Files affected (no changes needed)
-These files import `formatDuration` from `formatTime.ts` and will automatically get the fix:
-- `TaskCard.tsx` (card display)
-- `TaskInlineEditor.tsx` (inline editor)
-- `DesktopReportsView.tsx` (reports table)
-- `EditTaskDialog.tsx` (edit dialog)
-
-## Technical Detail
-Rounding logic applied everywhere:
-```typescript
-const totalMinutes = Math.round(seconds / 60);
-const hours = Math.floor(totalMinutes / 60);
-const minutes = totalMinutes % 60;
-```
+### 5. Mobile edit dialog — `src/components/EditVehicleDialog.tsx`
+- Add `prepaidAmount` state, input field, include in save
 

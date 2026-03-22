@@ -34,6 +34,7 @@ export const EditVehicleDialog = ({
   const [model, setModel] = useState(vehicle.model || '');
   const [year, setYear] = useState(vehicle.year?.toString() || '');
   const [color, setColor] = useState(vehicle.color || '');
+  const [prepaidAmount, setPrepaidAmount] = useState(vehicle.prepaidAmount?.toString() || '');
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {

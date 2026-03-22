@@ -1490,6 +1490,7 @@ const DesktopDashboard = () => {
                                   model: vehicleEditData.model.trim() || undefined,
                                   year: vehicleEditData.year ? parseInt(vehicleEditData.year) : undefined,
                                   color: vehicleEditData.color.trim() || undefined,
+                                  prepaidAmount: vehicleEditData.prepaidAmount ? parseFloat(vehicleEditData.prepaidAmount) : undefined,
                                 };
                                 updateVehicle(vehicle.id, updates);
                                 if (updates.vin) {

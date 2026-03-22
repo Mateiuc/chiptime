@@ -390,6 +390,18 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <span>Vehicle Total:</span>
                     <span>{formatCurrency(vehicleSummary.vehicleTotal)}</span>
                   </div>
+                  {(vehicleSummary.vehicle.prepaidAmount || 0) > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm text-destructive">
+                        <span>Deposit:</span>
+                        <span className="font-semibold">-{formatCurrency(vehicleSummary.vehicle.prepaidAmount!)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-sm text-orange-500">
+                        <span>Balance Due:</span>
+                        <span>{formatCurrency(Math.max(0, vehicleSummary.vehicleTotal - vehicleSummary.vehicle.prepaidAmount!))}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -449,6 +461,22 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               <span>GRAND TOTAL:</span>
               <span>{formatCurrency(grandTotal)}</span>
             </div>
+            {(() => {
+              const totalDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
+              if (totalDeposits <= 0) return null;
+              return (
+                <>
+                  <div className="flex justify-between text-sm text-destructive">
+                    <span>Total Deposits:</span>
+                    <span className="font-semibold">-{formatCurrency(totalDeposits)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold text-orange-500">
+                    <span>BALANCE DUE:</span>
+                    <span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span>
+                  </div>
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       )}

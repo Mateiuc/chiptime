@@ -397,7 +397,7 @@ const DesktopDashboard = () => {
       doc.text('Subtotal:', col3X - 45, yPos - 14);
       doc.text(formatCurrency(total), col3X + 2, yPos - 14, { align: 'right' });
       doc.setTextColor(200, 0, 0);
-      doc.text('Prepaid:', col3X - 45, yPos - 7);
+      doc.text('Deposit:', col3X - 45, yPos - 7);
       doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos - 7, { align: 'right' });
       doc.setTextColor(0, 0, 0);
     }
@@ -859,7 +859,16 @@ const DesktopDashboard = () => {
     if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos); yPos += 6; }
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
-    doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
+    doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
+    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    if (totalDeposits > 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 0, 0);
+      doc.text(`Total Deposits: -${formatCurrency(totalDeposits)}`, 25, yPos); yPos += 6;
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalDeposits))}`, 25, yPos);
+    }
     doc.setFont('helvetica', 'normal'); yPos += 12;
     if (clientVehicles.length > 0) {
       doc.setFontSize(14); doc.setFont('helvetica', 'bold');
@@ -884,7 +893,17 @@ const DesktopDashboard = () => {
         doc.text(`Parts Cost: ${formatCurrency(vFin.totalPartsCost)}`, 30, yPos); yPos += 5;
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);
-        doc.setFont('helvetica', 'normal'); yPos += 8;
+        doc.setFont('helvetica', 'normal'); yPos += 5;
+        const vDeposit = vehicle.prepaidAmount || 0;
+        if (vDeposit > 0) {
+          doc.setTextColor(200, 0, 0);
+          doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos); yPos += 5;
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Balance Due: ${formatCurrency(Math.max(0, vFin.totalCost - vDeposit))}`, 30, yPos);
+          doc.setFont('helvetica', 'normal');
+        }
+        yPos += 8;
       });
     }
     const sanitizedName = client.name.replace(/[^a-zA-Z0-9]/g, '_');
@@ -1440,11 +1459,11 @@ const DesktopDashboard = () => {
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
-                                  <span className="font-bold text-sm text-destructive ml-1">Prepaid: {formatCurrency(vehicle.prepaidAmount!)}</span>
+                                   <span className="font-bold text-sm text-destructive ml-1">Deposit: {formatCurrency(vehicle.prepaidAmount!)}</span>
                                   {vehicle.prepaidAmount! >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
-                                    <span className="font-bold text-sm text-orange-500 ml-1">Remaining: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
+                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
                                   )}
                                 </>
                               )}
@@ -1484,7 +1503,7 @@ const DesktopDashboard = () => {
                               <Input className="w-36 h-8 text-sm" placeholder="Model" value={vehicleEditData.model} onChange={e => setVehicleEditData(p => ({ ...p, model: e.target.value }))} />
                               <Input className="w-20 h-8 text-sm" placeholder="Year" type="number" value={vehicleEditData.year} onChange={e => setVehicleEditData(p => ({ ...p, year: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Color" value={vehicleEditData.color} onChange={e => setVehicleEditData(p => ({ ...p, color: e.target.value }))} />
-                              <Input className="w-28 h-8 text-sm" placeholder="Prepaid $" type="number" step="0.01" value={vehicleEditData.prepaidAmount} onChange={e => setVehicleEditData(p => ({ ...p, prepaidAmount: e.target.value }))} />
+                              <Input className="w-28 h-8 text-sm" placeholder="Deposit $" type="number" step="0.01" value={vehicleEditData.prepaidAmount} onChange={e => setVehicleEditData(p => ({ ...p, prepaidAmount: e.target.value }))} />
                               <Button size="sm" className="h-8" onClick={() => {
                                 const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
                                 if (!trimmedVin || trimmedVin.length !== 17) {

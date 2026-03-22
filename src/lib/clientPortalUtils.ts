@@ -81,6 +81,7 @@ interface SlimVehicle {
   md?: string;
   yr?: number;
   cl?: string;
+  pa?: number;
   s: SlimSession[];
   tl: number;
   tp: number;
@@ -255,6 +256,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       md: vs.vehicle.model || undefined,
       yr: vs.vehicle.year || undefined,
       cl: vs.vehicle.color || undefined,
+      pa: vs.vehicle.prepaidAmount && vs.vehicle.prepaidAmount > 0 ? Math.round(vs.vehicle.prepaidAmount * 100) / 100 : undefined,
       s: vs.sessions.map(s => ({
         d: s.description,
         dt: Math.floor(new Date(s.date).getTime() / 1000),
@@ -310,6 +312,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         model: sv.md,
         year: sv.yr,
         color: sv.cl,
+        prepaidAmount: sv.pa || 0,
       } as Vehicle,
       sessions: sv.s.map(ss => ({
         description: ss.d,

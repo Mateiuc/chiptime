@@ -1,4 +1,4 @@
-// Dynamically imported to code-split the large ExcelJS bundle
+import * as XLSX from 'xlsx';
 
 export interface ImportedSession {
   tag: string;
@@ -17,23 +17,10 @@ export interface ImportedSession {
  * Date | Start time | End time | Duration | rel. Duration | Description | Tags | Breaks | Breaks Description
  */
 export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const ExcelJS = await import('@zurmokeeper/exceljs');
-  const workbook = new ExcelJS.default.Workbook();
-  await workbook.xlsx.load(arrayBuffer);
-  const worksheet = workbook.getWorksheet(1);
-  if (!worksheet) return [];
-
-  // Collect all rows as arrays
-  const raw: any[][] = [];
-  worksheet.eachRow({ includeEmpty: false }, (row) => {
-    const values: any[] = [];
-    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      while (values.length < colNumber - 1) values.push(null);
-      values.push(cell.value);
-    });
-    raw.push(values);
-  });
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data, { type: 'array' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   if (raw.length === 0) return [];
 
@@ -84,6 +71,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
       let description = '';
       if (descCol !== -1 && row[descCol] != null) {
         const rawDesc = row[descCol];
+        // Guard against Excel fractional day numbers leaking into description
         if (typeof rawDesc === 'number' && rawDesc >= 0 && rawDesc <= 1) {
           description = '';
         } else {
@@ -93,8 +81,10 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
       const tagsRaw = tagsCol !== -1 ? (row[tagsCol] ?? '').toString().trim() : '';
       const breaksDescRaw = breaksDescCol !== -1 ? (row[breaksDescCol] ?? '').toString().trim() : '';
 
+      // Parse rel. Duration (e.g. "7:28:00" or fractional day number)
       const relDurationSeconds = relDurCol !== -1 ? parseDurationToSeconds(row[relDurCol]) : null;
 
+      // Parse rel. Salary
       let relSalary: number | undefined;
       if (relSalaryCol !== -1 && row[relSalaryCol] != null) {
         const salaryVal = row[relSalaryCol];
@@ -102,14 +92,21 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
         if (!isNaN(parsed)) relSalary = parsed;
       }
 
+      // Parse breaks
       const breaks = parseBreaksDescription(breaksDescRaw, baseDate);
+
+      // Build work periods from start/end with breaks carved out
       const periods = buildPeriods(startTime, endTime, breaks);
+
+      // Use rel. Duration as authoritative if available
       const totalWorkSeconds = relDurationSeconds ?? periods.reduce((sum, p) => sum + p.duration, 0);
 
+      // Split tags
       const tags = tagsRaw
         ? tagsRaw.split(/,/).map(t => t.trim()).filter(Boolean)
         : [''];
 
+      // Parse paid column
       const paidRaw = paidCol !== -1 && row[paidCol] != null ? String(row[paidCol]).toLowerCase().trim() : '';
       const paid = ['yes', 'true', '1'].includes(paidRaw);
 
@@ -137,11 +134,8 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
 function parseExcelDate(val: any): Date | null {
   if (val instanceof Date) return val;
   if (typeof val === 'number') {
-    // Excel serial date number: convert manually
-    // Excel epoch is Jan 0 1900 (day 1 = Jan 1 1900), with the Lotus 1-2-3 bug (day 60 = Feb 29 1900)
-    const epoch = new Date(1899, 11, 30); // Dec 30 1899
-    const d = new Date(epoch.getTime() + val * 86400000);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) return new Date(d.y, d.m - 1, d.d);
   }
   if (typeof val === 'string') {
     const d = new Date(val);
@@ -153,12 +147,6 @@ function parseExcelDate(val: any): Date | null {
 function combineDateTime(baseDate: Date, timeVal: any): Date | null {
   if (timeVal == null) return null;
   const result = new Date(baseDate);
-
-  // ExcelJS may return Date objects for time cells
-  if (timeVal instanceof Date) {
-    result.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
-    return result;
-  }
 
   if (typeof timeVal === 'number') {
     const totalMinutes = Math.round(timeVal * 24 * 60);
@@ -178,20 +166,23 @@ function combineDateTime(baseDate: Date, timeVal: any): Date | null {
     return result;
   }
 
+  if (timeVal instanceof Date) {
+    result.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
+    return result;
+  }
+
   return null;
 }
 
 function parseDurationToSeconds(val: any): number | null {
   if (val == null) return null;
 
-  if (val instanceof Date) {
-    return val.getHours() * 3600 + val.getMinutes() * 60 + val.getSeconds();
-  }
-
+  // Excel fractional day (e.g. 0.3125 = 7:30:00)
   if (typeof val === 'number') {
     return Math.round(val * 24 * 3600);
   }
 
+  // String like "7:28:00" or "0:43:00"
   if (typeof val === 'string') {
     const match = val.match(/(\d+):(\d{2}):(\d{2})/);
     if (match) {
@@ -214,10 +205,12 @@ interface BreakInterval {
 function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
   if (!raw) return [];
 
+  // Split on <br/> or newline only — NOT comma (commas appear inside full date strings)
   const segments = raw.split(/<br\s*\/?>|\n/).map(s => s.replace(/^[,\s]+|[,\s]+$/g, '')).filter(Boolean);
   const breaks: BreakInterval[] = [];
 
   for (const seg of segments) {
+    // Try full date format: "November 18, 2022, 17:02 – November 19, 2022, 00:57"
     const fullDateMatch = seg.match(/(.+?)\s*[–-]\s*(.+)/);
     if (!fullDateMatch) continue;
 
@@ -227,18 +220,22 @@ function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
     let breakStart: Date | null = null;
     let breakEnd: Date | null = null;
 
+    // Try as full date string first
     const startFull = new Date(startStr);
     const endFull = new Date(endStr);
 
     if (!isNaN(startFull.getTime()) && !isNaN(endFull.getTime()) && startStr.length > 6) {
+      // Full date format worked
       breakStart = startFull;
       breakEnd = endFull;
     } else {
+      // Try as HH:MM time only
       breakStart = parseTimeOnly(startStr, baseDate);
       breakEnd = parseTimeOnly(endStr, baseDate);
     }
 
     if (breakStart && breakEnd) {
+      // Handle midnight crossing for breaks
       if (breakEnd <= breakStart) {
         breakEnd.setDate(breakEnd.getDate() + 1);
       }
@@ -246,6 +243,7 @@ function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
     }
   }
 
+  // Sort by start time
   breaks.sort((a, b) => a.start.getTime() - b.start.getTime());
   return breaks;
 }
@@ -272,15 +270,18 @@ function buildPeriods(
   let cursor = new Date(startTime);
 
   for (const brk of breaks) {
+    // Work period before this break
     if (brk.start.getTime() > cursor.getTime()) {
       const dur = Math.round((brk.start.getTime() - cursor.getTime()) / 1000);
       if (dur > 0) {
         periods.push({ startTime: new Date(cursor), endTime: new Date(brk.start), duration: dur });
       }
     }
+    // Advance cursor past break
     cursor = new Date(brk.end);
   }
 
+  // Final work period after last break
   if (endTime.getTime() > cursor.getTime()) {
     const dur = Math.round((endTime.getTime() - cursor.getTime()) / 1000);
     if (dur > 0) {

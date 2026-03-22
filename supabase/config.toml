@@ -11,6 +11,3 @@ verify_jwt = false
 
 [functions.upload-diagnostic]
 verify_jwt = false
-
-[functions.sync-data]
-verify_jwt = false

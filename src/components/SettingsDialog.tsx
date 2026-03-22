@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { SyncKeySection } from './SyncKeySection';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -583,11 +582,6 @@ export const SettingsDialog = ({
                   </ul>
                 </div>
               )}
-
-              <div className="space-y-2 border-t pt-4">
-                <Label className="text-base font-bold">Cloud Sync</Label>
-                <SyncKeySection />
-              </div>
             </div>
           )}
 

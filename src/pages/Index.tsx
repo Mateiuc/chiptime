@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings as SettingsIcon, Plus } from 'lucide-react';
+import { SyncKeyPrompt } from '@/components/SyncKeyPrompt';
+import { appSyncService } from '@/services/appSyncService';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 

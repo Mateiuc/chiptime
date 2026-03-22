@@ -43,6 +43,7 @@ export const EditVehicleDialog = ({
     setModel(vehicle.model || '');
     setYear(vehicle.year?.toString() || '');
     setColor(vehicle.color || '');
+    setPrepaidAmount(vehicle.prepaidAmount?.toString() || '');
   }, [vehicle]);
 
   const handleVinChange = (newVin: string) => {

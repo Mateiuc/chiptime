@@ -11,7 +11,8 @@ import { defineCustomElements } from '@ionic/pwa-elements/loader';
 // Define the PWA elements before app renders
 defineCustomElements(window);
 
-// Initialize auto-backup service on app start
+// Migrate from old fixed sync_id if needed, then initialize auto-backup
+appSyncService.migrateFromFixedId().catch(console.error);
 autoBackupService.initialize().catch(console.error);
 
 createRoot(document.getElementById("root")!).render(

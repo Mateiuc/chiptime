@@ -583,6 +583,11 @@ export const SettingsDialog = ({
                   </ul>
                 </div>
               )}
+
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-base font-bold">Cloud Sync</Label>
+                <SyncKeySection />
+              </div>
             </div>
           )}
 

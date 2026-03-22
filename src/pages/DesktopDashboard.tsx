@@ -19,7 +19,8 @@ import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
-import { SyncData } from '@/services/appSyncService';
+import { SyncData, appSyncService } from '@/services/appSyncService';
+import { SyncKeyPrompt } from '@/components/SyncKeyPrompt';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -69,6 +70,8 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
+  const [showSyncPrompt, setShowSyncPrompt] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     setCloudPushEnabled(false);
@@ -76,8 +79,16 @@ const DesktopDashboard = () => {
   }, []);
 
   useEffect(() => {
-    refresh();
+    refresh().then(() => setInitialLoadDone(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show sync key prompt if desktop loaded with empty data after initial pull
+  useEffect(() => {
+    if (!initialLoadDone) return;
+    if (clients.length === 0 && tasks.length === 0) {
+      setShowSyncPrompt(true);
+    }
+  }, [initialLoadDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveToCloud = async () => {
     setSaving(true);
@@ -950,6 +961,11 @@ const DesktopDashboard = () => {
 
   return (
     <div className="h-screen flex flex-col bg-background">
+      <SyncKeyPrompt
+        open={showSyncPrompt}
+        onLinked={() => { setShowSyncPrompt(false); refresh(); }}
+        onStartFresh={() => setShowSyncPrompt(false)}
+      />
       {/* Header */}
       <header className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 shadow-lg shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">

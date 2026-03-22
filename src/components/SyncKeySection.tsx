@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Copy, Check, Link } from 'lucide-react';
+import { Eye, EyeOff, Copy, Check, Link, Cloud, CloudOff } from 'lucide-react';
 import { appSyncService } from '@/services/appSyncService';
 import { useNotifications } from '@/hooks/useNotifications';
 
@@ -12,6 +12,13 @@ export const SyncKeySection = () => {
   const [copied, setCopied] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<'checking' | 'found' | 'none'>('checking');
+
+  useEffect(() => {
+    appSyncService.getRemoteUpdatedAt().then(ts => {
+      setCloudStatus(ts ? 'found' : 'none');
+    }).catch(() => setCloudStatus('none'));
+  }, []);
 
   const syncKey = appSyncService.getSyncId();
   const maskedKey = syncKey.slice(0, 4) + '••••••••••••••••••••••••' + syncKey.slice(-4);
@@ -56,9 +63,20 @@ export const SyncKeySection = () => {
             {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Copy this key to link another device. Anyone with this key can access your data.
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            Copy this key to link another device. Anyone with this key can access your data.
+          </p>
+          {cloudStatus === 'checking' ? null : cloudStatus === 'found' ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 shrink-0">
+              <Cloud className="h-3 w-3" /> Data found
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+              <CloudOff className="h-3 w-3" /> No cloud data
+            </span>
+          )}
+        </div>
       </div>
 
       {!showLinkInput ? (

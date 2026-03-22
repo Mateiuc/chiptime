@@ -1,40 +1,36 @@
 
 
-# Secure app_sync with Secret Sync Key
+# Fix: Cross-Device Sync Key Discovery
 
 ## Problem
-The `app_sync` table uses a hardcoded `sync_id` ('chiptime-default') visible in source code, combined with fully open RLS policies (`USING (true)`). Anyone can read or overwrite all business data.
+Each device (mobile browser, desktop browser) generates its own independent sync key on first use. The user ends up with two different keys pointing to two separate data rows in the cloud, with no easy way to know which one has their real data. The desktop doesn't show mobile data because it's reading a different key.
 
 ## Solution
-Replace the hardcoded sync ID with a cryptographically random 32-character key generated on first use and stored locally. The key acts as a shared secret between devices. Users can view/copy it in Settings to link a second device.
+Add a **first-time setup prompt** on the desktop dashboard when it loads with an empty dataset, asking the user to either paste their mobile sync key or start fresh. Also improve the sync key section to show whether the current key has cloud data.
 
-**Note:** Without full authentication, RLS policies cannot truly restrict access by user identity. The security improvement comes from making the sync_id a 128-bit unguessable secret rather than a publicly known string. This is a pragmatic trade-off matching the user's preference.
+### 1. Create `SyncKeyPrompt` component
+A modal/dialog shown on desktop when:
+- Cloud pull returns no data (empty clients + tasks), AND
+- The device's sync key was auto-generated (no manual entry yet)
 
-## Changes
+The prompt offers two options:
+- **"I have a sync key"** → paste field for the key from mobile → applies it and reloads
+- **"Start fresh"** → dismisses the prompt, keeps the current key
 
-### 1. Migration: Clean up old data row
-- Rename the existing `chiptime-default` row's sync_id to a new random value via a one-time migration (or leave it — the app will create a new row with the new key)
-- No schema changes needed; `sync_id` column already supports arbitrary text
+### 2. Update `DesktopDashboard.tsx`
+- After initial `useCloudSync` pull completes, check if data is empty
+- If empty, show the `SyncKeyPrompt` overlay
+- On key entry, call `appSyncService.setSyncId()` then `refresh()`
 
-### 2. `src/services/appSyncService.ts`
-- Remove `FIXED_SYNC_ID` constant
-- Add `SYNC_KEY_STORAGE_KEY = 'chiptime_sync_key'`
-- `getSyncId()` → reads from `localStorage`. If not found, generates a 32-char hex key using `crypto.getRandomValues()`, saves it, and returns it
-- Add `setSyncId(key: string)` for manual entry from another device
-- Add `hasSyncKey(): boolean` helper
-- On first launch with no key: check if old `chiptime-default` row exists. If so, generate new key, update the row's `sync_id` to the new key, and store locally (one-time migration)
+### 3. Update `SyncKeySection.tsx`
+- Add a small status indicator: "✓ Cloud data found" or "No data for this key" based on a quick check of `getRemoteUpdatedAt()`
+- This helps the user on mobile know which key has their data
 
-### 3. `src/components/DesktopSettingsView.tsx`
-- Add a "Sync Key" section at the bottom of settings:
-  - Display the current key (masked by default, with show/copy toggle)
-  - "Link Another Device" input field to paste a key from another device
-  - Warning text explaining the key is needed to sync across devices
-
-### 4. `src/pages/Index.tsx` (mobile settings)
-- Add the same sync key display/entry UI in the mobile settings dialog
+### 4. No backend changes needed
+The existing `app_sync` table and RLS policies work as-is.
 
 ## Files to Change
-1. `src/services/appSyncService.ts` — replace hardcoded sync_id with generated secret key
-2. `src/components/DesktopSettingsView.tsx` — add sync key management UI
-3. `src/pages/Index.tsx` or `src/components/SettingsDialog.tsx` — add sync key UI for mobile
+1. `src/components/SyncKeyPrompt.tsx` — new first-time setup dialog
+2. `src/pages/DesktopDashboard.tsx` — show prompt when data is empty after sync
+3. `src/components/SyncKeySection.tsx` — add cloud data status indicator
 

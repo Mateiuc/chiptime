@@ -1,36 +1,48 @@
 
 
-# Fix: Cross-Device Sync Key Discovery
+# Fix: Desktop Not Seeing Mobile Updates
 
 ## Problem
-Each device (mobile browser, desktop browser) generates its own independent sync key on first use. The user ends up with two different keys pointing to two separate data rows in the cloud, with no easy way to know which one has their real data. The desktop doesn't show mobile data because it's reading a different key.
+Desktop doesn't auto-refresh when mobile pushes changes. The sync key is stored in `localStorage` which the native mobile app may not share with the browser. Desktop keeps showing stale data until manually reloaded.
 
 ## Solution
-Add a **first-time setup prompt** on the desktop dashboard when it loads with an empty dataset, asking the user to either paste their mobile sync key or start fresh. Also improve the sync key section to show whether the current key has cloud data.
+Keep desktop fully read/write (no restrictions). Fix the two root causes:
+1. **Sync key storage mismatch** — move sync key into Capacitor Preferences so native app and browser use the same key
+2. **No auto-refresh on desktop** — add polling + visibility-based refresh so desktop picks up mobile changes automatically
 
-### 1. Create `SyncKeyPrompt` component
-A modal/dialog shown on desktop when:
-- Cloud pull returns no data (empty clients + tasks), AND
-- The device's sync key was auto-generated (no manual entry yet)
+## Changes
 
-The prompt offers two options:
-- **"I have a sync key"** → paste field for the key from mobile → applies it and reloads
-- **"Start fresh"** → dismisses the prompt, keeps the current key
+### 1. `src/services/appSyncService.ts` — Unified sync key storage
+- Move `sync_key` and `local_updated_at` from `localStorage` to Capacitor Preferences (same store as task/client data)
+- Make `getSyncId()` and related methods async since Preferences is async
+- Keep one-time migration from old `localStorage` values so existing users don't lose their key
+- This ensures the installed mobile app and any browser on the same device share the same sync key
 
-### 2. Update `DesktopDashboard.tsx`
-- After initial `useCloudSync` pull completes, check if data is empty
-- If empty, show the `SyncKeyPrompt` overlay
-- On key entry, call `appSyncService.setSyncId()` then `refresh()`
+### 2. `src/hooks/useStorage.ts` — Auto-refresh for desktop
+- Add a 30-second polling interval that checks `getRemoteUpdatedAt()`
+- If cloud timestamp is newer than local, auto-pull and apply
+- Also refresh on `visibilitychange` (tab focus) so switching to desktop tab immediately syncs
+- Keep all existing write/push behavior unchanged — both mobile and desktop can still read and write
 
-### 3. Update `SyncKeySection.tsx`
-- Add a small status indicator: "✓ Cloud data found" or "No data for this key" based on a quick check of `getRemoteUpdatedAt()`
-- This helps the user on mobile know which key has their data
+### 3. `src/components/SyncKeySection.tsx` — Minor update
+- Update to work with async `getSyncId()`
+- No functionality removed
 
-### 4. No backend changes needed
-The existing `app_sync` table and RLS policies work as-is.
+### 4. `src/components/SyncKeyPrompt.tsx` — Minor update
+- Update to work with async `setSyncId()`
+
+### 5. All other callers of `appSyncService.getSyncId()` / `setSyncId()`
+- Update to handle async — mainly `useCloudSync` in `useStorage.ts` and `debouncedPushToCloud`
+
+## What stays the same
+- Desktop remains fully read/write — all session controls, Save to Cloud, everything stays
+- Mobile remains fully read/write
+- Last-write-wins conflict resolution unchanged
+- Empty snapshot guard unchanged
 
 ## Files to Change
-1. `src/components/SyncKeyPrompt.tsx` — new first-time setup dialog
-2. `src/pages/DesktopDashboard.tsx` — show prompt when data is empty after sync
-3. `src/components/SyncKeySection.tsx` — add cloud data status indicator
+1. `src/services/appSyncService.ts` — async Preferences-based key storage
+2. `src/hooks/useStorage.ts` — add auto-refresh polling + visibility listener
+3. `src/components/SyncKeySection.tsx` — async getSyncId
+4. `src/components/SyncKeyPrompt.tsx` — async setSyncId
 

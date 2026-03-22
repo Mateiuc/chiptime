@@ -265,7 +265,12 @@ const Index = () => {
     if (!activeTask) return;
     setStoppingTaskId(taskId);
 
-    // If timer is running, create final period
+    // Compute final period but DO NOT write to storage yet
+    // This prevents the race condition where paused and completed writes overlap
+    let updatedSessions = [...(activeTask.sessions || [])];
+    let activeSessionId = activeTask.activeSessionId;
+    let newTotalTime = activeTask.totalTime;
+
     if (activeTask.status === 'in-progress' && activeTask.startTime) {
       const elapsed = Math.floor((Date.now() - activeTask.startTime.getTime()) / 1000);
       
@@ -276,12 +281,7 @@ const Index = () => {
         duration: elapsed,
       };
 
-      // Add period to the active session (create one if missing)
-      let updatedSessions = [...(activeTask.sessions || [])];
-      let activeSessionId = activeTask.activeSessionId;
-      
       if (!activeSessionId) {
-        // Create new session if missing
         const newSession: WorkSession = {
           id: crypto.randomUUID(),
           createdAt: new Date(),
@@ -297,14 +297,16 @@ const Index = () => {
         activeSession.periods = [...(activeSession.periods || []), finalPeriod];
       }
 
-      updateTask(activeTask.id, {
-        status: 'paused',
-        sessions: updatedSessions,
-        totalTime: activeTask.totalTime + elapsed,
-        startTime: undefined,
-        activeSessionId,
-      });
+      newTotalTime = activeTask.totalTime + elapsed;
     }
+
+    // Store computed data in ref for handleCompleteWork or cancel to use
+    pendingStopDataRef.current = {
+      taskId,
+      sessions: updatedSessions,
+      totalTime: newTotalTime,
+      activeSessionId,
+    };
 
     setShowCompleteWork(true);
   };

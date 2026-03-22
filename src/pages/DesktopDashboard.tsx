@@ -114,7 +114,7 @@ const DesktopDashboard = () => {
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string }>({ vin: '', make: '', model: '', year: '', color: '' });
+  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   const [chartClient, setChartClient] = useState<string>('all');
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
@@ -388,12 +388,24 @@ const DesktopDashboard = () => {
       });
     }
 
-    // Total
+    // Prepaid & Total
     yPos = 261;
+    const prepaid = vehicle.prepaidAmount || 0;
+    if (prepaid > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Subtotal:', col3X - 45, yPos - 14);
+      doc.text(formatCurrency(total), col3X + 2, yPos - 14, { align: 'right' });
+      doc.setTextColor(200, 0, 0);
+      doc.text('Prepaid:', col3X - 45, yPos - 7);
+      doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos - 7, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    }
+    const finalTotal = Math.max(0, total - prepaid);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL:', col3X - 45, yPos);
-    doc.text(formatCurrency(total), col3X + 2, yPos, { align: 'right' });
+    doc.text(formatCurrency(finalTotal), col3X + 2, yPos, { align: 'right' });
 
     // Timestamp
     const now = new Date();
@@ -1426,12 +1438,22 @@ const DesktopDashboard = () => {
                               {vehicleCost > 0 && (
                                 <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">{formatCurrency(vehicleCost)}</span>
                               )}
+                              {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
+                                <>
+                                  <span className="font-bold text-sm text-destructive ml-1">Prepaid: {formatCurrency(vehicle.prepaidAmount!)}</span>
+                                  {vehicle.prepaidAmount! >= vehicleCost ? (
+                                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
+                                  ) : (
+                                    <span className="font-bold text-sm text-orange-500 ml-1">Remaining: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
+                                  )}
+                                </>
+                              )}
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                 setEditingVehicleId(vehicle.id);
-                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '' });
+                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '' });
                               }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -1462,6 +1484,7 @@ const DesktopDashboard = () => {
                               <Input className="w-36 h-8 text-sm" placeholder="Model" value={vehicleEditData.model} onChange={e => setVehicleEditData(p => ({ ...p, model: e.target.value }))} />
                               <Input className="w-20 h-8 text-sm" placeholder="Year" type="number" value={vehicleEditData.year} onChange={e => setVehicleEditData(p => ({ ...p, year: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Color" value={vehicleEditData.color} onChange={e => setVehicleEditData(p => ({ ...p, color: e.target.value }))} />
+                              <Input className="w-28 h-8 text-sm" placeholder="Prepaid $" type="number" step="0.01" value={vehicleEditData.prepaidAmount} onChange={e => setVehicleEditData(p => ({ ...p, prepaidAmount: e.target.value }))} />
                               <Button size="sm" className="h-8" onClick={() => {
                                 const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
                                 if (!trimmedVin || trimmedVin.length !== 17) {
@@ -1479,6 +1502,7 @@ const DesktopDashboard = () => {
                                   model: vehicleEditData.model.trim() || undefined,
                                   year: vehicleEditData.year ? parseInt(vehicleEditData.year) : undefined,
                                   color: vehicleEditData.color.trim() || undefined,
+                                  prepaidAmount: vehicleEditData.prepaidAmount ? parseFloat(vehicleEditData.prepaidAmount) : undefined,
                                 };
                                 updateVehicle(vehicle.id, updates);
                                 if (updates.vin) {

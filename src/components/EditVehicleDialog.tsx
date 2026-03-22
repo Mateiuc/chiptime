@@ -34,6 +34,7 @@ export const EditVehicleDialog = ({
   const [model, setModel] = useState(vehicle.model || '');
   const [year, setYear] = useState(vehicle.year?.toString() || '');
   const [color, setColor] = useState(vehicle.color || '');
+  const [prepaidAmount, setPrepaidAmount] = useState(vehicle.prepaidAmount?.toString() || '');
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export const EditVehicleDialog = ({
     setModel(vehicle.model || '');
     setYear(vehicle.year?.toString() || '');
     setColor(vehicle.color || '');
+    setPrepaidAmount(vehicle.prepaidAmount?.toString() || '');
   }, [vehicle]);
 
   const handleVinChange = (newVin: string) => {
@@ -99,6 +101,7 @@ export const EditVehicleDialog = ({
       model: model.trim() || undefined,
       year: year ? parseInt(year) : undefined,
       color: color.trim() || undefined,
+      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     };
 
     onSave(vehicle.id, updates);
@@ -187,6 +190,18 @@ export const EditVehicleDialog = ({
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
                 placeholder="e.g., Blue"
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Prepaid Amount ($)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={prepaidAmount}
+                onChange={(e) => setPrepaidAmount(e.target.value)}
+                placeholder="0.00"
                 className="h-10"
               />
             </div>

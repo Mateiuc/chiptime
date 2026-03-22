@@ -29,6 +29,7 @@ export interface Vehicle {
   year?: number;
   color?: string;
   diagnosticPdfUrl?: string;
+  prepaidAmount?: number;
 }
 
 export interface Part {

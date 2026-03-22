@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { SyncKeySection } from './SyncKeySection';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

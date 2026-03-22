@@ -837,7 +837,7 @@ const Index = () => {
 
       <CompleteWorkDialog
         open={showCompleteWork}
-        onOpenChange={(open) => { setShowCompleteWork(open); if (!open) setStoppingTaskId(null); }}
+        onOpenChange={handleCompleteWorkDialogClose}
         onComplete={handleCompleteWork}
         vehicleLabel={(() => {
           if (!stoppingTaskId) return undefined;

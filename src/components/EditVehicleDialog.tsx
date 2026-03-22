@@ -101,6 +101,7 @@ export const EditVehicleDialog = ({
       model: model.trim() || undefined,
       year: year ? parseInt(year) : undefined,
       color: color.trim() || undefined,
+      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     };
 
     onSave(vehicle.id, updates);

@@ -312,6 +312,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         model: sv.md,
         year: sv.yr,
         color: sv.cl,
+        prepaidAmount: sv.pa || 0,
       } as Vehicle,
       sessions: sv.s.map(ss => ({
         description: ss.d,

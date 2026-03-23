@@ -58,6 +58,8 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (vehicle.model) xml += `model="${escapeXML(vehicle.model)}" `;
     if (vehicle.year) xml += `year="${escapeXML(vehicle.year)}" `;
     if (vehicle.color) xml += `color="${escapeXML(vehicle.color)}" `;
+    if (vehicle.prepaidAmount) xml += `prepaidAmount="${escapeXML(vehicle.prepaidAmount)}" `;
+    if (vehicle.diagnosticPdfUrl) xml += `diagnosticPdfUrl="${escapeXML(vehicle.diagnosticPdfUrl)}" `;
     xml += `/>\n`;
   });
   xml += '  </Vehicles>\n';

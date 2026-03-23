@@ -1148,12 +1148,20 @@ const DesktopDashboard = () => {
                     }`}
                   >
                     <div className="font-semibold text-sm truncate">{client.name}</div>
-                    <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                      <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
-                      {clientRevenue > 0 && (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</span>
-                      )}
-                    </div>
+                    {(() => {
+                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                      const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                      return (
+                        <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                          <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
+                          {clientRevenue > 0 && (
+                            <span className={`font-semibold ${clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              {clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })}

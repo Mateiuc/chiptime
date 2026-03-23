@@ -28,7 +28,20 @@ export const exportToXML = (data: DatabaseExport): string => {
     xml += `name="${escapeXML(client.name)}" `;
     if (client.email) xml += `email="${escapeXML(client.email)}" `;
     if (client.phone) xml += `phone="${escapeXML(client.phone)}" `;
+    if (client.address) xml += `address="${escapeXML(client.address)}" `;
+    if (client.city) xml += `city="${escapeXML(client.city)}" `;
+    if (client.state) xml += `state="${escapeXML(client.state)}" `;
+    if (client.zip) xml += `zip="${escapeXML(client.zip)}" `;
+    if (client.companyName) xml += `companyName="${escapeXML(client.companyName)}" `;
+    if (client.itin) xml += `itin="${escapeXML(client.itin)}" `;
+    if (client.notes) xml += `notes="${escapeXML(client.notes)}" `;
     if (client.hourlyRate) xml += `hourlyRate="${escapeXML(client.hourlyRate)}" `;
+    if (client.cloningRate) xml += `cloningRate="${escapeXML(client.cloningRate)}" `;
+    if (client.programmingRate) xml += `programmingRate="${escapeXML(client.programmingRate)}" `;
+    if (client.addKeyRate) xml += `addKeyRate="${escapeXML(client.addKeyRate)}" `;
+    if (client.allKeysLostRate) xml += `allKeysLostRate="${escapeXML(client.allKeysLostRate)}" `;
+    if (client.accessCode) xml += `accessCode="${escapeXML(client.accessCode)}" `;
+    if (client.portalId) xml += `portalId="${escapeXML(client.portalId)}" `;
     xml += `createdAt="${formatDate(client.createdAt)}" `;
     xml += `/>\n`;
   });
@@ -45,6 +58,8 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (vehicle.model) xml += `model="${escapeXML(vehicle.model)}" `;
     if (vehicle.year) xml += `year="${escapeXML(vehicle.year)}" `;
     if (vehicle.color) xml += `color="${escapeXML(vehicle.color)}" `;
+    if (vehicle.prepaidAmount) xml += `prepaidAmount="${escapeXML(vehicle.prepaidAmount)}" `;
+    if (vehicle.diagnosticPdfUrl) xml += `diagnosticPdfUrl="${escapeXML(vehicle.diagnosticPdfUrl)}" `;
     xml += `/>\n`;
   });
   xml += '  </Vehicles>\n';
@@ -185,7 +200,20 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         name: node.getAttribute('name') || '',
         email: node.getAttribute('email') || undefined,
         phone: node.getAttribute('phone') || undefined,
+        address: node.getAttribute('address') || undefined,
+        city: node.getAttribute('city') || undefined,
+        state: node.getAttribute('state') || undefined,
+        zip: node.getAttribute('zip') || undefined,
+        companyName: node.getAttribute('companyName') || undefined,
+        itin: node.getAttribute('itin') || undefined,
+        notes: node.getAttribute('notes') || undefined,
         hourlyRate: node.getAttribute('hourlyRate') ? parseFloat(node.getAttribute('hourlyRate')!) : undefined,
+        cloningRate: node.getAttribute('cloningRate') ? parseFloat(node.getAttribute('cloningRate')!) : undefined,
+        programmingRate: node.getAttribute('programmingRate') ? parseFloat(node.getAttribute('programmingRate')!) : undefined,
+        addKeyRate: node.getAttribute('addKeyRate') ? parseFloat(node.getAttribute('addKeyRate')!) : undefined,
+        allKeysLostRate: node.getAttribute('allKeysLostRate') ? parseFloat(node.getAttribute('allKeysLostRate')!) : undefined,
+        accessCode: node.getAttribute('accessCode') || undefined,
+        portalId: node.getAttribute('portalId') || undefined,
         createdAt: new Date(node.getAttribute('createdAt') || ''),
       });
     });
@@ -203,6 +231,8 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         model: node.getAttribute('model') || undefined,
         year: node.getAttribute('year') ? parseInt(node.getAttribute('year')!) : undefined,
         color: node.getAttribute('color') || undefined,
+        prepaidAmount: node.getAttribute('prepaidAmount') ? parseFloat(node.getAttribute('prepaidAmount')!) : undefined,
+        diagnosticPdfUrl: node.getAttribute('diagnosticPdfUrl') || undefined,
       });
     });
   }

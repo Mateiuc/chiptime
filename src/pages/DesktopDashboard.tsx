@@ -749,7 +749,7 @@ const DesktopDashboard = () => {
   const getClientFinancials = (clientId: string) => {
     const clientTasks = tasks.filter(t => t.clientId === clientId);
     const client = clients.find(c => c.id === clientId);
-    const hourlyRate = client?.hourlyRate || 0;
+    const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;

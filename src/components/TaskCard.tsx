@@ -484,11 +484,30 @@ export const TaskCard = ({
 
       // Total Section
       yPos = 261;
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      const totalX = col3X - 45;
-      doc.text('TOTAL:', totalX, yPos);
-      doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      const deposit = vehicle?.prepaidAmount || 0;
+      if (deposit > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('Subtotal:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        yPos += 7;
+        doc.setFontSize(11);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Deposit:', totalX, yPos);
+        doc.text(`-${formatCurrency(deposit)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 8;
+        doc.setFontSize(16);
+        doc.text('BALANCE DUE:', totalX, yPos);
+        doc.text(formatCurrency(Math.max(0, totalCost - deposit)), col3X + 2, yPos, { align: 'right' });
+      } else {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('TOTAL:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      }
 
       // Add timestamp at the very bottom center
       const formatTimestamp = (date: Date): string => {

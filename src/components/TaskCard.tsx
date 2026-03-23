@@ -669,10 +669,11 @@ export const TaskCard = ({
 
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const shareDeposit = vehicle?.prepaidAmount || 0;
       return {
         pdfBase64,
         fileName,
-        totalCost,
+        totalCost: shareDeposit > 0 ? Math.max(0, totalCost - shareDeposit) : totalCost,
         vehicleInfo: vehicleInfoStr,
         clientName: client?.name || 'Customer',
         clientPhone: client?.phone,

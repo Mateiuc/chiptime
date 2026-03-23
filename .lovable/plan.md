@@ -1,61 +1,75 @@
 
 
-# Full Code Audit: Deposit/Balance Due & Consistency Issues
+# Full Code Audit — Issues Found
 
-## Issues Found
+## BUG 1: `importedSalary` ignored in `getClientFinancials` and `getVehicleFinancials`
 
-### BUG 1: HTML Portal File missing Deposit/Balance Due
-**File**: `src/lib/clientPortalUtils.ts` — `generatePortalHtmlFile()` (lines 560-571)
-The self-contained HTML portal file (used as fallback when URL is too long) does NOT show deposit or balance due anywhere:
-- Vehicle subtotal section (line 560): shows "Vehicle Total" but no deposit/balance
-- Grand total section (line 570): shows "GRAND TOTAL" but no deposit/balance
-The `pa` field IS included in the data — it's just never rendered in the HTML template.
+**Affects**: Client Report PDFs on both Desktop and Mobile (ManageClientsDialog)
 
-**Fix**: After the "Vehicle Total" row, add deposit and balance due rows if `v.pa > 0`. Same at the grand total level — sum all `v.pa` and show total deposits + balance due.
+Both `getClientFinancials` and `getVehicleFinancials` in `DesktopDashboard.tsx` (lines 759-780, 805-821) and `ManageClientsDialog.tsx` (lines 129-149, 172-187) always calculate labor as `duration × hourlyRate`. They never check `task.importedSalary`.
 
-### BUG 2: DesktopClientsView PDF missing per-vehicle deposits
-**File**: `src/components/DesktopClientsView.tsx` (lines 138-177)
-The `generateClientPDF` function does NOT have a per-vehicle section at all — it only has client-level summary with deposits. This is a **simpler PDF** than the one in DesktopDashboard, so no per-vehicle deposit lines are missing because there are no per-vehicle details in this PDF. However, this is inconsistent with the ManageClientsDialog and DesktopDashboard versions which do show per-vehicle breakdowns.
+Meanwhile, `getTaskCost` (line 668) and `calculateClientCosts` in `clientPortalUtils.ts` (line 163) correctly handle it: `if (task.importedSalary != null) { laborCost = task.importedSalary }`.
 
-**Decision**: No fix needed — this is an intentionally simpler report. The client-level deposits are already shown.
+**Result**: For any imported XLS task, Client Report PDFs show wrong totals (recalculated from time instead of using the imported salary figure).
 
-### CONFIRMED WORKING (No issues):
-- **TaskCard mobile cost summary** (line 1546-1551): ✅ Deposit + Balance Due shown
-- **TaskCard bill PDF** (lines 486-510): ✅ Subtotal/Deposit/Balance Due
-- **TaskCard preview PDF** (lines 858-882): ✅ Subtotal/Deposit/Balance Due  
-- **TaskCard share amount** (lines 656-660, 672-677): ✅ Uses balance due
-- **ManageClientsDialog PDF** (lines 290-303, 355-364): ✅ Client + per-vehicle deposits
-- **DesktopDashboard bill PDF** (lines 391-406): ✅ Deposit/Balance Due
-- **DesktopDashboard client report PDF** (lines 862-905): ✅ Both levels
-- **DesktopDashboard vehicle header** (lines 1460-1467): ✅ Deposit/Balance Due/Paid
-- **ClientCostBreakdown** (lines 393-404, 464-479): ✅ Both levels
-- **clientPortalUtils slim encoding** (line 259): ✅ `pa` field included
-- **clientPortalUtils inflate** (line 315): ✅ `prepaidAmount` restored
-- **EditVehicleDialog** (line 37): ✅ Deposit field present
+**Fix**: In all 4 copies of `getClientFinancials`/`getVehicleFinancials`, add an `importedSalary` check per task — if present, use it as laborCost for that task and skip per-session calculation.
 
-### CLEANUP: Unused/dead code
-- `fetchPortalFromCloud` in `clientPortalUtils.ts` (line 700) is marked `@deprecated` — harmless but could be removed.
+---
 
-## Plan: Fix 1 Issue
+## BUG 2: Hourly rate falls back to `0` instead of `settings.defaultHourlyRate`
 
-### Fix HTML Portal Template — `src/lib/clientPortalUtils.ts`
+**Affects**: Client Report PDFs, vehicle stats in Desktop and Mobile
 
-**Vehicle subtotal** (~line 560): After the "Vehicle Total" row, add:
-```javascript
-if(v.pa&&v.pa>0){
-  h+='<div class="row" style="color:#ef4444"><span>Deposit:</span><span><b>-'+fmt(v.pa)+'</b></span></div>';
-  h+='<div class="row total" style="color:#f97316"><span>Balance Due:</span><span>'+fmt(Math.max(0,v.vt-v.pa))+'</span></div>';
-}
-```
+In `getClientFinancials` and `getVehicleFinancials`:
+- **DesktopDashboard.tsx** lines 752, 798: `client?.hourlyRate || 0`
+- **ManageClientsDialog.tsx** lines 121, 164: `client?.hourlyRate || 0`
 
-**Grand total** (~line 570): After the "GRAND TOTAL" row, add:
-```javascript
-var totalDep=0;s.v.forEach(function(v){totalDep+=(v.pa||0)});
-if(totalDep>0){
-  h+='<div class="row" style="color:#ef4444"><span>Total Deposits:</span><span><b>-'+fmt(totalDep)+'</b></span></div>';
-  h+='<div class="row total" style="color:#f97316"><span>BALANCE DUE:</span><span>'+fmt(Math.max(0,s.gt-totalDep))+'</span></div>';
-}
-```
+But `getTaskCost` (line 674) correctly uses `client?.hourlyRate || settings.defaultHourlyRate`.
 
-This is the **only actual bug** — everything else is confirmed working correctly across mobile, desktop, and client portal.
+**Result**: Clients without a custom hourly rate show $0 labor in Client Report PDFs, even though the tree view and bill PDFs show correct amounts.
+
+**Fix**: Change all four occurrences to `client?.hourlyRate || settings.defaultHourlyRate`.
+
+---
+
+## BUG 3: Desktop bill PDF says "TOTAL" instead of "BALANCE DUE" when deposit exists
+
+**Affects**: Desktop bill PDF only (`DesktopDashboard.tsx` line 407)
+
+Mobile bill/preview PDFs correctly show "BALANCE DUE:" as the final label when deposit > 0. The desktop bill PDF shows "Subtotal" and "Deposit" lines correctly, but the final line always reads `TOTAL:` — it should say `BALANCE DUE:` when a deposit exists.
+
+**Fix**: Change line 407 to use `prepaid > 0 ? 'BALANCE DUE:' : 'TOTAL:'`.
+
+---
+
+## CLEANUP: Deprecated dead code
+
+`fetchPortalFromCloud` in `clientPortalUtils.ts` (line 705-719) is marked `@deprecated` and unused. Safe to remove.
+
+---
+
+## CONFIRMED WORKING (No issues):
+- Mobile cost summary UI (TaskCard): Deposit + Balance Due ✅
+- Mobile bill PDF: Subtotal/Deposit/Balance Due ✅
+- Mobile preview PDF: Subtotal/Deposit/Balance Due ✅
+- Mobile share amount: Uses balance due ✅
+- Desktop vehicle header: Deposit/Balance Due/Paid ✅
+- Desktop client report PDF: Deposits at client + vehicle level ✅
+- Mobile client report PDF (ManageClientsDialog): Deposits at client + vehicle level ✅
+- Client portal (ClientCostBreakdown React): Deposit/Balance Due at both levels ✅
+- Client portal HTML fallback: Deposit/Balance Due at both levels ✅
+- Portal sync (`clientPortalUtils`): `prepaidAmount` encoded/decoded correctly ✅
+- Cloud sync (`appSyncService`): Working correctly ✅
+- `calculateClientCosts`: Handles `importedSalary` correctly ✅
+- `getTaskCost`: Handles `importedSalary` and default rates correctly ✅
+- All rate types (Add Key, All Keys Lost) propagated everywhere ✅
+
+## Plan Summary
+
+| # | What | Where | Severity |
+|---|------|-------|----------|
+| 1 | Add `importedSalary` check to financials helpers | DesktopDashboard + ManageClientsDialog (4 functions) | High — wrong PDF totals |
+| 2 | Fix hourly rate fallback to `settings.defaultHourlyRate` | Same 4 functions | High — $0 labor for some clients |
+| 3 | "TOTAL" → "BALANCE DUE" label on desktop bill PDF | DesktopDashboard line 407 | Low — cosmetic inconsistency |
+| 4 | Remove deprecated `fetchPortalFromCloud` | clientPortalUtils.ts | Cleanup |
 

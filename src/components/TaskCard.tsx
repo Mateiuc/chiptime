@@ -484,11 +484,30 @@ export const TaskCard = ({
 
       // Total Section
       yPos = 261;
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      const totalX = col3X - 45;
-      doc.text('TOTAL:', totalX, yPos);
-      doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      const deposit = vehicle?.prepaidAmount || 0;
+      if (deposit > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('Subtotal:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        yPos += 7;
+        doc.setFontSize(11);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Deposit:', totalX, yPos);
+        doc.text(`-${formatCurrency(deposit)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 8;
+        doc.setFontSize(16);
+        doc.text('BALANCE DUE:', totalX, yPos);
+        doc.text(formatCurrency(Math.max(0, totalCost - deposit)), col3X + 2, yPos, { align: 'right' });
+      } else {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('TOTAL:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      }
 
       // Add timestamp at the very bottom center
       const formatTimestamp = (date: Date): string => {
@@ -634,10 +653,11 @@ export const TaskCard = ({
             reader.onerror = reject;
             reader.readAsDataURL(mergedBlob);
           });
+          const billDeposit = vehicle?.prepaidAmount || 0;
           return {
             pdfBase64: mergedBase64,
             fileName,
-            totalCost,
+            totalCost: billDeposit > 0 ? Math.max(0, totalCost - billDeposit) : totalCost,
             vehicleInfo: vehicleInfoStr,
             clientName: client?.name || 'Customer',
             clientPhone: client?.phone,
@@ -649,10 +669,11 @@ export const TaskCard = ({
 
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const shareDeposit = vehicle?.prepaidAmount || 0;
       return {
         pdfBase64,
         fileName,
-        totalCost,
+        totalCost: shareDeposit > 0 ? Math.max(0, totalCost - shareDeposit) : totalCost,
         vehicleInfo: vehicleInfoStr,
         clientName: client?.name || 'Customer',
         clientPhone: client?.phone,
@@ -835,11 +856,30 @@ export const TaskCard = ({
       }
 
       yPos = 261;
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      const totalX = col3X - 45;
-      doc.text('TOTAL:', totalX, yPos);
-      doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      const previewDeposit = vehicle?.prepaidAmount || 0;
+      if (previewDeposit > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('Subtotal:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        yPos += 7;
+        doc.setFontSize(11);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Deposit:', totalX, yPos);
+        doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 8;
+        doc.setFontSize(16);
+        doc.text('BALANCE DUE:', totalX, yPos);
+        doc.text(formatCurrency(Math.max(0, totalCost - previewDeposit)), col3X + 2, yPos, { align: 'right' });
+      } else {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        const totalX = col3X - 45;
+        doc.text('TOTAL:', totalX, yPos);
+        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+      }
 
       const formatTimestamp = (date: Date): string => {
         const day = String(date.getDate()).padStart(2, '0');
@@ -1503,6 +1543,12 @@ export const TaskCard = ({
               {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
+              {(vehicle?.prepaidAmount || 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(vehicle!.prepaidAmount!)}</span></div>
+                  <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - vehicle!.prepaidAmount!))}</span></div>
+                </>
+              )}
             </div>
           </div>
         </CollapsibleContent>

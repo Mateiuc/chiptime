@@ -290,6 +290,17 @@ export const ManageClientsDialog = ({
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
     doc.setFont('helvetica', 'normal');
+    yPos += 6;
+    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    if (totalClientDeposits > 0) {
+      doc.setTextColor(220, 38, 38);
+      doc.text(`Total Deposits: -${formatCurrency(totalClientDeposits)}`, 25, yPos);
+      doc.setTextColor(0, 0, 0);
+      yPos += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalClientDeposits))}`, 25, yPos);
+      doc.setFont('helvetica', 'normal');
+    }
     yPos += 12;
 
     // Vehicles Section
@@ -340,6 +351,17 @@ export const ManageClientsDialog = ({
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vehicleFinancials.totalCost)}`, 30, yPos);
         doc.setFont('helvetica', 'normal');
+        yPos += 5;
+        const vDeposit = vehicle.prepaidAmount || 0;
+        if (vDeposit > 0) {
+          doc.setTextColor(220, 38, 38);
+          doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos);
+          doc.setTextColor(0, 0, 0);
+          yPos += 5;
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Balance Due: ${formatCurrency(Math.max(0, vehicleFinancials.totalCost - vDeposit))}`, 30, yPos);
+          doc.setFont('helvetica', 'normal');
+        }
         yPos += 8;
       });
     } else {

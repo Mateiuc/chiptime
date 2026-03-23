@@ -699,21 +699,3 @@ export async function fetchPortalWithCode(portalId: string, code: string): Promi
   };
 }
 
-/**
- * @deprecated Use checkPortalAccess + fetchPortalWithCode instead
- */
-export async function fetchPortalFromCloud(portalId: string): Promise<{
-  data: ClientCostSummary;
-  accessCode: string | null;
-  clientName: string;
-}> {
-  const result = await checkPortalAccess(portalId);
-  if (result.requiresCode) {
-    throw new Error('Portal requires access code');
-  }
-  return {
-    data: result.data!,
-    accessCode: null,
-    clientName: result.clientName || '',
-  };
-}

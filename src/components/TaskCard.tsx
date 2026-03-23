@@ -653,10 +653,11 @@ export const TaskCard = ({
             reader.onerror = reject;
             reader.readAsDataURL(mergedBlob);
           });
+          const billDeposit = vehicle?.prepaidAmount || 0;
           return {
             pdfBase64: mergedBase64,
             fileName,
-            totalCost,
+            totalCost: billDeposit > 0 ? Math.max(0, totalCost - billDeposit) : totalCost,
             vehicleInfo: vehicleInfoStr,
             clientName: client?.name || 'Customer',
             clientPhone: client?.phone,

@@ -1047,7 +1047,7 @@ export const TaskCard = ({
           pdfUri: fileUri.uri,
           clientName: cName,
           vehicleInfo: vInfo,
-          totalAmount: formatCurrency(total),
+          totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
           clientPhone: cPhone,
         });
         setShowShareDialog(true);
@@ -1079,7 +1079,7 @@ export const TaskCard = ({
         pdfUri: '',
         clientName: cName,
         vehicleInfo: vInfo,
-        totalAmount: formatCurrency(total),
+        totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
         clientPhone: cPhone,
       });
       setShowShareDialog(true);
@@ -1401,8 +1401,8 @@ export const TaskCard = ({
               <div className="font-bold text-sm">{(task.sessions || []).length}</div>
             </div>
             <div className="text-center">
-              <div className="text-muted-foreground text-xs font-medium mb-1">Cost</div>
-              <div className="font-bold text-sm text-primary">{formatCurrency(totalCost)}</div>
+              <div className="text-muted-foreground text-xs font-medium mb-1">{(vehicle?.prepaidAmount || 0) > 0 ? 'Due' : 'Cost'}</div>
+              <div className="font-bold text-sm text-primary">{formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)) : totalCost)}</div>
             </div>
           </div>
 

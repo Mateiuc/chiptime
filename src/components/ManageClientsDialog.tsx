@@ -351,6 +351,17 @@ export const ManageClientsDialog = ({
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vehicleFinancials.totalCost)}`, 30, yPos);
         doc.setFont('helvetica', 'normal');
+        yPos += 5;
+        const vDeposit = vehicle.prepaidAmount || 0;
+        if (vDeposit > 0) {
+          doc.setTextColor(220, 38, 38);
+          doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos);
+          doc.setTextColor(0, 0, 0);
+          yPos += 5;
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Balance Due: ${formatCurrency(Math.max(0, vehicleFinancials.totalCost - vDeposit))}`, 30, yPos);
+          doc.setFont('helvetica', 'normal');
+        }
         yPos += 8;
       });
     } else {

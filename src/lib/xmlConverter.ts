@@ -231,6 +231,8 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         model: node.getAttribute('model') || undefined,
         year: node.getAttribute('year') ? parseInt(node.getAttribute('year')!) : undefined,
         color: node.getAttribute('color') || undefined,
+        prepaidAmount: node.getAttribute('prepaidAmount') ? parseFloat(node.getAttribute('prepaidAmount')!) : undefined,
+        diagnosticPdfUrl: node.getAttribute('diagnosticPdfUrl') || undefined,
       });
     });
   }

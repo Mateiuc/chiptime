@@ -1,35 +1,46 @@
 
 
-# Fix: Mobile TaskCard Shows Gross Total Instead of Balance Due
+# Fix: Export/Import Missing Vehicle & Client Fields
 
 ## Problem
-The mobile TaskCard's top summary shows the full `totalCost` ($3,713.53) even when a deposit exists. The deposit/balance due breakdown only appears inside the expanded "Details" section. The user expects the main "Cost" field to show the balance due amount.
+The XML export/import in `src/lib/xmlConverter.ts` is missing critical fields — most importantly `prepaidAmount` (deposit) on vehicles, but also many other client and vehicle fields that were added after the original export was written.
 
-## Changes
+## Missing Fields
 
-### `src/components/TaskCard.tsx`
+**Vehicle** (line 39-48 export, line 197-207 import):
+- `prepaidAmount` (deposit) — **the reported bug**
+- `diagnosticPdfUrl`
 
-**1. Top summary "Cost" field (line 1403-1406)**
-Change the displayed amount from `totalCost` to the balance due when a deposit exists:
+**Client** (line 25-34 export, line 182-192 import):
+- `address`, `city`, `state`, `zip`
+- `companyName`, `itin`
+- `notes`
+- `cloningRate`, `programmingRate`, `addKeyRate`, `allKeysLostRate`
+- `accessCode`, `portalId`
 
-```
-// Current (line 1405):
-{formatCurrency(totalCost)}
+## Changes — `src/lib/xmlConverter.ts`
 
-// Fixed:
-{formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, totalCost - vehicle!.prepaidAmount!) : totalCost)}
-```
+### 1. Export — Vehicle section (lines 39-49)
+Add the missing attributes to the Vehicle XML element:
+- `if (vehicle.prepaidAmount) xml += \`prepaidAmount="..."\``
+- `if (vehicle.diagnosticPdfUrl) xml += \`diagnosticPdfUrl="..."\``
 
-**2. Share bill totalAmount (lines 1050, 1082)**
-The share dialog sends `formatCurrency(total)` where `total` is `totalCost` from the bill generator. This should also show balance due:
+### 2. Export — Client section (lines 25-34)
+Add all missing client attributes:
+- `address`, `city`, `state`, `zip`, `companyName`, `itin`, `notes`
+- `cloningRate`, `programmingRate`, `addKeyRate`, `allKeysLostRate`
+- `accessCode`, `portalId`
 
-```
-// Lines 1050 and 1082:
-totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
-```
+### 3. Import — Vehicle parsing (lines 197-207)
+Parse the new attributes when reading XML:
+- `prepaidAmount`: `parseFloat()` if present
+- `diagnosticPdfUrl`: string if present
 
-**3. ShareBillDialog default message (line 38 of ShareBillDialog.tsx)**
-The default message says `Total: ${totalAmount}` — since we're now passing balance due, this is correct as-is.
+### 4. Import — Client parsing (lines 182-192)
+Parse all the new client attributes when reading XML, using appropriate types (string for text fields, `parseFloat` for rates).
 
-Only file changed: `src/components/TaskCard.tsx` (3 spots).
+### 5. Export — Settings section (lines 132-135)
+Check if settings also has additional rate fields that need exporting (likely already covered by the client-level rates, but worth verifying during implementation).
+
+All changes are in one file: `src/lib/xmlConverter.ts`.
 

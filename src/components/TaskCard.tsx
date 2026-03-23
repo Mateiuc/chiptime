@@ -871,7 +871,7 @@ export const TaskCard = ({
         doc.setTextColor(0, 0, 0);
         yPos += 8;
         doc.setFontSize(16);
-        doc.text('BALANCE DUE:', totalX, yPos);
+        doc.text('TOTAL:', totalX, yPos);
         doc.text(formatCurrency(Math.max(0, totalCost - previewDeposit)), col3X + 2, yPos, { align: 'right' });
       } else {
         doc.setFontSize(16);

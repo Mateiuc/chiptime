@@ -404,7 +404,7 @@ const DesktopDashboard = () => {
     const finalTotal = Math.max(0, total - prepaid);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(prepaid > 0 ? 'BALANCE DUE:' : 'TOTAL:', col3X - 45, yPos);
+    doc.text('TOTAL:', col3X - 45, yPos);
     doc.text(formatCurrency(finalTotal), col3X + 2, yPos, { align: 'right' });
 
     // Timestamp

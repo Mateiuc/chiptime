@@ -1079,7 +1079,7 @@ export const TaskCard = ({
         pdfUri: '',
         clientName: cName,
         vehicleInfo: vInfo,
-        totalAmount: formatCurrency(total),
+        totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
         clientPhone: cPhone,
       });
       setShowShareDialog(true);

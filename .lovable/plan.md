@@ -1,38 +1,61 @@
 
 
-# Add Deposit/Balance Due to Mobile Views & Client Portal Sync
+# Full Code Audit: Deposit/Balance Due & Consistency Issues
 
-## Problem
-The mobile TaskCard (cost summary, bill PDF, preview PDF), mobile client report (ManageClientsDialog), and the client portal sync are missing the deposit/balance due calculations that were added to the desktop.
+## Issues Found
 
-## Changes
+### BUG 1: HTML Portal File missing Deposit/Balance Due
+**File**: `src/lib/clientPortalUtils.ts` — `generatePortalHtmlFile()` (lines 560-571)
+The self-contained HTML portal file (used as fallback when URL is too long) does NOT show deposit or balance due anywhere:
+- Vehicle subtotal section (line 560): shows "Vehicle Total" but no deposit/balance
+- Grand total section (line 570): shows "GRAND TOTAL" but no deposit/balance
+The `pa` field IS included in the data — it's just never rendered in the HTML template.
 
-### 1. Mobile Cost Summary — `src/components/TaskCard.tsx` (~line 1505)
-After the "Total:" line, if `vehicle?.prepaidAmount > 0`:
-- Add `Deposit:` line in red (destructive) showing negative amount
-- Add `Balance Due:` line in bold orange
+**Fix**: After the "Vehicle Total" row, add deposit and balance due rows if `v.pa > 0`. Same at the grand total level — sum all `v.pa` and show total deposits + balance due.
 
-### 2. Mobile Bill PDF — `src/components/TaskCard.tsx` (~line 485-491)
-Before the TOTAL line, if `vehicle?.prepaidAmount > 0`:
-- Show current total as "Subtotal:" 
-- Add "Deposit:" line with negative amount
-- Change final line to "BALANCE DUE:" showing `max(0, totalCost - deposit)`
+### BUG 2: DesktopClientsView PDF missing per-vehicle deposits
+**File**: `src/components/DesktopClientsView.tsx` (lines 138-177)
+The `generateClientPDF` function does NOT have a per-vehicle section at all — it only has client-level summary with deposits. This is a **simpler PDF** than the one in DesktopDashboard, so no per-vehicle deposit lines are missing because there are no per-vehicle details in this PDF. However, this is inconsistent with the ManageClientsDialog and DesktopDashboard versions which do show per-vehicle breakdowns.
 
-### 3. Mobile Preview PDF — `src/components/TaskCard.tsx` (~line 837-842)
-Same deposit/balance logic as the bill PDF above.
+**Decision**: No fix needed — this is an intentionally simpler report. The client-level deposits are already shown.
 
-### 4. Mobile Share Bill amount — `src/components/TaskCard.tsx` (~line 640, 655)
-Update `totalCost` passed to ShareBillDialog to reflect balance due when deposit exists.
+### CONFIRMED WORKING (No issues):
+- **TaskCard mobile cost summary** (line 1546-1551): ✅ Deposit + Balance Due shown
+- **TaskCard bill PDF** (lines 486-510): ✅ Subtotal/Deposit/Balance Due
+- **TaskCard preview PDF** (lines 858-882): ✅ Subtotal/Deposit/Balance Due  
+- **TaskCard share amount** (lines 656-660, 672-677): ✅ Uses balance due
+- **ManageClientsDialog PDF** (lines 290-303, 355-364): ✅ Client + per-vehicle deposits
+- **DesktopDashboard bill PDF** (lines 391-406): ✅ Deposit/Balance Due
+- **DesktopDashboard client report PDF** (lines 862-905): ✅ Both levels
+- **DesktopDashboard vehicle header** (lines 1460-1467): ✅ Deposit/Balance Due/Paid
+- **ClientCostBreakdown** (lines 393-404, 464-479): ✅ Both levels
+- **clientPortalUtils slim encoding** (line 259): ✅ `pa` field included
+- **clientPortalUtils inflate** (line 315): ✅ `prepaidAmount` restored
+- **EditVehicleDialog** (line 37): ✅ Deposit field present
 
-### 5. Mobile Client Report PDF — `src/components/ManageClientsDialog.tsx`
-- Per-vehicle section (~line 341-343): after `Total:`, add `Deposit:` and `Balance Due:` lines if vehicle has deposit
-- Client summary (~line 290-292): after `Grand Total:`, add total deposits and overall balance due
+### CLEANUP: Unused/dead code
+- `fetchPortalFromCloud` in `clientPortalUtils.ts` (line 700) is marked `@deprecated` — harmless but could be removed.
 
-### 6. Verify Client Portal sync
-The `clientPortalUtils.ts` already includes `prepaidAmount` in the wire format (`pa` field), and `ClientCostBreakdown.tsx` already displays deposit/balance. This is confirmed working — no changes needed there.
+## Plan: Fix 1 Issue
 
-## Technical Detail
-- `vehicle` prop is already available in TaskCard
-- Balance calculation: `Math.max(0, totalCost - (vehicle?.prepaidAmount || 0))`
-- PDF layout: Subtotal line replaces TOTAL when deposit exists; BALANCE DUE becomes the new final line
+### Fix HTML Portal Template — `src/lib/clientPortalUtils.ts`
+
+**Vehicle subtotal** (~line 560): After the "Vehicle Total" row, add:
+```javascript
+if(v.pa&&v.pa>0){
+  h+='<div class="row" style="color:#ef4444"><span>Deposit:</span><span><b>-'+fmt(v.pa)+'</b></span></div>';
+  h+='<div class="row total" style="color:#f97316"><span>Balance Due:</span><span>'+fmt(Math.max(0,v.vt-v.pa))+'</span></div>';
+}
+```
+
+**Grand total** (~line 570): After the "GRAND TOTAL" row, add:
+```javascript
+var totalDep=0;s.v.forEach(function(v){totalDep+=(v.pa||0)});
+if(totalDep>0){
+  h+='<div class="row" style="color:#ef4444"><span>Total Deposits:</span><span><b>-'+fmt(totalDep)+'</b></span></div>';
+  h+='<div class="row total" style="color:#f97316"><span>BALANCE DUE:</span><span>'+fmt(Math.max(0,s.gt-totalDep))+'</span></div>';
+}
+```
+
+This is the **only actual bug** — everything else is confirmed working correctly across mobile, desktop, and client portal.
 

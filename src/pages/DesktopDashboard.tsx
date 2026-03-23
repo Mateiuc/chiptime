@@ -1192,9 +1192,21 @@ const DesktopDashboard = () => {
                           <span>{clientVehicles.length} vehicles</span>
                           <span>{taskCount} tasks</span>
                         </div>
-                        {clientRevenue > 0 && (
-                          <div className="mt-2 text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</div>
-                        )}
+                        {clientRevenue > 0 && (() => {
+                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                          const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                          return (
+                            <div className="mt-2">
+                              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</div>
+                              {clientDeposits > 0 && (
+                                <>
+                                  <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
+                                  <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {client.phone && <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Phone className="h-3 w-3" />{client.phone}</div>}
                       </div>
                     );

@@ -257,8 +257,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
     }
   };
 
-  // Upload failed OCR frame to cloud for future improvement
-  const uploadFailedFrame = async (base64: string, provider: string, result: OcrResult) => {
+  // Upload OCR frame to cloud for analysis (both success and failure)
+  const uploadScanFrame = async (base64: string, provider: string, result: OcrResult, success: boolean, detectedVin?: string) => {
     try {
       const binaryString = atob(base64);
       const bytes = new Uint8Array(binaryString.length);
@@ -267,24 +267,44 @@ const VinScanner: React.FC<VinScannerProps> = ({
       }
       
       const timestamp = Date.now();
-      const filePath = `${timestamp}_${provider}.jpg`;
+      const baseName = `${timestamp}_${provider}_${success ? 'success' : 'fail'}`;
       
+      // Upload JPEG frame
       const { error } = await supabase.storage
         .from('vin-scan-failures')
-        .upload(filePath, bytes, {
+        .upload(`${baseName}.jpg`, bytes, {
           contentType: 'image/jpeg',
           upsert: false,
         });
       
       if (error) {
-        console.warn('[VIN Upload] Failed to upload:', error.message);
-      } else {
-        console.log('[VIN Upload] Saved failed frame:', filePath, {
-          provider,
-          rawText: result.rawText?.substring(0, 100),
-          candidateCount: result.candidates?.length || 0,
-        });
+        console.warn('[VIN Upload] Failed to upload image:', error.message);
+        return;
       }
+
+      // Upload JSON metadata sidecar
+      const metadata = {
+        provider,
+        success,
+        vin: detectedVin || null,
+        rawText: result.rawText || '',
+        candidates: result.candidates || [],
+        timestamp,
+      };
+      const metaBytes = new TextEncoder().encode(JSON.stringify(metadata, null, 2));
+      await supabase.storage
+        .from('vin-scan-failures')
+        .upload(`${baseName}.json`, metaBytes, {
+          contentType: 'application/json',
+          upsert: false,
+        });
+
+      console.log(`[VIN Upload] Saved ${success ? 'success' : 'failed'} frame:`, `${baseName}.jpg`, {
+        provider,
+        vin: detectedVin,
+        rawText: result.rawText?.substring(0, 100),
+        candidateCount: result.candidates?.length || 0,
+      });
     } catch (e) {
       console.warn('[VIN Upload] Error:', e);
     }

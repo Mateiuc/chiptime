@@ -290,12 +290,14 @@ export const DesktopClientsView = ({
                   <Button size="sm" variant="outline" onClick={() => generateClientPDF(selectedClient.id)}><Printer className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   <Button size="sm" variant="outline" onClick={async () => {
                     if (selectedClient.accessCode) {
-                      toast({ title: 'Access Code', description: `PIN: ${selectedClient.accessCode}` });
+                      navigator.clipboard.writeText(selectedClient.accessCode);
+                      toast({ title: 'PIN Copied!', description: `PIN: ${selectedClient.accessCode}` });
                     } else {
                       try {
                         const result = await syncPortalToCloud(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods);
                         onUpdateClient(selectedClient.id, { portalId: result.portalId, accessCode: result.accessCode });
-                        toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                        navigator.clipboard.writeText(result.accessCode);
+                        toast({ title: 'PIN Copied!', description: `PIN: ${result.accessCode}` });
                       } catch {
                         toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
                       }

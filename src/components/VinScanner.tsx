@@ -506,8 +506,18 @@ const VinScanner: React.FC<VinScannerProps> = ({
         canvas.height = sh;
         context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
+        // Apply grayscale + contrast for better OCR
+        const imgData = context.getImageData(0, 0, sw, sh);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const gray = 0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2];
+          const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
+          px[i] = px[i+1] = px[i+2] = contrasted;
+        }
+        context.putImageData(imgData, 0, 0);
+
         // Convert to base64
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
         const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
         // Call selected OCR provider with timeout

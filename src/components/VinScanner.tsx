@@ -552,7 +552,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
         context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
         // Upscale 2x if crop is too small
-        if (sh < 80) {
+        if (sh < 120) {
           const upCanvas = document.createElement('canvas');
           upCanvas.width = sw * 2;
           upCanvas.height = sh * 2;

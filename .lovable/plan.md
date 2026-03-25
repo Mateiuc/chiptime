@@ -1,37 +1,27 @@
 
 
-# Save All Manual Capture Frames (Success + Failure) for OCR Analysis
+# Fix VIN Scanner Guide Box Aspect Ratio
 
 ## Problem
-Currently `uploadFailedFrame` only runs when OCR **fails** to find a VIN (line 400). When a VIN is successfully detected, the frame is NOT saved. The user wants ALL manual Tesseract captures saved for future analysis and OCR tuning.
+The guide box at 1/16 is still too tall. A VIN is 17 characters with no spaces. If each character is roughly square (1:1), the natural aspect ratio of the text is 1:17 (height:width).
 
-## Changes — `src/components/VinScanner.tsx`
+## Change — `src/components/VinScanner.tsx` (line 112)
 
-### 1. Rename and generalize upload function (line 261)
-Rename `uploadFailedFrame` → `uploadScanFrame` and add a `success` parameter:
-- File path: `{timestamp}_{provider}_{success|fail}.jpg`
-- Also upload a `.json` metadata sidecar with: provider, rawText, candidates, success boolean, detected VIN (if any)
-
-### 2. Upload on success too (after line 396)
-Add `uploadScanFrame(base64, providerToUse, result, true)` right before `onVinDetected` so successful frames are also saved for reference.
-
-### 3. Save metadata as JSON sidecar (inside uploadScanFrame)
-After uploading the JPEG, also upload a small JSON file with the same name but `.json` extension containing:
-```json
-{
-  "provider": "tesseract",
-  "success": true,
-  "vin": "1HGBH41JXMN109186",
-  "rawText": "1HGBH41JXMN109186",
-  "candidates": [...],
-  "timestamp": 1711234567890
-}
+Change `ASPECT_RATIO` from `1/16` to `1/17`:
+```typescript
+const ASPECT_RATIO = 1 / 17;
 ```
 
-This gives full context when reviewing saved frames later.
+Also update the comment on line 110 to reflect the new ratio.
 
-### Summary
-- 1 file changed: `src/components/VinScanner.tsx`
-- ~15 lines modified total
-- Both successful and failed manual captures will be saved with full metadata
+Additionally, the Tesseract and preprocessing improvements from the previously approved plan will be applied:
+- Remove `tessedit_char_whitelist` in `src/lib/tesseractVinOcr.ts` — let Tesseract see all chars, rely on `cleanText()` for O→0, I→1
+- Add `tessedit_ocr_engine_mode: '2'` (Legacy+LSTM)
+- Replace linear contrast with adaptive binarization (Otsu threshold) in both manual and auto scan preprocessing
+- Upscale 2x if crop height < 80px
+- Adjust blur mask gradient to match thinner box
+
+## Files
+- `src/components/VinScanner.tsx` — aspect ratio + preprocessing
+- `src/lib/tesseractVinOcr.ts` — engine parameters
 

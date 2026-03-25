@@ -1,40 +1,37 @@
 
 
-# Fix VIN Scanner: Guide Box Too Tall & OCR Not Recognizing
+# Save All Manual Capture Frames (Success + Failure) for OCR Analysis
 
-## Problems
-1. **Guide box too tall**: Aspect ratio `1:8` makes the box ~216px tall on 1920px video — way too tall for a single VIN line, capturing excess background that confuses OCR
-2. **No preprocessing in auto scan**: The continuous scan loop (line 506-513) sends raw camera frames with no grayscale/contrast enhancement. Manual mode applies preprocessing only for Tesseract but not other providers
-3. **Lower quality in auto mode**: Auto scan uses 0.9 JPEG quality vs 0.98 in manual mode
+## Problem
+Currently `uploadFailedFrame` only runs when OCR **fails** to find a VIN (line 400). When a VIN is successfully detected, the frame is NOT saved. The user wants ALL manual Tesseract captures saved for future analysis and OCR tuning.
 
 ## Changes — `src/components/VinScanner.tsx`
 
-### 1. Reduce guide box height (line 112)
-Change aspect ratio from `1/8` to `1/16` — a much thinner strip that tightly fits a single VIN text line:
-```typescript
-const ASPECT_RATIO = 1 / 16; // was 1 / 8
-```
+### 1. Rename and generalize upload function (line 261)
+Rename `uploadFailedFrame` → `uploadScanFrame` and add a `success` parameter:
+- File path: `{timestamp}_{provider}_{success|fail}.jpg`
+- Also upload a `.json` metadata sidecar with: provider, rawText, candidates, success boolean, detected VIN (if any)
 
-### 2. Add preprocessing to continuous scan (after line 509)
-After `context.drawImage(...)` in the auto scan loop, apply the same grayscale + contrast boost currently only used in manual/tesseract mode:
-```typescript
-// Apply grayscale + contrast for better OCR
-const imageData = context.getImageData(0, 0, sw, sh);
-const data = imageData.data;
-for (let i = 0; i < data.length; i += 4) {
-  const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-  const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
-  data[i] = data[i+1] = data[i+2] = contrasted;
+### 2. Upload on success too (after line 396)
+Add `uploadScanFrame(base64, providerToUse, result, true)` right before `onVinDetected` so successful frames are also saved for reference.
+
+### 3. Save metadata as JSON sidecar (inside uploadScanFrame)
+After uploading the JPEG, also upload a small JSON file with the same name but `.json` extension containing:
+```json
+{
+  "provider": "tesseract",
+  "success": true,
+  "vin": "1HGBH41JXMN109186",
+  "rawText": "1HGBH41JXMN109186",
+  "candidates": [...],
+  "timestamp": 1711234567890
 }
-context.putImageData(imageData, 0, 0);
 ```
 
-### 3. Increase JPEG quality in auto scan (line 512)
-Change from `0.9` to `0.95` for better text clarity.
+This gives full context when reviewing saved frames later.
 
-### 4. Apply preprocessing for all providers in manual mode (line 357)
-Remove the `if (providerToUse === 'tesseract')` condition so grayscale+contrast is applied for all OCR providers, not just Tesseract.
-
-### 5. Update blur mask to match thinner box (line 594)
-Adjust the mask gradient `heightPx + 40` to `heightPx + 20` since the box is thinner now.
+### Summary
+- 1 file changed: `src/components/VinScanner.tsx`
+- ~15 lines modified total
+- Both successful and failed manual captures will be saved with full metadata
 

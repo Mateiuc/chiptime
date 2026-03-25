@@ -1382,12 +1382,14 @@ const DesktopDashboard = () => {
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
                               if (client.accessCode) {
-                                toast({ title: 'Access Code', description: `PIN: ${client.accessCode}` });
+                                navigator.clipboard.writeText(client.accessCode);
+                                toast({ title: 'PIN Copied!', description: `PIN: ${client.accessCode}` });
                               } else {
                                 try {
                                   const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods);
                                   updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                                  toast({ title: 'Access Code', description: `PIN: ${result.accessCode}` });
+                                  navigator.clipboard.writeText(result.accessCode);
+                                  toast({ title: 'PIN Copied!', description: `PIN: ${result.accessCode}` });
                                 } catch {
                                   toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
                                 }

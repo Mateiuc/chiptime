@@ -388,42 +388,29 @@ const VinScanner: React.FC<VinScannerProps> = ({
       sh = sh * 2;
     }
 
-    // Adaptive binarization (Otsu's method) for clean black-on-white text
+    // Percentile-based contrast stretch — preserves anti-aliasing for LSTM engine
     {
       const imageData = context.getImageData(0, 0, sw, sh);
       const data = imageData.data;
-      // Step 1: Convert to grayscale
       const grays = new Uint8Array(data.length / 4);
       for (let i = 0; i < data.length; i += 4) {
         grays[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
       }
-      // Step 2: Otsu threshold
-      const histogram = new Array(256).fill(0);
-      for (let i = 0; i < grays.length; i++) histogram[grays[i]]++;
-      let total = grays.length, sumAll = 0;
-      for (let i = 0; i < 256; i++) sumAll += i * histogram[i];
-      let sumBg = 0, wBg = 0, maxVariance = 0, threshold = 128;
-      for (let i = 0; i < 256; i++) {
-        wBg += histogram[i];
-        if (wBg === 0) continue;
-        const wFg = total - wBg;
-        if (wFg === 0) break;
-        sumBg += i * histogram[i];
-        const meanBg = sumBg / wBg;
-        const meanFg = (sumAll - sumBg) / wFg;
-        const variance = wBg * wFg * (meanBg - meanFg) * (meanBg - meanFg);
-        if (variance > maxVariance) { maxVariance = variance; threshold = i; }
-      }
-      // Step 3: Apply binary threshold
+      // Find 5th and 95th percentile for contrast stretch
+      const sorted = Array.from(grays).sort((a, b) => a - b);
+      const lo = sorted[Math.floor(sorted.length * 0.05)];
+      const hi = sorted[Math.floor(sorted.length * 0.95)];
+      const range = Math.max(hi - lo, 1);
       for (let i = 0; i < data.length; i += 4) {
-        const val = grays[i / 4] > threshold ? 255 : 0;
-        data[i] = data[i + 1] = data[i + 2] = val;
+        const stretched = Math.min(255, Math.max(0, ((grays[i / 4] - lo) / range) * 255));
+        data[i] = data[i + 1] = data[i + 2] = stretched;
       }
       context.putImageData(imageData, 0, 0);
     }
     
-    const base64 = canvas.toDataURL('image/jpeg', 0.98).split(',')[1];
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
+    // PNG for OCR (lossless), JPEG for upload (smaller)
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     
     setLastFrameDataUrl(dataUrl);
 

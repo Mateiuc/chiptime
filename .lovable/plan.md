@@ -1,46 +1,40 @@
 
 
-# Fix: Export/Import Missing Vehicle & Client Fields
+# Fix VIN Scanner: Guide Box Too Tall & OCR Not Recognizing
 
-## Problem
-The XML export/import in `src/lib/xmlConverter.ts` is missing critical fields — most importantly `prepaidAmount` (deposit) on vehicles, but also many other client and vehicle fields that were added after the original export was written.
+## Problems
+1. **Guide box too tall**: Aspect ratio `1:8` makes the box ~216px tall on 1920px video — way too tall for a single VIN line, capturing excess background that confuses OCR
+2. **No preprocessing in auto scan**: The continuous scan loop (line 506-513) sends raw camera frames with no grayscale/contrast enhancement. Manual mode applies preprocessing only for Tesseract but not other providers
+3. **Lower quality in auto mode**: Auto scan uses 0.9 JPEG quality vs 0.98 in manual mode
 
-## Missing Fields
+## Changes — `src/components/VinScanner.tsx`
 
-**Vehicle** (line 39-48 export, line 197-207 import):
-- `prepaidAmount` (deposit) — **the reported bug**
-- `diagnosticPdfUrl`
+### 1. Reduce guide box height (line 112)
+Change aspect ratio from `1/8` to `1/16` — a much thinner strip that tightly fits a single VIN text line:
+```typescript
+const ASPECT_RATIO = 1 / 16; // was 1 / 8
+```
 
-**Client** (line 25-34 export, line 182-192 import):
-- `address`, `city`, `state`, `zip`
-- `companyName`, `itin`
-- `notes`
-- `cloningRate`, `programmingRate`, `addKeyRate`, `allKeysLostRate`
-- `accessCode`, `portalId`
+### 2. Add preprocessing to continuous scan (after line 509)
+After `context.drawImage(...)` in the auto scan loop, apply the same grayscale + contrast boost currently only used in manual/tesseract mode:
+```typescript
+// Apply grayscale + contrast for better OCR
+const imageData = context.getImageData(0, 0, sw, sh);
+const data = imageData.data;
+for (let i = 0; i < data.length; i += 4) {
+  const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+  const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
+  data[i] = data[i+1] = data[i+2] = contrasted;
+}
+context.putImageData(imageData, 0, 0);
+```
 
-## Changes — `src/lib/xmlConverter.ts`
+### 3. Increase JPEG quality in auto scan (line 512)
+Change from `0.9` to `0.95` for better text clarity.
 
-### 1. Export — Vehicle section (lines 39-49)
-Add the missing attributes to the Vehicle XML element:
-- `if (vehicle.prepaidAmount) xml += \`prepaidAmount="..."\``
-- `if (vehicle.diagnosticPdfUrl) xml += \`diagnosticPdfUrl="..."\``
+### 4. Apply preprocessing for all providers in manual mode (line 357)
+Remove the `if (providerToUse === 'tesseract')` condition so grayscale+contrast is applied for all OCR providers, not just Tesseract.
 
-### 2. Export — Client section (lines 25-34)
-Add all missing client attributes:
-- `address`, `city`, `state`, `zip`, `companyName`, `itin`, `notes`
-- `cloningRate`, `programmingRate`, `addKeyRate`, `allKeysLostRate`
-- `accessCode`, `portalId`
-
-### 3. Import — Vehicle parsing (lines 197-207)
-Parse the new attributes when reading XML:
-- `prepaidAmount`: `parseFloat()` if present
-- `diagnosticPdfUrl`: string if present
-
-### 4. Import — Client parsing (lines 182-192)
-Parse all the new client attributes when reading XML, using appropriate types (string for text fields, `parseFloat` for rates).
-
-### 5. Export — Settings section (lines 132-135)
-Check if settings also has additional rate fields that need exporting (likely already covered by the client-level rates, but worth verifying during implementation).
-
-All changes are in one file: `src/lib/xmlConverter.ts`.
+### 5. Update blur mask to match thinner box (line 594)
+Adjust the mask gradient `heightPx + 40` to `heightPx + 20` since the box is thinner now.
 

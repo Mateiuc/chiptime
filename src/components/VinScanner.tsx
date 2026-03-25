@@ -373,14 +373,51 @@ const VinScanner: React.FC<VinScannerProps> = ({
     canvas.height = sh;
     context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
-    // Apply grayscale + contrast boost for better OCR (especially Tesseract)
+    // Upscale 2x if crop is too small for reliable OCR
+    if (sh < 80) {
+      const upCanvas = document.createElement('canvas');
+      upCanvas.width = sw * 2;
+      upCanvas.height = sh * 2;
+      const upCtx = upCanvas.getContext('2d')!;
+      upCtx.imageSmoothingEnabled = false;
+      upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
+      canvas.width = sw * 2;
+      canvas.height = sh * 2;
+      context.drawImage(upCanvas, 0, 0);
+      sw = sw * 2;
+      sh = sh * 2;
+    }
+
+    // Adaptive binarization (Otsu's method) for clean black-on-white text
     {
       const imageData = context.getImageData(0, 0, sw, sh);
       const data = imageData.data;
+      // Step 1: Convert to grayscale
+      const grays = new Uint8Array(data.length / 4);
       for (let i = 0; i < data.length; i += 4) {
-        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
-        data[i] = data[i + 1] = data[i + 2] = contrasted;
+        grays[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      }
+      // Step 2: Otsu threshold
+      const histogram = new Array(256).fill(0);
+      for (let i = 0; i < grays.length; i++) histogram[grays[i]]++;
+      let total = grays.length, sumAll = 0;
+      for (let i = 0; i < 256; i++) sumAll += i * histogram[i];
+      let sumBg = 0, wBg = 0, maxVariance = 0, threshold = 128;
+      for (let i = 0; i < 256; i++) {
+        wBg += histogram[i];
+        if (wBg === 0) continue;
+        const wFg = total - wBg;
+        if (wFg === 0) break;
+        sumBg += i * histogram[i];
+        const meanBg = sumBg / wBg;
+        const meanFg = (sumAll - sumBg) / wFg;
+        const variance = wBg * wFg * (meanBg - meanFg) * (meanBg - meanFg);
+        if (variance > maxVariance) { maxVariance = variance; threshold = i; }
+      }
+      // Step 3: Apply binary threshold
+      for (let i = 0; i < data.length; i += 4) {
+        const val = grays[i / 4] > threshold ? 255 : 0;
+        data[i] = data[i + 1] = data[i + 2] = val;
       }
       context.putImageData(imageData, 0, 0);
     }

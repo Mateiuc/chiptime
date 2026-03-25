@@ -109,7 +109,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
   // Helper function to calculate VIN-optimized frame dimensions
   // Optimized 1:8 aspect ratio: wide enough for full VIN, tall enough for reliable OCR
   const calculateFrameDimensions = (videoWidth: number) => {
-    const ASPECT_RATIO = 1 / 8;
+    const ASPECT_RATIO = 1 / 16;
     const widthPercent = 90;
     
     const guideWidth = videoWidth * (widthPercent / 100);
@@ -354,13 +354,11 @@ const VinScanner: React.FC<VinScannerProps> = ({
     context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
     // Apply grayscale + contrast boost for better OCR (especially Tesseract)
-    if (providerToUse === 'tesseract') {
+    {
       const imageData = context.getImageData(0, 0, sw, sh);
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
-        // Convert to grayscale
         const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        // Boost contrast: stretch around midpoint
         const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
         data[i] = data[i + 1] = data[i + 2] = contrasted;
       }
@@ -508,8 +506,18 @@ const VinScanner: React.FC<VinScannerProps> = ({
         canvas.height = sh;
         context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
+        // Apply grayscale + contrast for better OCR
+        const imgData = context.getImageData(0, 0, sw, sh);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const gray = 0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2];
+          const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
+          px[i] = px[i+1] = px[i+2] = contrasted;
+        }
+        context.putImageData(imgData, 0, 0);
+
         // Convert to base64
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
         const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
         // Call selected OCR provider with timeout
@@ -591,8 +599,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
             style={{
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              maskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 40}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`,
-              WebkitMaskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 40}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`
+              maskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 20}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`,
+              WebkitMaskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 20}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`
             }}
           />
 

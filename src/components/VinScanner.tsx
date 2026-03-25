@@ -107,9 +107,9 @@ const VinScanner: React.FC<VinScannerProps> = ({
   }, []);
 
   // Helper function to calculate VIN-optimized frame dimensions
-  // 1:17 aspect ratio: matches 17 square characters in a VIN
+  // 1:11 aspect ratio: real VIN chars are ~1.5x taller than wide, so 1.5/17 ≈ 1/11
   const calculateFrameDimensions = (videoWidth: number) => {
-    const ASPECT_RATIO = 1 / 17;
+    const ASPECT_RATIO = 1 / 11;
     const widthPercent = 90;
     
     const guideWidth = videoWidth * (widthPercent / 100);

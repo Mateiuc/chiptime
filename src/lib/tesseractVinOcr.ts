@@ -46,9 +46,10 @@ export const readVinWithTesseract = async ({
     });
 
     // Optimize for VIN-specific single-line text
+    // No whitelist — let Tesseract recognize all chars naturally, cleanText() maps O→0, I→1
     await worker.setParameters({
-      tessedit_pageseg_mode: '7' as any, // Treat image as single text line
-      tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789', // VIN-valid chars only
+      tessedit_pageseg_mode: '7' as any, // Single text line
+      tessedit_ocr_engine_mode: '2' as any, // Legacy + LSTM combined for best accuracy
     } as any);
 
     // Check abort again after worker creation

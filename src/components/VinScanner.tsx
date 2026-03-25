@@ -107,9 +107,9 @@ const VinScanner: React.FC<VinScannerProps> = ({
   }, []);
 
   // Helper function to calculate VIN-optimized frame dimensions
-  // Optimized 1:8 aspect ratio: wide enough for full VIN, tall enough for reliable OCR
+  // 1:17 aspect ratio: matches 17 square characters in a VIN
   const calculateFrameDimensions = (videoWidth: number) => {
-    const ASPECT_RATIO = 1 / 16;
+    const ASPECT_RATIO = 1 / 17;
     const widthPercent = 90;
     
     const guideWidth = videoWidth * (widthPercent / 100);
@@ -373,14 +373,51 @@ const VinScanner: React.FC<VinScannerProps> = ({
     canvas.height = sh;
     context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
-    // Apply grayscale + contrast boost for better OCR (especially Tesseract)
+    // Upscale 2x if crop is too small for reliable OCR
+    if (sh < 80) {
+      const upCanvas = document.createElement('canvas');
+      upCanvas.width = sw * 2;
+      upCanvas.height = sh * 2;
+      const upCtx = upCanvas.getContext('2d')!;
+      upCtx.imageSmoothingEnabled = false;
+      upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
+      canvas.width = sw * 2;
+      canvas.height = sh * 2;
+      context.drawImage(upCanvas, 0, 0);
+      sw = sw * 2;
+      sh = sh * 2;
+    }
+
+    // Adaptive binarization (Otsu's method) for clean black-on-white text
     {
       const imageData = context.getImageData(0, 0, sw, sh);
       const data = imageData.data;
+      // Step 1: Convert to grayscale
+      const grays = new Uint8Array(data.length / 4);
       for (let i = 0; i < data.length; i += 4) {
-        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
-        data[i] = data[i + 1] = data[i + 2] = contrasted;
+        grays[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      }
+      // Step 2: Otsu threshold
+      const histogram = new Array(256).fill(0);
+      for (let i = 0; i < grays.length; i++) histogram[grays[i]]++;
+      let total = grays.length, sumAll = 0;
+      for (let i = 0; i < 256; i++) sumAll += i * histogram[i];
+      let sumBg = 0, wBg = 0, maxVariance = 0, threshold = 128;
+      for (let i = 0; i < 256; i++) {
+        wBg += histogram[i];
+        if (wBg === 0) continue;
+        const wFg = total - wBg;
+        if (wFg === 0) break;
+        sumBg += i * histogram[i];
+        const meanBg = sumBg / wBg;
+        const meanFg = (sumAll - sumBg) / wFg;
+        const variance = wBg * wFg * (meanBg - meanFg) * (meanBg - meanFg);
+        if (variance > maxVariance) { maxVariance = variance; threshold = i; }
+      }
+      // Step 3: Apply binary threshold
+      for (let i = 0; i < data.length; i += 4) {
+        const val = grays[i / 4] > threshold ? 255 : 0;
+        data[i] = data[i + 1] = data[i + 2] = val;
       }
       context.putImageData(imageData, 0, 0);
     }
@@ -527,13 +564,43 @@ const VinScanner: React.FC<VinScannerProps> = ({
         canvas.height = sh;
         context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        // Apply grayscale + contrast for better OCR
+        // Upscale 2x if crop is too small
+        if (sh < 80) {
+          const upCanvas = document.createElement('canvas');
+          upCanvas.width = sw * 2;
+          upCanvas.height = sh * 2;
+          const upCtx = upCanvas.getContext('2d')!;
+          upCtx.imageSmoothingEnabled = false;
+          upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
+          canvas.width = sw * 2;
+          canvas.height = sh * 2;
+          context.drawImage(upCanvas, 0, 0);
+          sw = sw * 2;
+          sh = sh * 2;
+        }
+
+        // Adaptive binarization (Otsu's method)
         const imgData = context.getImageData(0, 0, sw, sh);
         const px = imgData.data;
+        const grays = new Uint8Array(px.length / 4);
         for (let i = 0; i < px.length; i += 4) {
-          const gray = 0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2];
-          const contrasted = Math.min(255, Math.max(0, ((gray - 128) * 1.5) + 128));
-          px[i] = px[i+1] = px[i+2] = contrasted;
+          grays[i / 4] = Math.round(0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2]);
+        }
+        const hist = new Array(256).fill(0);
+        for (let i = 0; i < grays.length; i++) hist[grays[i]]++;
+        let tot = grays.length, sAll = 0;
+        for (let i = 0; i < 256; i++) sAll += i * hist[i];
+        let sBg = 0, wB = 0, mxV = 0, thr = 128;
+        for (let i = 0; i < 256; i++) {
+          wB += hist[i]; if (wB === 0) continue;
+          const wF = tot - wB; if (wF === 0) break;
+          sBg += i * hist[i];
+          const v = wB * wF * ((sBg / wB) - ((sAll - sBg) / wF)) ** 2;
+          if (v > mxV) { mxV = v; thr = i; }
+        }
+        for (let i = 0; i < px.length; i += 4) {
+          const val = grays[i / 4] > thr ? 255 : 0;
+          px[i] = px[i+1] = px[i+2] = val;
         }
         context.putImageData(imgData, 0, 0);
 
@@ -620,8 +687,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
             style={{
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              maskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 20}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`,
-              WebkitMaskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 20}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`
+              maskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 15}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`,
+              WebkitMaskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 15}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`
             }}
           />
 

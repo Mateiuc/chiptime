@@ -121,30 +121,43 @@ const VinScanner: React.FC<VinScannerProps> = ({
     };
   };
 
-  // Set frame dimensions immediately when video metadata loads
+  // Set frame dimensions from displayed container size, not native resolution
   useEffect(() => {
     const video = videoRef.current;
+    const container = containerRef.current;
     if (!video) return;
 
-    const handleMetadataLoaded = () => {
-      const videoWidth = video.videoWidth;
-      
-      if (videoWidth > 0) {
-        const dimensions = calculateFrameDimensions(videoWidth);
+    const updateDimensions = () => {
+      const displayedWidth = container?.clientWidth || video.clientWidth;
+      if (displayedWidth > 0) {
+        const dimensions = calculateFrameDimensions(displayedWidth);
         setFrameDimensions(dimensions);
         setIsFrameReady(true);
       }
     };
 
-    video.addEventListener('loadedmetadata', handleMetadataLoaded);
+    video.addEventListener('loadedmetadata', updateDimensions);
     
     // If metadata already loaded, calculate immediately
     if (video.videoWidth > 0 && video.videoHeight > 0) {
-      handleMetadataLoaded();
+      updateDimensions();
     }
 
-    return () => video.removeEventListener('loadedmetadata', handleMetadataLoaded);
+    return () => video.removeEventListener('loadedmetadata', updateDimensions);
   }, [stream]);
+
+  // Resize observer to adapt guide box on orientation/viewport changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (container.clientWidth > 0) {
+        setFrameDimensions(calculateFrameDimensions(container.clientWidth));
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   // Color cycling effect during scanning
   useEffect(() => {

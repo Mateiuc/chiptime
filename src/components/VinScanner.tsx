@@ -413,11 +413,12 @@ const VinScanner: React.FC<VinScannerProps> = ({
             title: 'VIN detected',
             description: result.vin,
           });
+          uploadScanFrame(base64, providerToUse, result, true, result.vin).catch(() => {});
           onVinDetected(result.vin);
           stopCamera();
         } else {
           // Upload failed frame to cloud for improvement
-          uploadFailedFrame(base64, providerToUse, result).catch(() => {});
+          uploadScanFrame(base64, providerToUse, result, false).catch(() => {});
           
           const failedChecksum = result.candidates.find(c => c.valid && !c.checksum);
           if (failedChecksum) {

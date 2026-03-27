@@ -1,41 +1,27 @@
 
 
-# Add Clipboard Copy for VIN Everywhere
+# Fix: VIN Guide Box Too Short — Add Vertical Padding
 
 ## Problem
-VIN displays across the app are plain text — clicking them does nothing. The user wants the same "click to copy" behavior as the PIN buttons.
+After the resolution fix, the 1/11 aspect ratio box is now correctly scaled to CSS pixels. But it's too tight vertically — it barely fits the VIN characters, leaving no margin for camera alignment. OCR needs some surrounding context to reliably detect text.
 
-## UI VIN Display Locations (5 spots)
+## Solution
+Change aspect ratio from `1/11` to `1/7`. This gives roughly 2x the character height as padding above and below the VIN text, making it easier to align while still being a narrow horizontal strip.
 
-| # | File | Line | Context |
-|---|------|------|---------|
-| 1 | `TaskCard.tsx` | 1304 | Mobile task card header |
-| 2 | `DesktopClientsView.tsx` | 359 | Client detail vehicle card |
-| 3 | `ManageClientsDialog.tsx` | 803-804 | Manage clients vehicle list |
-| 4 | `DesktopDashboard.tsx` | 1485 | Sidebar vehicle header |
-| 5 | `ClientCostBreakdown.tsx` | 243-244 | Cost breakdown vehicle section |
+- On a 400px phone: `400 × 90% / 7 ≈ 51px` (was ~33px)
+- On a 800px tablet: `800 × 90% / 7 ≈ 103px` (was ~65px)
 
-## Changes
+## Change — `src/components/VinScanner.tsx` (line 112)
 
-All 5 spots get the same treatment — wrap the VIN text in a clickable element with `cursor-pointer` that copies to clipboard and shows a "VIN Copied!" toast.
+```typescript
+// Before
+const ASPECT_RATIO = 1 / 11;
 
-**Pattern applied everywhere:**
-```tsx
-<p className="text-xs text-muted-foreground font-mono mt-1 cursor-pointer hover:text-foreground transition-colors"
-   onClick={() => {
-     navigator.clipboard.writeText(vehicle.vin);
-     toast({ title: 'VIN Copied!', description: vehicle.vin });
-   }}
-   title="Click to copy VIN"
->
-  VIN: {vehicle.vin}
-</p>
+// After
+const ASPECT_RATIO = 1 / 7;
 ```
 
-### Files modified
-- `src/components/TaskCard.tsx` — line 1304
-- `src/components/DesktopClientsView.tsx` — line 359
-- `src/components/ManageClientsDialog.tsx` — lines 803-805
-- `src/pages/DesktopDashboard.tsx` — line 1485
-- `src/components/ClientCostBreakdown.tsx` — lines 242-246
+Also update the comment on line 110 to reflect the new ratio.
+
+One line changed in one file.
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { toast } from '@/hooks/use-toast';
 import { createPortal } from 'react-dom';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

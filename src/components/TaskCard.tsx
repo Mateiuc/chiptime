@@ -1301,7 +1301,7 @@ export const TaskCard = ({
               <p className="text-sm font-semibold">
                 {vehicle?.year} {vehicle?.make} {vehicle?.model}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">VIN: {vehicle?.vin}</p>
+              {vehicle?.vin && <p className="text-xs text-muted-foreground mt-1 cursor-pointer hover:text-foreground transition-colors font-mono" onClick={() => { navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</p>}
               {task.diagnosticPdfUrl && (
                 <Badge variant="outline" className="text-xs mt-1 text-emerald-600 border-emerald-500/40">
                   <FileText className="h-3 w-3 mr-1" />Diagnostic PDF

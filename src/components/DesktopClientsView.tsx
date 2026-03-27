@@ -356,7 +356,7 @@ export const DesktopClientsView = ({
                       return (
                         <div key={vehicle.id} className={`rounded-lg p-3 text-sm border ${colorScheme.card} ${colorScheme.border}`}>
                           <div className="font-semibold">{vName}</div>
-                          <div className="text-xs text-muted-foreground font-mono mt-1">VIN: {vehicle.vin}</div>
+                          <div className="text-xs text-muted-foreground font-mono mt-1 cursor-pointer hover:text-foreground transition-colors" onClick={() => { navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</div>
                           {vehicle.color && <div className="text-xs text-muted-foreground mt-0.5">Color: {vehicle.color}</div>}
                           <div className="text-xs text-muted-foreground mt-1">{vStats.active} active · {vStats.total} total tasks</div>
                           <div className="flex gap-1 mt-2">

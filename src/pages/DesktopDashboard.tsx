@@ -1482,7 +1482,7 @@ const DesktopDashboard = () => {
                               {isVExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               <Car className="h-4 w-4" />
                               <span className="font-bold">{vehicleLabel}</span>
-                              {vehicle.vin && <span className="text-xs font-mono text-muted-foreground">VIN: {vehicle.vin}</span>}
+                              {vehicle.vin && <span className="text-xs font-mono text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</span>}
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
                               {vehicleCost > 0 && (
                                 <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">{formatCurrency(vehicleCost)}</span>

@@ -800,7 +800,7 @@ export const ManageClientsDialog = ({
                                     return (
                                       <div key={vehicle.id} className={`rounded-lg p-2 text-xs space-y-1 border ${colorScheme.card} ${colorScheme.border} hover:shadow-sm transition-all duration-300`}>
                                         <div className="font-medium text-foreground">{vehicleName}</div>
-                                        <div className="text-muted-foreground text-[10px] bg-background/50 px-1.5 py-0.5 rounded">
+                                        <div className="text-muted-foreground text-[10px] bg-background/50 px-1.5 py-0.5 rounded cursor-pointer hover:text-foreground transition-colors font-mono" onClick={() => { navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">
                                           VIN: {vehicle.vin}
                                         </div>
                                         {vehicle.color && (

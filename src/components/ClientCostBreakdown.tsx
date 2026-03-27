@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { toast } from '@/hooks/use-toast';
 import { createPortal } from 'react-dom';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -240,7 +241,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                   )}
                 </CardTitle>
                 {v.vin && (
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5 cursor-pointer hover:text-foreground transition-colors" onClick={() => { navigator.clipboard.writeText(v.vin); toast({ title: 'VIN Copied!', description: v.vin }); }} title="Click to copy VIN">
                     VIN: {v.vin}
                   </p>
                 )}

@@ -42,6 +42,7 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (client.allKeysLostRate) xml += `allKeysLostRate="${escapeXML(client.allKeysLostRate)}" `;
     if (client.accessCode) xml += `accessCode="${escapeXML(client.accessCode)}" `;
     if (client.portalId) xml += `portalId="${escapeXML(client.portalId)}" `;
+    if (client.prepaidAmount) xml += `prepaidAmount="${escapeXML(client.prepaidAmount)}" `;
     xml += `createdAt="${formatDate(client.createdAt)}" `;
     xml += `/>\n`;
   });

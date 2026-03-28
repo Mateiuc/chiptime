@@ -463,7 +463,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               <span>{formatCurrency(grandTotal)}</span>
             </div>
             {(() => {
-              const totalDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
+              const totalDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0) + (costSummary.client.prepaidAmount || 0);
               if (totalDeposits <= 0) return null;
               return (
                 <>

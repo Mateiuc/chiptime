@@ -112,7 +112,7 @@ export const DesktopClientsView = ({
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, address: client.address, city: client.city, state: client.state, zip: client.zip, companyName: client.companyName, itin: client.itin, notes: client.notes, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, address: client.address, city: client.city, state: client.state, zip: client.zip, companyName: client.companyName, itin: client.itin, notes: client.notes, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate, prepaidAmount: client.prepaidAmount });
   };
 
   const handleSaveClientEdit = (clientId: string) => {
@@ -165,7 +165,7 @@ export const DesktopClientsView = ({
     doc.text(`Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, y); y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, y); y += 6;
-    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
     if (totalDeposits > 0) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(200, 0, 0);
@@ -271,6 +271,7 @@ export const DesktopClientsView = ({
                 <div className="space-y-2"><Label>Programming Rate ($)</Label><Input type="number" value={editFormData.programmingRate || ''} onChange={e => setEditFormData(p => ({ ...p, programmingRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>Add Key Rate ($)</Label><Input type="number" value={editFormData.addKeyRate || ''} onChange={e => setEditFormData(p => ({ ...p, addKeyRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
                 <div className="space-y-2"><Label>All Keys Lost Rate ($)</Label><Input type="number" value={editFormData.allKeysLostRate || ''} onChange={e => setEditFormData(p => ({ ...p, allKeysLostRate: parseFloat(e.target.value) || undefined }))} placeholder="Leave empty for default" /></div>
+                <div className="space-y-2"><Label>Deposit ($)</Label><Input type="number" value={editFormData.prepaidAmount ?? ''} onChange={e => setEditFormData(p => ({ ...p, prepaidAmount: e.target.value ? parseFloat(e.target.value) : undefined }))} placeholder="0.00" /></div>
                 <div className="space-y-2 col-span-2"><Label>Notes</Label><textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={editFormData.notes || ''} onChange={e => setEditFormData(p => ({ ...p, notes: e.target.value || undefined }))} placeholder="Internal notes about this client" /></div>
               </div>
               <div className="flex gap-2">

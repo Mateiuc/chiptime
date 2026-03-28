@@ -217,7 +217,7 @@ const DesktopDashboard = () => {
   // --- Client inline edit ---
   const startEditClient = (client: Client) => {
     setEditingClientId(client.id);
-    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate });
+    setEditFormData({ name: client.name, email: client.email, phone: client.phone, hourlyRate: client.hourlyRate, cloningRate: client.cloningRate, programmingRate: client.programmingRate, addKeyRate: client.addKeyRate, allKeysLostRate: client.allKeysLostRate, prepaidAmount: client.prepaidAmount });
   };
   const saveEditClient = () => {
     if (!editingClientId || !editFormData.name?.trim()) return;
@@ -390,7 +390,7 @@ const DesktopDashboard = () => {
 
     // Prepaid & Total
     yPos = 261;
-    const prepaid = vehicle.prepaidAmount || 0;
+    const prepaid = (vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0);
     if (prepaid > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
@@ -868,7 +868,7 @@ const DesktopDashboard = () => {
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
-    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
     if (totalDeposits > 0) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(200, 0, 0);
@@ -1149,7 +1149,7 @@ const DesktopDashboard = () => {
                   >
                     <div className="font-semibold text-sm truncate">{client.name}</div>
                     {(() => {
-                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
                       const balanceDue = Math.max(0, clientRevenue - clientDeposits);
                       return (
                         <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
@@ -1193,7 +1193,7 @@ const DesktopDashboard = () => {
                           <span>{taskCount} tasks</span>
                         </div>
                         {clientRevenue > 0 && (() => {
-                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
                           const balanceDue = Math.max(0, clientRevenue - clientDeposits);
                           return (
                             <div className="mt-2">
@@ -1453,6 +1453,7 @@ const DesktopDashboard = () => {
                           <Input className="w-48 h-8 text-sm" placeholder="Email" value={editFormData.email || ''} onChange={e => setEditFormData(p => ({ ...p, email: e.target.value }))} />
                           <Input className="w-40 h-8 text-sm" placeholder="Phone" value={editFormData.phone || ''} onChange={e => setEditFormData(p => ({ ...p, phone: e.target.value }))} />
                           <Input className="w-28 h-8 text-sm" type="number" placeholder="Rate" value={editFormData.hourlyRate ?? ''} onChange={e => setEditFormData(p => ({ ...p, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined }))} />
+                          <Input className="w-28 h-8 text-sm" type="number" placeholder="Deposit" value={editFormData.prepaidAmount ?? ''} onChange={e => setEditFormData(p => ({ ...p, prepaidAmount: e.target.value ? parseFloat(e.target.value) : undefined }))} />
                           <Button size="sm" className="h-8" onClick={saveEditClient}><Save className="h-3.5 w-3.5 mr-1" />Save</Button>
                           <Button size="sm" variant="ghost" className="h-8" onClick={cancelEditClient}><X className="h-3.5 w-3.5" /></Button>
                         </div>
@@ -1487,13 +1488,13 @@ const DesktopDashboard = () => {
                               {vehicleCost > 0 && (
                                 <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">{formatCurrency(vehicleCost)}</span>
                               )}
-                              {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
+                              {((vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0)) > 0 && vehicleCost > 0 && (
                                 <>
-                                   <span className="font-bold text-sm text-destructive ml-1">Deposit: {formatCurrency(vehicle.prepaidAmount!)}</span>
-                                  {vehicle.prepaidAmount! >= vehicleCost ? (
+                                   <span className="font-bold text-sm text-destructive ml-1">Deposit: {formatCurrency((vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0))}</span>
+                                  {((vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0)) >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
-                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - vehicle.prepaidAmount!)}</span>
+                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0) - (client.prepaidAmount || 0))}</span>
                                   )}
                                 </>
                               )}

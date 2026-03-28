@@ -28,6 +28,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [programmingRate, setProgrammingRate] = useState('');
   const [addKeyRate, setAddKeyRate] = useState('');
   const [allKeysLostRate, setAllKeysLostRate] = useState('');
+  const [prepaidAmount, setPrepaidAmount] = useState('');
   const { toast } = useNotifications();
 
   const handleSave = () => {
@@ -56,6 +57,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
       addKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
       allKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
+      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     });
 
     // Reset form
@@ -74,6 +76,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setProgrammingRate('');
     setAddKeyRate('');
     setAllKeysLostRate('');
+    setPrepaidAmount('');
     onOpenChange(false);
   };
 
@@ -155,6 +158,11 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
           <div className="space-y-2">
             <Label>All Keys Lost Rate</Label>
             <Input type="number" value={allKeysLostRate} onChange={(e) => setAllKeysLostRate(e.target.value)} placeholder="Leave empty to use default" min={0} step={0.01} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Deposit ($)</Label>
+            <Input type="number" value={prepaidAmount} onChange={(e) => setPrepaidAmount(e.target.value)} placeholder="0.00" min={0} step={0.01} />
           </div>
 
           <div className="space-y-2">

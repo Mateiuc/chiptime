@@ -299,7 +299,7 @@ export const ManageClientsDialog = ({
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
     doc.setFont('helvetica', 'normal');
     yPos += 6;
-    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
     if (totalClientDeposits > 0) {
       doc.setTextColor(220, 38, 38);
       doc.text(`Total Deposits: -${formatCurrency(totalClientDeposits)}`, 25, yPos);
@@ -408,6 +408,7 @@ export const ManageClientsDialog = ({
       programmingRate: client.programmingRate,
       addKeyRate: client.addKeyRate,
       allKeysLostRate: client.allKeysLostRate,
+      prepaidAmount: client.prepaidAmount,
     });
   };
 
@@ -602,6 +603,10 @@ export const ManageClientsDialog = ({
                             <div className="space-y-1">
                               <Label className="text-xs">All Keys Lost Rate ($)</Label>
                               <Input type="number" placeholder="Leave empty for default" value={editFormData.allKeysLostRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Deposit ($)</Label>
+                              <Input type="number" placeholder="0.00" value={editFormData.prepaidAmount ?? ''} onChange={(e) => setEditFormData(prev => ({ ...prev, prepaidAmount: e.target.value ? parseFloat(e.target.value) : undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Notes</Label>

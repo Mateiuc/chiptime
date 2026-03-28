@@ -484,7 +484,7 @@ export const TaskCard = ({
 
       // Total Section
       yPos = 261;
-      const deposit = vehicle?.prepaidAmount || 0;
+      const deposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
       if (deposit > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -653,7 +653,7 @@ export const TaskCard = ({
             reader.onerror = reject;
             reader.readAsDataURL(mergedBlob);
           });
-          const billDeposit = vehicle?.prepaidAmount || 0;
+          const billDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
           return {
             pdfBase64: mergedBase64,
             fileName,
@@ -669,7 +669,7 @@ export const TaskCard = ({
 
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
-      const shareDeposit = vehicle?.prepaidAmount || 0;
+      const shareDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
       return {
         pdfBase64,
         fileName,
@@ -856,7 +856,7 @@ export const TaskCard = ({
       }
 
       yPos = 261;
-      const previewDeposit = vehicle?.prepaidAmount || 0;
+      const previewDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
       if (previewDeposit > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -1047,7 +1047,7 @@ export const TaskCard = ({
           pdfUri: fileUri.uri,
           clientName: cName,
           vehicleInfo: vInfo,
-          totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
+          totalAmount: formatCurrency(((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0)) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0) - (client?.prepaidAmount || 0)) : total),
           clientPhone: cPhone,
         });
         setShowShareDialog(true);
@@ -1079,7 +1079,7 @@ export const TaskCard = ({
         pdfUri: '',
         clientName: cName,
         vehicleInfo: vInfo,
-        totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
+        totalAmount: formatCurrency(((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0)) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0) - (client?.prepaidAmount || 0)) : total),
         clientPhone: cPhone,
       });
       setShowShareDialog(true);
@@ -1401,8 +1401,8 @@ export const TaskCard = ({
               <div className="font-bold text-sm">{(task.sessions || []).length}</div>
             </div>
             <div className="text-center">
-              <div className="text-muted-foreground text-xs font-medium mb-1">{(vehicle?.prepaidAmount || 0) > 0 ? 'Due' : 'Cost'}</div>
-              <div className="font-bold text-sm text-primary">{formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)) : totalCost)}</div>
+              <div className="text-muted-foreground text-xs font-medium mb-1">{((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0)) > 0 ? 'Due' : 'Cost'}</div>
+              <div className="font-bold text-sm text-primary">{formatCurrency(((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0)) > 0 ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0) - (client?.prepaidAmount || 0)) : totalCost)}</div>
             </div>
           </div>
 
@@ -1543,10 +1543,10 @@ export const TaskCard = ({
               {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
-              {(vehicle?.prepaidAmount || 0) > 0 && (
+              {((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0)) > 0 && (
                 <>
-                  <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(vehicle!.prepaidAmount!)}</span></div>
-                  <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - vehicle!.prepaidAmount!))}</span></div>
+                  <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency((vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0))}</span></div>
+                  <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - (vehicle?.prepaidAmount || 0) - (client?.prepaidAmount || 0)))}</span></div>
                 </>
               )}
             </div>

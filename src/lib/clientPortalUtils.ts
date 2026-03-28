@@ -95,6 +95,7 @@ interface SlimVehicle {
 
 interface SlimPayload {
   n: string;
+  cd?: number; // client-level deposit
   v: SlimVehicle[];
   tl: number;
   tp: number;
@@ -250,6 +251,7 @@ export function calculateClientCosts(
 function slimDown(data: ClientCostSummary): SlimPayload {
   return {
     n: data.client.name,
+    cd: data.client.prepaidAmount && data.client.prepaidAmount > 0 ? Math.round(data.client.prepaidAmount * 100) / 100 : undefined,
     v: data.vehicles.map(vs => ({
       vin: vs.vehicle.vin,
       mk: vs.vehicle.make || undefined,
@@ -302,7 +304,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
 // Inflate slim payload back to ClientCostSummary
 export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
   return {
-    client: { id: '', name: slim.n, createdAt: new Date() } as Client,
+    client: { id: '', name: slim.n, prepaidAmount: slim.cd || 0, createdAt: new Date() } as Client,
     vehicles: slim.v.map(sv => ({
       vehicle: {
         id: '',
@@ -570,7 +572,7 @@ if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';
 if(s.takl&&s.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(s.takl)+'</b></span></div>';
 h+='<div class="row"><span>Total Parts:</span><span><b>'+fmt(s.tp)+'</b></span></div><div class="row total"><span>GRAND TOTAL:</span><span>'+fmt(s.gt)+'</span></div>';
-var totalDep=0;s.v.forEach(function(vv){totalDep+=(vv.pa||0)});
+var totalDep=(s.cd||0);s.v.forEach(function(vv){totalDep+=(vv.pa||0)});
 if(totalDep>0){h+='<div class="row" style="color:#ef4444"><span>Total Deposits:</span><span><b>-'+fmt(totalDep)+'</b></span></div><div class="row total" style="color:#f97316"><span>BALANCE DUE:</span><span>'+fmt(Math.max(0,s.gt-totalDep))+'</span></div>';}
 h+='</div>';
 if(s.pms&&s.pms.length>0){h+='<div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:16px">';s.pms.forEach(function(pm){h+='<a href="'+esc(pm.u)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">'+(pm.i?pm.i+' ':'💵 ')+'Pay via '+esc(pm.l)+'</a>'});h+='</div>'}else if(s.pl){h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(s.pl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}

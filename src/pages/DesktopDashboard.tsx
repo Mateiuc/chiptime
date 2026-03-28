@@ -390,7 +390,7 @@ const DesktopDashboard = () => {
 
     // Prepaid & Total
     yPos = 261;
-    const prepaid = vehicle.prepaidAmount || 0;
+    const prepaid = (vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0);
     if (prepaid > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');

@@ -76,6 +76,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
     setProgrammingRate('');
     setAddKeyRate('');
     setAllKeysLostRate('');
+    setPrepaidAmount('');
     onOpenChange(false);
   };
 

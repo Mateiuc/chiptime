@@ -1,27 +1,26 @@
 
 
-# Fix: VIN Guide Box Too Short — Add Vertical Padding
+# Client-Level Deposit in Bill PDFs — Already Covered
 
-## Problem
-After the resolution fix, the 1/11 aspect ratio box is now correctly scaled to CSS pixels. But it's too tight vertically — it barely fits the VIN characters, leaving no margin for camera alignment. OCR needs some surrounding context to reliably detect text.
+The approved plan **already includes** bill PDF updates. Here's exactly what will change in each PDF generation point:
 
-## Solution
-Change aspect ratio from `1/11` to `1/7`. This gives roughly 2x the character height as padding above and below the VIN text, making it easier to align while still being a narrow horizontal strip.
+## Bill PDFs (per-vehicle bills)
 
-- On a 400px phone: `400 × 90% / 7 ≈ 51px` (was ~33px)
-- On a 800px tablet: `800 × 90% / 7 ≈ 103px` (was ~65px)
+### `DesktopDashboard.tsx` (desktop bill, ~line 391)
+Currently: `const prepaid = vehicle.prepaidAmount || 0;`
+Updated: `const prepaid = (vehicle.prepaidAmount || 0) + (client.prepaidAmount || 0);`
 
-## Change — `src/components/VinScanner.tsx` (line 112)
+### `TaskCard.tsx` (mobile bill, ~line 487)
+Currently: `const deposit = vehicle?.prepaidAmount || 0;`
+Updated: `const deposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);`
 
-```typescript
-// Before
-const ASPECT_RATIO = 1 / 11;
+Also updates the share bill (~line 656, 672) and preview bill (~line 859) in the same file.
 
-// After
-const ASPECT_RATIO = 1 / 7;
-```
+## Client Report PDFs
 
-Also update the comment on line 110 to reflect the new ratio.
+### `DesktopDashboard.tsx` (~line 871) & `DesktopClientsView.tsx` (~line 168)
+Grand total deposits sum updated to include `client.prepaidAmount`.
 
-One line changed in one file.
+## No plan changes needed
+All bill/PDF generation is already part of the approved plan under "Deposit Calculation Updates." Ready to implement as-is.
 

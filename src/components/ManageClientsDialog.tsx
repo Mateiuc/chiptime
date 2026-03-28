@@ -605,6 +605,10 @@ export const ManageClientsDialog = ({
                               <Input type="number" placeholder="Leave empty for default" value={editFormData.allKeysLostRate || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, allKeysLostRate: parseFloat(e.target.value) || undefined }))} className="h-9 text-sm bg-background" />
                             </div>
                             <div className="space-y-1">
+                              <Label className="text-xs">Deposit ($)</Label>
+                              <Input type="number" placeholder="0.00" value={editFormData.prepaidAmount ?? ''} onChange={(e) => setEditFormData(prev => ({ ...prev, prepaidAmount: e.target.value ? parseFloat(e.target.value) : undefined }))} className="h-9 text-sm bg-background" />
+                            </div>
+                            <div className="space-y-1">
                               <Label className="text-xs">Notes</Label>
                               <textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="Internal notes" value={editFormData.notes || ''} onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value || undefined }))} />
                             </div>

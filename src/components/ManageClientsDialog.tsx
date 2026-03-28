@@ -299,7 +299,7 @@ export const ManageClientsDialog = ({
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
     doc.setFont('helvetica', 'normal');
     yPos += 6;
-    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
     if (totalClientDeposits > 0) {
       doc.setTextColor(220, 38, 38);
       doc.text(`Total Deposits: -${formatCurrency(totalClientDeposits)}`, 25, yPos);

@@ -1149,7 +1149,7 @@ const DesktopDashboard = () => {
                   >
                     <div className="font-semibold text-sm truncate">{client.name}</div>
                     {(() => {
-                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
                       const balanceDue = Math.max(0, clientRevenue - clientDeposits);
                       return (
                         <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">

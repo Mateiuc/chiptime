@@ -653,7 +653,7 @@ export const TaskCard = ({
             reader.onerror = reject;
             reader.readAsDataURL(mergedBlob);
           });
-          const billDeposit = vehicle?.prepaidAmount || 0;
+          const billDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
           return {
             pdfBase64: mergedBase64,
             fileName,

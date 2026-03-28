@@ -408,6 +408,7 @@ export const ManageClientsDialog = ({
       programmingRate: client.programmingRate,
       addKeyRate: client.addKeyRate,
       allKeysLostRate: client.allKeysLostRate,
+      prepaidAmount: client.prepaidAmount,
     });
   };
 

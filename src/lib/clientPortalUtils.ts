@@ -304,7 +304,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
 // Inflate slim payload back to ClientCostSummary
 export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
   return {
-    client: { id: '', name: slim.n, createdAt: new Date() } as Client,
+    client: { id: '', name: slim.n, prepaidAmount: slim.cd || 0, createdAt: new Date() } as Client,
     vehicles: slim.v.map(sv => ({
       vehicle: {
         id: '',

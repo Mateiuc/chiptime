@@ -856,7 +856,7 @@ export const TaskCard = ({
       }
 
       yPos = 261;
-      const previewDeposit = vehicle?.prepaidAmount || 0;
+      const previewDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
       if (previewDeposit > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');

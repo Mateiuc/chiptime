@@ -215,6 +215,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         allKeysLostRate: node.getAttribute('allKeysLostRate') ? parseFloat(node.getAttribute('allKeysLostRate')!) : undefined,
         accessCode: node.getAttribute('accessCode') || undefined,
         portalId: node.getAttribute('portalId') || undefined,
+        prepaidAmount: node.getAttribute('prepaidAmount') ? parseFloat(node.getAttribute('prepaidAmount')!) : undefined,
         createdAt: new Date(node.getAttribute('createdAt') || ''),
       });
     });

@@ -1193,7 +1193,7 @@ const DesktopDashboard = () => {
                           <span>{taskCount} tasks</span>
                         </div>
                         {clientRevenue > 0 && (() => {
-                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
                           const balanceDue = Math.max(0, clientRevenue - clientDeposits);
                           return (
                             <div className="mt-2">

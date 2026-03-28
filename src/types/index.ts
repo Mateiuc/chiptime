@@ -16,6 +16,7 @@ export interface Client {
   addKeyRate?: number;
   allKeysLostRate?: number;
   accessCode?: string;
+  prepaidAmount?: number;
   portalId?: string;
   createdAt: Date;
 }

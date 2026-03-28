@@ -161,6 +161,11 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
           </div>
 
           <div className="space-y-2">
+            <Label>Deposit ($)</Label>
+            <Input type="number" value={prepaidAmount} onChange={(e) => setPrepaidAmount(e.target.value)} placeholder="0.00" min={0} step={0.01} />
+          </div>
+
+          <div className="space-y-2">
             <Label>Notes</Label>
             <textarea className="flex min-h-[60px] w-full rounded-md border-2 border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes" />
           </div>

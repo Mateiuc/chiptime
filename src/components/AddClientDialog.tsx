@@ -57,6 +57,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
       programmingRate: programmingRate ? parseFloat(programmingRate) : undefined,
       addKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
       allKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
+      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     });
 
     // Reset form

@@ -95,6 +95,7 @@ interface SlimVehicle {
 
 interface SlimPayload {
   n: string;
+  cd?: number; // client-level deposit
   v: SlimVehicle[];
   tl: number;
   tp: number;

@@ -251,6 +251,7 @@ export function calculateClientCosts(
 function slimDown(data: ClientCostSummary): SlimPayload {
   return {
     n: data.client.name,
+    cd: data.client.prepaidAmount && data.client.prepaidAmount > 0 ? Math.round(data.client.prepaidAmount * 100) / 100 : undefined,
     v: data.vehicles.map(vs => ({
       vin: vs.vehicle.vin,
       mk: vs.vehicle.make || undefined,

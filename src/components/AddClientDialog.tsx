@@ -28,6 +28,7 @@ export const AddClientDialog = ({ open, onOpenChange, onSave }: AddClientDialogP
   const [programmingRate, setProgrammingRate] = useState('');
   const [addKeyRate, setAddKeyRate] = useState('');
   const [allKeysLostRate, setAllKeysLostRate] = useState('');
+  const [prepaidAmount, setPrepaidAmount] = useState('');
   const { toast } = useNotifications();
 
   const handleSave = () => {

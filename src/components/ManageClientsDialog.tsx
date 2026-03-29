@@ -299,12 +299,14 @@ export const ManageClientsDialog = ({
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos);
     doc.setFont('helvetica', 'normal');
     yPos += 6;
-    const totalClientDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
+    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const clientDeposit = client.prepaidAmount || 0;
+    const totalClientDeposits = vehicleDeposits + clientDeposit;
     if (totalClientDeposits > 0) {
       doc.setTextColor(220, 38, 38);
-      doc.text(`Total Deposits: -${formatCurrency(totalClientDeposits)}`, 25, yPos);
+      if (vehicleDeposits > 0) { doc.text(`Vehicle Deposits: -${formatCurrency(vehicleDeposits)}`, 25, yPos); yPos += 6; }
+      if (clientDeposit > 0) { doc.text(`Client Deposit: -${formatCurrency(clientDeposit)}`, 25, yPos); yPos += 6; }
       doc.setTextColor(0, 0, 0);
-      yPos += 6;
       doc.setFont('helvetica', 'bold');
       doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalClientDeposits))}`, 25, yPos);
       doc.setFont('helvetica', 'normal');

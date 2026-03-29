@@ -868,11 +868,14 @@ const DesktopDashboard = () => {
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
-    const totalDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
+    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
+    const clientDeposit = client.prepaidAmount || 0;
+    const totalDeposits = vehicleDeposits + clientDeposit;
     if (totalDeposits > 0) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(200, 0, 0);
-      doc.text(`Total Deposits: -${formatCurrency(totalDeposits)}`, 25, yPos); yPos += 6;
+      if (vehicleDeposits > 0) { doc.text(`Vehicle Deposits: -${formatCurrency(vehicleDeposits)}`, 25, yPos); yPos += 6; }
+      if (clientDeposit > 0) { doc.text(`Client Deposit: -${formatCurrency(clientDeposit)}`, 25, yPos); yPos += 6; }
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
       doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalDeposits))}`, 25, yPos);

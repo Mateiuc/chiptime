@@ -669,7 +669,7 @@ export const TaskCard = ({
 
       // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
-      const shareDeposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
+      const shareDeposit = vehicle?.prepaidAmount || 0;
       return {
         pdfBase64,
         fileName,

@@ -1354,6 +1354,27 @@ const DesktopDashboard = () => {
                               {client.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {client.phone}</span>}
                               <span className="flex items-center gap-1 font-semibold"><CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr</span>
                             </div>
+                            {(() => {
+                              const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                              const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                              const clientDep = client.prepaidAmount || 0;
+                              const balanceDue = Math.max(0, clientRevenue - vehicleDeps - clientDep);
+                              if (clientRevenue <= 0) return null;
+                              return (
+                                <div className="flex items-center gap-3 mt-1 text-xs flex-wrap">
+                                  <span className="text-green-600 font-semibold">Total: {formatCurrency(clientRevenue)}</span>
+                                  {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && (
+                                    <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>
+                                  )}
+                                  {vehicleDeps > 0 && (
+                                    <span className="text-red-500">Car Deposits: {formatCurrency(vehicleDeps)}</span>
+                                  )}
+                                  {clientDep > 0 && (
+                                    <span className="text-red-500">Client Deposit: {formatCurrency(clientDep)}</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex items-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditClient(client)} title="Edit Client">

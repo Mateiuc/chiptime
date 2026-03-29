@@ -484,7 +484,7 @@ export const TaskCard = ({
 
       // Total Section
       yPos = 261;
-      const deposit = (vehicle?.prepaidAmount || 0) + (client?.prepaidAmount || 0);
+      const deposit = vehicle?.prepaidAmount || 0;
       if (deposit > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');

@@ -463,14 +463,24 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               <span>{formatCurrency(grandTotal)}</span>
             </div>
             {(() => {
-              const totalDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0) + (costSummary.client.prepaidAmount || 0);
+              const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
+              const clientDeposit = costSummary.client.prepaidAmount || 0;
+              const totalDeposits = vehicleDeposits + clientDeposit;
               if (totalDeposits <= 0) return null;
               return (
                 <>
-                  <div className="flex justify-between text-sm text-destructive">
-                    <span>Total Deposits:</span>
-                    <span className="font-semibold">-{formatCurrency(totalDeposits)}</span>
-                  </div>
+                  {vehicleDeposits > 0 && (
+                    <div className="flex justify-between text-sm text-destructive">
+                      <span>Vehicle Deposits:</span>
+                      <span className="font-semibold">-{formatCurrency(vehicleDeposits)}</span>
+                    </div>
+                  )}
+                  {clientDeposit > 0 && (
+                    <div className="flex justify-between text-sm text-destructive">
+                      <span>Client Deposit:</span>
+                      <span className="font-semibold">-{formatCurrency(clientDeposit)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold text-orange-500">
                     <span>BALANCE DUE:</span>
                     <span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span>

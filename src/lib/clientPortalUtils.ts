@@ -48,6 +48,10 @@ export interface ClientCostSummary {
   paymentLink?: string;
   paymentLabel?: string;
   paymentMethods?: PaymentMethod[];
+  portalLogoUrl?: string;
+  portalBgColor?: string;
+  portalBusinessName?: string;
+  portalBgImageUrl?: string;
 }
 
 // Slim wire format types for compact encoding
@@ -108,6 +112,10 @@ interface SlimPayload {
   pl?: string;
   plbl?: string;
   pms?: { l: string; u: string; i?: string }[];
+  logo?: string;
+  bgc?: string;
+  biz?: string;
+  bgi?: string;  // background image
 }
 
 export function generateAccessCode(): string {
@@ -298,6 +306,10 @@ function slimDown(data: ClientCostSummary): SlimPayload {
     pms: data.paymentMethods && data.paymentMethods.length > 0
       ? data.paymentMethods.map(m => ({ l: m.label, u: m.url, i: m.icon || undefined }))
       : undefined,
+    logo: data.portalLogoUrl || undefined,
+    bgc: data.portalBgColor || undefined,
+    biz: data.portalBusinessName || undefined,
+    bgi: data.portalBgImageUrl || undefined,
   };
 }
 
@@ -353,6 +365,10 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
     paymentLink: slim.pl || undefined,
     paymentLabel: slim.plbl || undefined,
     paymentMethods: slim.pms ? slim.pms.map(m => ({ label: m.l, url: m.u, icon: m.i })) : undefined,
+    portalLogoUrl: slim.logo || undefined,
+    portalBgColor: slim.bgc || undefined,
+    portalBusinessName: slim.biz || undefined,
+    portalBgImageUrl: slim.bgi || undefined,
   };
 }
 
@@ -611,15 +627,22 @@ export async function syncPortalToCloud(
   defaultAllKeysLostRate?: number,
   paymentLink?: string,
   paymentLabel?: string,
-  paymentMethods?: PaymentMethod[]
+  paymentMethods?: PaymentMethod[],
+  portalLogoUrl?: string,
+  portalBgColor?: string,
+  portalBusinessName?: string,
+  portalBgImageUrl?: string,
 ): Promise<{ portalId: string; accessCode: string }> {
-  // Generate PIN here if missing — single source of truth
   const accessCode = client.accessCode || generateAccessCode();
 
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   summary.paymentLink = paymentLink;
   summary.paymentLabel = paymentLabel;
   summary.paymentMethods = paymentMethods;
+  summary.portalLogoUrl = portalLogoUrl;
+  summary.portalBgColor = portalBgColor;
+  summary.portalBusinessName = portalBusinessName;
+  summary.portalBgImageUrl = portalBgImageUrl;
   const slim = slimDown(summary);
 
   const { data, error } = await supabase.functions.invoke('sync-portal', {

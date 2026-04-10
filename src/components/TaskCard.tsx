@@ -1,4 +1,4 @@
-import { Task, Client, Vehicle, WorkSession, SessionPhoto } from '@/types';
+import { Task, Client, Vehicle, WorkSession, WorkPeriod, SessionPhoto } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1122,15 +1122,6 @@ export const TaskCard = ({
 
   // Handle capturing photo for active session
   const handleCapturePhoto = async () => {
-    if (!task.activeSessionId) {
-      toast({
-        title: 'No Active Session',
-        description: 'Start a work session before capturing photos.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     try {
       const photo = await Camera.getPhoto({
         quality: 80,
@@ -1144,37 +1135,62 @@ export const TaskCard = ({
         const currentTasks = await capacitorStorage.getTasks();
         const freshTask = currentTasks.find(t => t.id === task.id);
         
-        if (!freshTask || !freshTask.activeSessionId) {
-          toast({
-            title: 'Session Ended',
-            description: 'The work session has ended. Photo not saved.',
-            variant: 'destructive',
-          });
-          return;
-        }
+        if (!freshTask) return;
 
-        const sessionIndex = freshTask.sessions.findIndex(s => s.id === freshTask.activeSessionId);
-        
         const photoId = crypto.randomUUID();
-        
+
         // Save photo to filesystem and get the file path
         const filePath = await photoStorageService.savePhoto(
           photo.base64String,
           task.id,
           photoId
         );
-        
+
+        let targetSessionId: string;
+        let sessions: WorkSession[];
+
+        const hasSessions = freshTask.sessions && freshTask.sessions.length > 0;
+
+        if (!hasSessions) {
+          // No sessions at all — auto-create an "info" session with a 1-min period
+          const now = new Date();
+          const periodId = crypto.randomUUID();
+          const newSessionId = crypto.randomUUID();
+          const autoPeriod: WorkPeriod = {
+            id: periodId,
+            startTime: new Date(now.getTime() - 60_000),
+            endTime: now,
+            duration: 60,
+          };
+          const autoSession: WorkSession = {
+            id: newSessionId,
+            createdAt: now,
+            description: 'info',
+            periods: [autoPeriod],
+            parts: [],
+            photos: [],
+          };
+          targetSessionId = newSessionId;
+          sessions = [autoSession];
+        } else {
+          // Use active session or fall back to most recent session
+          targetSessionId = freshTask.activeSessionId || freshTask.sessions[freshTask.sessions.length - 1].id;
+          sessions = freshTask.sessions;
+        }
+
+        const sessionIndex = sessions.findIndex(s => s.id === targetSessionId);
+
         const newPhoto: SessionPhoto = {
           id: photoId,
-          filePath, // Store file path instead of base64
+          filePath,
           capturedAt: new Date(),
           sessionNumber: sessionIndex + 1,
         };
 
         const updatedTask = {
           ...freshTask,
-          sessions: freshTask.sessions.map(session => 
-            session.id === freshTask.activeSessionId
+          sessions: sessions.map(session =>
+            session.id === targetSessionId
               ? { ...session, photos: [...(session.photos || []), newPhoto] }
               : session
           ),
@@ -1192,7 +1208,7 @@ export const TaskCard = ({
             const taskWithCloudUrl = {
               ...updatedTask,
               sessions: updatedTask.sessions.map(session =>
-                session.id === freshTask.activeSessionId
+                session.id === targetSessionId
                   ? { ...session, photos: session.photos?.map(p =>
                       p.id === photoId ? { ...p, cloudUrl } : p
                     )}
@@ -1200,7 +1216,6 @@ export const TaskCard = ({
               ),
             };
             onUpdateTask?.(taskWithCloudUrl);
-            console.log('[TaskCard] Photo uploaded to cloud:', cloudUrl);
           })
           .catch(err => console.warn('[TaskCard] Cloud upload failed:', err));
       }
@@ -1296,6 +1311,31 @@ export const TaskCard = ({
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="p-3 py-0">
+          {/* Status bar at top of card */}
+          <div className={`-mx-3 px-3 py-1 mb-2 flex items-center justify-between text-xs font-medium ${
+            task.status === 'in-progress' ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300' :
+            task.status === 'paused' ? 'bg-orange-500/15 text-orange-700 dark:text-orange-300' :
+            task.status === 'pending' ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-300' :
+            task.status === 'completed' ? 'bg-green-500/10 text-green-700 dark:text-green-300' :
+            task.status === 'billed' ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300' :
+            task.status === 'paid' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
+            'bg-muted/50 text-muted-foreground'
+          }`}>
+            <div className="flex items-center gap-1.5">
+              {task.status === 'in-progress' && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+              )}
+              <span className="capitalize">{task.status.replace('-', ' ')}</span>
+
+            </div>
+            {task.status === 'in-progress' && task.startTime && (
+              <span className="font-mono font-bold">{formatDuration(displayTime)}</span>
+            )}
+          </div>
+
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
               <p className="text-sm font-semibold">
@@ -1321,12 +1361,10 @@ export const TaskCard = ({
                     <Edit className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
-                  {isActive && task.activeSessionId && (
-                    <DropdownMenuItem onClick={handleCapturePhoto}>
+                  <DropdownMenuItem onClick={handleCapturePhoto}>
                       <CameraIcon className="h-4 w-4 mr-2" />
                       Capture Photo
                     </DropdownMenuItem>
-                  )}
                   {task.status === 'completed' && <>
                       <DropdownMenuItem onClick={generatePreviewPDF}>
                         <FileText className="h-4 w-4 mr-2" />
@@ -1348,7 +1386,7 @@ export const TaskCard = ({
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onMarkPaid(task.id)}>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Payed
+                      Paid
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={() => setShowDeleteDialog(true)}
@@ -1394,7 +1432,7 @@ export const TaskCard = ({
           <div className="grid grid-cols-3 gap-2 mb-2 text-sm">
             <div className="text-center">
               <div className="text-muted-foreground text-xs font-medium mb-1">{isActive ? 'Period' : 'Total'}</div>
-              <div className="font-bold text-sm">{formatDuration(displayTime)}</div>
+              <div className={`font-bold text-sm ${task.status === 'in-progress' ? 'text-blue-600 dark:text-blue-400' : ''}`}>{formatDuration(displayTime)}</div>
             </div>
             <div className="text-center">
               <div className="text-muted-foreground text-xs font-medium mb-1">Sessions</div>
@@ -1483,11 +1521,13 @@ export const TaskCard = ({
                     <div className="text-xs font-semibold mb-1">
                       Session {sessionIndex + 1} ({formatDuration(sessionDuration)})
                     </div>
-                    {(session.chargeMinimumHour || session.isCloning || session.isProgramming) && (
+                    {(session.chargeMinimumHour || session.isCloning || session.isProgramming || session.isAddKey || session.isAllKeysLost) && (
                       <div className="flex gap-1 mb-1 flex-wrap">
                         {session.chargeMinimumHour && <Badge variant="outline" className="text-[9px] px-1.5 py-0">🚩 Min 1hr</Badge>}
                         {session.isCloning && <Badge variant="outline" className="text-[9px] px-1.5 py-0">📋 Cloning</Badge>}
                         {session.isProgramming && <Badge variant="outline" className="text-[9px] px-1.5 py-0">💻 Programming</Badge>}
+                        {session.isAddKey && <Badge variant="outline" className="text-[9px] px-1.5 py-0">🔑 Add Key</Badge>}
+                        {session.isAllKeysLost && <Badge variant="outline" className="text-[9px] px-1.5 py-0">🔐 All Keys Lost</Badge>}
                       </div>
                     )}
                     

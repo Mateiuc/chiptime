@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -10,9 +11,12 @@ import { DesktopReportsView } from '@/components/DesktopReportsView';
 import { DesktopInvoiceView } from '@/components/DesktopInvoiceView';
 import { DesktopClientsView } from '@/components/DesktopClientsView';
 import { AddClientDialog } from '@/components/AddClientDialog';
+import { AddClientPage } from '@/components/AddClientPage';
+import { AddVehiclePage } from '@/components/AddVehiclePage';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
+import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
@@ -79,6 +83,24 @@ const DesktopDashboard = () => {
     refresh();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // After a backup import, re-read all data from storage and update React state directly
+  useEffect(() => {
+    const handleImportComplete = async () => {
+      const [freshClients, freshVehicles, freshTasks, freshSettings] = await Promise.all([
+        capacitorStorage.getClients(),
+        capacitorStorage.getVehicles(),
+        capacitorStorage.getTasks(),
+        capacitorStorage.getSettings(),
+      ]);
+      clientsHook.replaceAll(freshClients);
+      vehiclesHook.replaceAll(freshVehicles);
+      tasksHook.replaceAll(freshTasks);
+      settingsHook.replaceAll(freshSettings);
+    };
+    window.addEventListener('chiptime:import-complete', handleImportComplete);
+    return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
+  }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
+
   const handleSaveToCloud = async () => {
     setSaving(true);
     try {
@@ -99,7 +121,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients'>('tree');
+  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients' | 'addClient' | 'addVehicle'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -116,6 +138,9 @@ const DesktopDashboard = () => {
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
+  // Delete confirmation dialogs
+  const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
+  const [deleteTaskDialog, setDeleteTaskDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [chartClient, setChartClient] = useState<string>('all');
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
   const [drillSortField, setDrillSortField] = useState<'date' | 'cost'>('date');
@@ -230,7 +255,7 @@ const DesktopDashboard = () => {
   // --- Add vehicle for specific client ---
   const openAddVehicleForClient = (clientId: string) => {
     setAddVehicleClientId(clientId);
-    setShowAddVehicle(true);
+    setDesktopView('addVehicle');
   };
 
   // --- Bill PDF generation ---
@@ -606,7 +631,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
@@ -619,7 +644,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
@@ -995,7 +1020,34 @@ const DesktopDashboard = () => {
       {/* Header */}
       <header className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 shadow-lg shrink-0">
         <div className="px-6 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-primary-foreground">ChipTime Desktop</h1>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-xl font-bold text-primary-foreground leading-tight">Chip's Time</h1>
+              <p className="text-xs text-primary-foreground/60">Desktop Dashboard</p>
+            </div>
+            {/* Quick KPI pills */}
+            <div className="hidden lg:flex items-center gap-2 ml-2">
+              {countByStatus.active > 0 && (
+                <span className="flex items-center gap-1.5 bg-blue-500/25 text-blue-100 text-xs font-semibold px-2.5 py-1 rounded-full border border-blue-400/30">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-300"></span>
+                  </span>
+                  {countByStatus.active} active
+                </span>
+              )}
+              {countByStatus.completed > 0 && (
+                <span className="bg-orange-500/25 text-orange-100 text-xs font-semibold px-2.5 py-1 rounded-full border border-orange-400/30">
+                  {countByStatus.completed} to bill
+                </span>
+              )}
+              {countByStatus.paid > 0 && (
+                <span className="bg-emerald-500/25 text-emerald-100 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-400/30">
+                  {countByStatus.paid} paid
+                </span>
+              )}
+            </div>
+          </div>
             <div className="flex items-center gap-3">
               <div className="relative w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/60" />
@@ -1006,11 +1058,11 @@ const DesktopDashboard = () => {
                   className="pl-9 h-9 w-80 bg-primary-foreground/15 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/50 focus-visible:ring-primary-foreground/30"
                 />
               </div>
-              <Button size="sm" onClick={() => setShowAddClient(true)}
+              <Button size="sm" onClick={() => setDesktopView('addClient')}
                 className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
                 <UserPlus className="h-4 w-4 mr-1" /> Client
               </Button>
-              <Button size="sm" onClick={() => { setAddVehicleClientId(null); setShowAddVehicle(true); }}
+              <Button size="sm" onClick={() => { setAddVehicleClientId(null); setDesktopView('addVehicle'); }}
                 className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
                 <Plus className="h-4 w-4 mr-1" /> Vehicle
               </Button>
@@ -1024,50 +1076,31 @@ const DesktopDashboard = () => {
               <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
               Save
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'clients' ? 'tree' : 'clients')}
-              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'clients' ? 'bg-primary-foreground/20' : ''}`}
-              title="Manage Clients">
-              <Users className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'invoices' ? 'tree' : 'invoices')}
-              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'invoices' ? 'bg-primary-foreground/20' : ''}`}>
-              <Receipt className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'reports' ? 'tree' : 'reports')}
-              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'reports' ? 'bg-primary-foreground/20' : ''}`}>
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setDesktopView(desktopView === 'settings' ? 'tree' : 'settings')}
-              className={`h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 ${desktopView === 'settings' ? 'bg-primary-foreground/20' : ''}`}>
-              <SettingsIcon className="h-4 w-4" />
-            </Button>
+            <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
+            {[
+              { view: 'clients' as const, icon: Users, label: 'Clients' },
+              { view: 'invoices' as const, icon: Receipt, label: 'Invoices' },
+              { view: 'reports' as const, icon: BarChart3, label: 'Reports' },
+              { view: 'settings' as const, icon: SettingsIcon, label: 'Settings' },
+            ].map(({ view, icon: Icon, label }) => (
+              <button
+                key={view}
+                onClick={() => setDesktopView(desktopView === view ? 'tree' : view)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all text-primary-foreground ${
+                  desktopView === view
+                    ? 'bg-white/25 ring-2 ring-white/40'
+                    : 'hover:bg-primary-foreground/10 opacity-70 hover:opacity-100'
+                }`}
+                title={desktopView === view ? `Close ${label}` : `Open ${label}`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-[10px] font-semibold leading-none">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </header>
 
-      {/* Filter bar — only for non-tree views */}
-      {desktopView !== 'tree' && (
-        <div className="px-6 py-2 border-b bg-card shrink-0 flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {(['all', 'active', 'completed', 'billed', 'paid'] as FilterType[]).map(f => (
-              <Button
-                key={f}
-                variant={filter === f ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter(f)}
-                className="capitalize"
-              >
-                {f} ({countByStatus[f]})
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span><strong className="text-foreground">{filteredTree.length}</strong> clients</span>
-            <span><strong className="text-foreground">{filteredTree.reduce((s, c) => s + c.vehicles.length, 0)}</strong> vehicles</span>
-            <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> total</span>
-          </div>
-        </div>
-      )}
 
       {/* Main content */}
       {desktopView === 'settings' ? (
@@ -1076,6 +1109,20 @@ const DesktopDashboard = () => {
         </div>
       ) : desktopView === 'reports' ? (
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
+      ) : desktopView === 'addClient' ? (
+        <AddClientPage
+          onSave={(clientData) => { addClient({ ...clientData, id: crypto.randomUUID(), createdAt: new Date() } as any); setDesktopView('tree'); }}
+          onCancel={() => setDesktopView('tree')}
+          settings={settings}
+        />
+      ) : desktopView === 'addVehicle' ? (
+        <AddVehiclePage
+          clients={clients}
+          tasks={tasks}
+          settings={settings}
+          onSave={(vehicleData) => { handleAddVehicleSave(vehicleData); setDesktopView('tree'); }}
+          onCancel={() => setDesktopView('tree')}
+        />
       ) : desktopView === 'invoices' ? (
         <DesktopInvoiceView settings={settings} />
       ) : desktopView === 'clients' ? (
@@ -1139,32 +1186,34 @@ const DesktopDashboard = () => {
                 const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
                 const taskCount = clientVehicles.flatMap(v => v.tasks).length;
                 const isSelected = selectedClientId === client.id;
+                const clientColor = getVehicleColorScheme(client.id);
+                const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
+                const balanceDue = Math.max(0, clientRevenue - clientDeposits);
 
                 return (
                   <button
                     key={client.id}
                     onClick={() => setSelectedClientId(isSelected ? null : client.id)}
-                    className={`w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors ${
-                      isSelected
-                        ? 'bg-primary/10 border-l-4 border-l-primary'
-                        : 'hover:bg-muted/50 border-l-4 border-l-transparent'
+                    className={`w-full text-left px-3 py-2.5 rounded-xl border-2 mb-2 transition-all ${clientColor.border} ${clientColor.gradient} ${
+                      isSelected ? 'ring-2 ring-primary ring-offset-1' : 'hover:shadow-sm'
                     }`}
                   >
-                    <div className="font-semibold text-sm truncate">{client.name}</div>
-                    {(() => {
-                      const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
-                      const balanceDue = Math.max(0, clientRevenue - clientDeposits);
-                      return (
-                        <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                          <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
-                          {clientRevenue > 0 && (
-                            <span className={`font-semibold ${clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                              {clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <div className="font-bold text-sm truncate">{client.name}</div>
+                    {client.companyName && <div className="text-xs text-muted-foreground truncate">{client.companyName}</div>}
+                    <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                      <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
+                      {clientRevenue > 0 && (
+                        <span className={`font-semibold ${
+                          clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                          filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                          filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
+                          filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
+                          'text-emerald-600 dark:text-emerald-400'
+                        }`}>
+                          {clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue)}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -1200,7 +1249,13 @@ const DesktopDashboard = () => {
                           const balanceDue = Math.max(0, clientRevenue - clientDeposits);
                           return (
                             <div className="mt-2">
-                              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(clientRevenue)}</div>
+                              <div className={`text-lg font-bold ${
+                              clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                              filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                              filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
+                              filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
+                              'text-emerald-600 dark:text-emerald-400'
+                            }`}>{formatCurrency(clientRevenue)}</div>
                               {clientDeposits > 0 && (
                                 <>
                                   <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
@@ -1346,71 +1401,26 @@ const DesktopDashboard = () => {
                     {/* Client header card */}
                     <div className={`rounded-xl border-2 overflow-hidden ${clientColor.border}`}>
                       <div className={`${clientColor.gradient} px-5 py-4`}>
-                        <div className="flex items-center justify-between">
-                          <div>
+                        {/* Name + labeled action buttons */}
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="min-w-0">
                             <h2 className="text-xl font-bold">{client.name}</h2>
-                            <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                              {client.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {client.email}</span>}
-                              {client.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {client.phone}</span>}
-                              <span className="flex items-center gap-1 font-semibold"><CreditCard className="h-3.5 w-3.5" /> {formatCurrency(rate)}/hr</span>
-                            </div>
-                            {(() => {
-                              const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
-                              const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
-                              const clientDep = client.prepaidAmount || 0;
-                              const balanceDue = Math.max(0, clientRevenue - vehicleDeps - clientDep);
-                              if (clientRevenue <= 0) return null;
-                              return (
-                                <div className="flex items-center gap-3 mt-1 text-xs flex-wrap">
-                                  <span className="text-green-600 font-semibold">Total: {formatCurrency(clientRevenue)}</span>
-                                  {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && (
-                                    <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>
-                                  )}
-                                  {vehicleDeps > 0 && (
-                                    <span className="text-red-500">Car Deposits: {formatCurrency(vehicleDeps)}</span>
-                                  )}
-                                  {clientDep > 0 && (
-                                    <span className="text-red-500">Client Deposit: {formatCurrency(clientDep)}</span>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                            {client.companyName && <p className="text-sm text-muted-foreground font-medium">{client.companyName}</p>}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditClient(client)} title="Edit Client">
-                              <Pencil className="h-4 w-4" />
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => startEditClient(client)}>
+                              <Pencil className="h-3.5 w-3.5" /> Edit
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAddVehicleForClient(client.id)} title="Add Vehicle">
-                              <Plus className="h-4 w-4" />
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => generateClientPDF(client.id)}>
+                              <Printer className="h-3.5 w-3.5" /> PDF
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                              setImportingClientId(client.id);
-                              const input = document.getElementById(`xls-import-${client.id}`) as HTMLInputElement;
-                              input?.click();
-                            }} title="Import XLS">
-                              <Upload className="h-4 w-4" />
-                            </Button>
-                            <input
-                              id={`xls-import-${client.id}`}
-                              type="file"
-                              accept=".xls,.xlsx"
-                              className="hidden"
-                              onChange={e => {
-                                const file = e.target.files?.[0];
-                                if (file) handleImportXls(file, client.id);
-                                e.target.value = '';
-                              }}
-                            />
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => generateClientPDF(client.id)} title="Print PDF Report">
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={async () => {
                               if (client.accessCode) {
                                 navigator.clipboard.writeText(client.accessCode);
                                 toast({ title: 'PIN Copied!', description: `PIN: ${client.accessCode}` });
                               } else {
                                 try {
-                                  const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods);
+                                  const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl);
                                   updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
                                   navigator.clipboard.writeText(result.accessCode);
                                   toast({ title: 'PIN Copied!', description: `PIN: ${result.accessCode}` });
@@ -1418,12 +1428,24 @@ const DesktopDashboard = () => {
                                   toast({ title: 'Error', description: 'Could not generate PIN', variant: 'destructive' });
                                 }
                               }
-                            }} title={client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}>
-                              <KeyRound className="h-4 w-4" />
+                            }}>
+                              <KeyRound className="h-3.5 w-3.5" />
+                              {client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={async () => {
                               try {
-                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods);
+                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl);
+                                updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+                                window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
+                              } catch {
+                                toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
+                              }
+                            }}>
+                              <Eye className="h-3.5 w-3.5" /> Portal
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={async () => {
+                              try {
+                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl);
                                 updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
                                 const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}`;
                                 await navigator.clipboard.writeText(url);
@@ -1449,25 +1471,54 @@ const DesktopDashboard = () => {
                                 URL.revokeObjectURL(a.href);
                                 toast({ title: 'File Downloaded', description: `Send it to your client. PIN: ${code}` });
                               }
-                            }} title="Share Portal Link">
-                              <Link2 className="h-4 w-4" />
+                            }}>
+                              <Link2 className="h-3.5 w-3.5" /> Share
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                              try {
-                                const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods);
-                                updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                                window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
-                              } catch {
-                                toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
-                              }
-                            }} title="Client Portal">
-                              <Eye className="h-4 w-4" />
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setImportingClientId(client.id); const input = document.getElementById(`xls-import-${client.id}`) as HTMLInputElement; input?.click(); }}>
+                              <Upload className="h-3.5 w-3.5" /> Import XLS
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteClient(client.id)} title="Delete Client">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <input id={`xls-import-${client.id}`} type="file" accept=".xls,.xlsx" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) handleImportXls(file, client.id); e.target.value = ''; }} />
                           </div>
                         </div>
+
+                        {/* Full info row */}
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-sm text-muted-foreground">
+                          {client.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{client.email}</span>}
+                          {client.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{client.phone}</span>}
+                          <span className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5" />{formatCurrency(rate)}/hr</span>
+                          {(client.cloningRate || settings.defaultCloningRate) && <span className="text-xs">{formatCurrency(client.cloningRate || settings.defaultCloningRate || 0)}/clone</span>}
+                          {(client.programmingRate || settings.defaultProgrammingRate) && <span className="text-xs">{formatCurrency(client.programmingRate || settings.defaultProgrammingRate || 0)}/prog</span>}
+                          {(client.addKeyRate || settings.defaultAddKeyRate) && <span className="text-xs">{formatCurrency(client.addKeyRate || settings.defaultAddKeyRate || 0)}/add-key</span>}
+                          {(client.allKeysLostRate || settings.defaultAllKeysLostRate) && <span className="text-xs">{formatCurrency(client.allKeysLostRate || settings.defaultAllKeysLostRate || 0)}/AKL</span>}
+                        </div>
+                        {(client.address || client.city || client.state) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {[client.address, [client.city, client.state, client.zip].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                        {client.notes && <p className="text-xs text-muted-foreground italic mt-1">{client.notes}</p>}
+
+                        {/* Totals */}
+                        {(() => {
+                          const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                          const clientDep = client.prepaidAmount || 0;
+                          const balanceDue = Math.max(0, clientRevenue - vehicleDeps - clientDep);
+                          if (clientRevenue <= 0) return null;
+                          return (
+                            <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
+                              <span className={`font-semibold ${
+                                filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                                filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
+                                filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
+                                'text-emerald-600 dark:text-emerald-400'
+                              }`}>Total: {formatCurrency(clientRevenue)}</span>
+                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              {vehicleDeps > 0 && <span className="text-red-500">Car Deposits: {formatCurrency(vehicleDeps)}</span>}
+                              {clientDep > 0 && <span className="text-red-500">Client Deposit: {formatCurrency(clientDep)}</span>}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Inline client edit form */}
@@ -1510,7 +1561,12 @@ const DesktopDashboard = () => {
                               {vehicle.vin && <span className="text-xs font-mono text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</span>}
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
                               {vehicleCost > 0 && (
-                                <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">{formatCurrency(vehicleCost)}</span>
+                                <span className={`font-bold text-sm ml-1 ${
+                                  filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                                  filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
+                                  filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
+                                  'text-emerald-600 dark:text-emerald-400'
+                                }`}>{formatCurrency(vehicleCost)}</span>
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
@@ -1544,7 +1600,7 @@ const DesktopDashboard = () => {
                                   ))}
                                 </select>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteVehicle(vehicle.id)} title="Delete Vehicle">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteVehicleDialog({ open: true, vehicleId: vehicle.id })} title="Delete Vehicle">
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
                             </div>
@@ -1612,6 +1668,11 @@ const DesktopDashboard = () => {
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
+                                        {task.needsFollowUp && (
+                                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-400/50 bg-orange-500/10">
+                                            ⚑ Follow-up
+                                          </Badge>
+                                        )}
                                         {photoCount > 0 && <span className="text-xs text-muted-foreground">📷 {photoCount}</span>}
                                         {task.diagnosticPdfUrl && (
                                           <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-500/40">
@@ -1656,7 +1717,7 @@ const DesktopDashboard = () => {
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
                                           <FileUp className={`h-3.5 w-3.5 ${task.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(task.id)} title="Delete">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTaskDialog({ open: true, taskId: task.id })} title="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>
                                       </div>
@@ -1797,6 +1858,64 @@ const DesktopDashboard = () => {
         onAddClient={() => setShowAddClient(true)}
         onSave={handleAddVehicleSave}
       />
+
+      {/* Delete Vehicle Confirmation */}
+      <AlertDialog open={deleteVehicleDialog.open} onOpenChange={open => !open && setDeleteVehicleDialog({ open: false, vehicleId: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Vehicle</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteVehicleDialog.vehicleId && (() => {
+                const v = vehicles.find(x => x.id === deleteVehicleDialog.vehicleId);
+                const vName = [v?.year, v?.make, v?.model].filter(Boolean).join(' ') || 'this vehicle';
+                const taskCount = tasks.filter(t => t.vehicleId === deleteVehicleDialog.vehicleId).length;
+                return `Delete ${vName}? This will permanently remove the vehicle and all ${taskCount} associated task${taskCount !== 1 ? 's' : ''}. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteVehicleDialog.vehicleId) handleDeleteVehicle(deleteVehicleDialog.vehicleId);
+                setDeleteVehicleDialog({ open: false, vehicleId: null });
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Task Confirmation */}
+      <AlertDialog open={deleteTaskDialog.open} onOpenChange={open => !open && setDeleteTaskDialog({ open: false, taskId: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTaskDialog.taskId && (() => {
+                const t = tasks.find(x => x.id === deleteTaskDialog.taskId);
+                const v = t ? vehicles.find(x => x.id === t.vehicleId) : null;
+                const vName = [v?.year, v?.make, v?.model].filter(Boolean).join(' ') || 'this vehicle';
+                return `Delete the work session for ${vName}? All time records, parts, and photos will be permanently removed. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTaskDialog.taskId) { handleDelete(deleteTaskDialog.taskId); setEditingTaskId(null); }
+                setDeleteTaskDialog({ open: false, taskId: null });
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

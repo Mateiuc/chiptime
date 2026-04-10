@@ -19,6 +19,11 @@ export interface Client {
   prepaidAmount?: number;
   portalId?: string;
   createdAt: Date;
+  // Per-client portal branding (overrides Settings defaults)
+  portalLogoUrl?: string;
+  portalBgColor?: string;
+  portalBusinessName?: string;
+  portalBgImageUrl?: string;   // background image for portal body
 }
 
 export interface Vehicle {
@@ -114,6 +119,7 @@ export interface PaymentMethod {
   label: string;
   url: string;
   icon?: string; // emoji or identifier
+  type?: 'link' | 'card'; // link = opens URL, card = Stripe/Square card form
 }
 
 export interface Settings {
@@ -132,4 +138,9 @@ export interface Settings {
   paymentLink?: string; // @deprecated - use paymentMethods instead
   paymentLabel?: string; // @deprecated - use paymentMethods instead
   paymentMethods?: PaymentMethod[];
+  // Client portal branding
+  portalLogoUrl?: string;       // URL or base64 of shop logo
+  portalBgColor?: string;       // hex color for portal header gradient
+  portalBusinessName?: string;  // shown in portal header instead of "Service Portal"
+  portalBgImageUrl?: string;    // background image for portal body
 }

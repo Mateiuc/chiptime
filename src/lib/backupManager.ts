@@ -110,13 +110,13 @@ export class BackupManager {
             try {
               const data = await parseXMLFile(file);
               await capacitorStorage.importAllData(data);
-              
+
               toast({
                 title: "Backup Restored",
-                description: "Your data has been successfully restored. The app will reload.",
+                description: "Your data has been successfully restored.",
               });
-              
-              setTimeout(() => window.location.reload(), 2000);
+
+              window.dispatchEvent(new CustomEvent('chiptime:import-complete'));
               resolve();
             } catch (error) {
               reject(error);
@@ -170,13 +170,13 @@ export class BackupManager {
         const data = await parseXMLFile(tempFile);
         
         await capacitorStorage.importAllData(data);
-        
+
         toast({
           title: "Backup Restored",
-          description: "Your data has been successfully restored. The app will reload.",
+          description: "Your data has been successfully restored.",
         });
-        
-        setTimeout(() => window.location.reload(), 2000);
+
+        window.dispatchEvent(new CustomEvent('chiptime:import-complete'));
       }
     } catch (error) {
       console.error('Import backup failed:', error);

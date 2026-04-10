@@ -249,6 +249,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
   const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + (t.totalTime || 0), 0) / 3600, [filteredTasks]);
+  const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -275,12 +276,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   );
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      {/* Filter Toolbar */}
-      <div className="sticky top-0 z-10 bg-card border rounded-lg p-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Filter Toolbar — fixed at top, outside scroll container */}
+      <div className="bg-card border-b px-6 py-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={rptClient} onValueChange={v => { setRptClient(v); setRptVehicle('all'); }}>
-            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All Clients" /></SelectTrigger>
+            <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue placeholder="All Clients" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clients</SelectItem>
               {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -288,7 +289,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           </Select>
 
           <Select value={rptVehicle} onValueChange={setRptVehicle}>
-            <SelectTrigger className="w-[200px] h-8 text-sm"><SelectValue placeholder="All Vehicles" /></SelectTrigger>
+            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All Vehicles" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Vehicles</SelectItem>
               {availableVehicles.map(v => (
@@ -315,13 +316,23 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <RotateCcw className="h-3 w-3 mr-1" /> Reset
           </Button>
 
-          <div className="ml-auto flex items-center gap-4 text-sm text-muted-foreground">
+          {unpaidBalance > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700">
+              <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Unpaid:</span>
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{formatCurrency(unpaidBalance)}</span>
+            </div>
+          )}
+
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
             <span><strong className="text-foreground">{filteredTasks.length}</strong> tasks</span>
             <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
-            <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hours</span>
+            <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
           </div>
         </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -529,6 +540,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 };

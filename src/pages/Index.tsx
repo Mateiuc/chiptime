@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Plus } from 'lucide-react';
+import { Settings as SettingsIcon, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -10,6 +10,7 @@ import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
+import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
@@ -61,12 +62,40 @@ const Index = () => {
     performMigration();
   }, [toast]);
 
+  // After a backup import, re-read all data from storage and update React state directly
+  // (no page reload — avoids cloud sync overwriting the freshly imported data)
+  useEffect(() => {
+    const handleImportComplete = async () => {
+      const [freshClients, freshVehicles, freshTasks, freshSettings] = await Promise.all([
+        capacitorStorage.getClients(),
+        capacitorStorage.getVehicles(),
+        capacitorStorage.getTasks(),
+        capacitorStorage.getSettings(),
+      ]);
+      clientsHook.replaceAll(freshClients);
+      vehiclesHook.replaceAll(freshVehicles);
+      tasksHook.replaceAll(freshTasks);
+      settingsHook.replaceAll(freshSettings);
+    };
+    window.addEventListener('chiptime:import-complete', handleImportComplete);
+    return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
+  }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
+
 
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showCompleteWork, setShowCompleteWork] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
+  // Client collapse/expand — all expanded by default
+  const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set());
+  const toggleClientCollapse = (clientId: string) => {
+    setCollapsedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId); else next.add(clientId);
+      return next;
+    });
+  };
 
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -324,7 +353,7 @@ const Index = () => {
           ? { ...t, status: 'completed' as const, sessions: updatedSessions, needsFollowUp, startTime: undefined, activeSessionId: undefined }
           : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => {
           if (!client.portalId) {
             updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
@@ -432,7 +461,7 @@ const Index = () => {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'billed' as const } : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
@@ -451,7 +480,7 @@ const Index = () => {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'paid' as const } : t
       );
-      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods)
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
@@ -624,6 +653,8 @@ const Index = () => {
 
   const activeTasks = tasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status));
   const completedTasks = tasks.filter(t => t.status === 'completed');
+  const runningTask = tasks.find(t => t.status === 'in-progress');
+  const unbilledCompleted = completedTasks.length;
 
   // Group tasks by client
   const groupTasksByClient = (taskList: Task[]) => {
@@ -643,7 +674,23 @@ const Index = () => {
     <div className="h-dvh overflow-y-auto bg-background">
       <header className="border-b bg-primary/20 backdrop-blur-sm shadow-md sticky top-0 z-10">
         <div className="px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-primary">Auto-Tracker</h1>
+          <div>
+            <h1 className="text-lg font-bold text-primary leading-tight">Chip's Time</h1>
+            <div className="flex items-center gap-3 mt-0.5">
+              {runningTask ? (
+                <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+                  </span>
+                  Timer running
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">{activeTasks.length} active job{activeTasks.length !== 1 ? 's' : ''}</span>
+              )}
+
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />
             <Button variant="default" size="icon" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
@@ -660,28 +707,58 @@ const Index = () => {
         <Tabs defaultValue="active" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active">Active ({activeTasks.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({completedTasks.length})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4 mt-4">
             {Object.keys(activeTasksByClient).length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p>No active tasks. Start a timer to begin tracking work.</p>
+              <div className="text-center py-16 text-muted-foreground space-y-3">
+                <div className="text-4xl">🔧</div>
+                <p className="font-medium text-foreground">No active jobs</p>
+                <p className="text-sm">Tap <strong>+</strong> to add a vehicle and start tracking work.</p>
               </div>
             ) : (
               Object.entries(activeTasksByClient).map(([clientId, clientTasks]) => {
                 const client = clients.find(c => c.id === clientId);
+                const hasRunning = clientTasks.some(t => t.status === 'in-progress');
+                const isCollapsed = collapsedClients.has(clientId);
                 return (
-                  <div key={clientId} className="rounded-lg p-4 bg-muted/30 space-y-3">
-                    <div className="mb-3">
-                      <h2 className="text-xl font-bold">
-                        {client?.name || 'Unknown Client'} 
-                        <span className="text-sm font-normal text-muted-foreground ml-2">
-                          ({vehicles.filter(v => v.clientId === clientId).length} vehicle{vehicles.filter(v => v.clientId === clientId).length !== 1 ? 's' : ''})
-                        </span>
-                      </h2>
-                      {client?.phone && <p className="text-xs text-muted-foreground">{client.phone}</p>}
-                    </div>
+                  <div key={clientId} className={`rounded-xl border overflow-hidden ${hasRunning ? 'border-blue-400/50 dark:border-blue-500/40' : 'border-border'}`}>
+                    <button
+                      onClick={() => toggleClientCollapse(clientId)}
+                      className={`w-full px-4 py-2.5 flex items-center justify-between transition-colors ${hasRunning ? 'bg-blue-500/10' : 'bg-muted/40'}`}
+                    >
+                      <div className="text-left">
+                        <h2 className="text-base font-bold leading-tight">
+                          {client?.name || 'Unknown Client'}
+                        </h2>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {client?.phone && <p className="text-xs text-muted-foreground">{client.phone}</p>}
+                          <span className="text-xs text-muted-foreground">
+                            {clientTasks.length} job{clientTasks.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasRunning && (
+                          <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                            </span>
+                            Live
+                          </span>
+                        )}
+                        {isCollapsed
+                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          : <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        }
+                      </div>
+                    </button>
+                    {!isCollapsed && (
+                    <div className="px-3 pb-3 pt-3 space-y-3">
                     {clientTasks.map(task => {
                       const vehicle = vehicles.find(v => v.id === task.vehicleId);
                       const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
@@ -704,6 +781,8 @@ const Index = () => {
                         />
                       );
                     })}
+                    </div>
+                    )}
                   </div>
                 );
               })
@@ -712,23 +791,39 @@ const Index = () => {
 
           <TabsContent value="completed" className="space-y-4 mt-4">
             {Object.keys(completedTasksByClient).length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p>No completed tasks yet.</p>
+              <div className="text-center py-16 text-muted-foreground space-y-3">
+                <div className="text-4xl">✅</div>
+                <p className="font-medium text-foreground">No completed jobs yet</p>
+                <p className="text-sm">Completed jobs will appear here ready for billing.</p>
               </div>
             ) : (
               Object.entries(completedTasksByClient).map(([clientId, clientTasks]) => {
                 const client = clients.find(c => c.id === clientId);
+                const isCollapsed = collapsedClients.has(clientId);
                 return (
-                  <div key={clientId} className="rounded-lg p-4 bg-muted/30 space-y-3">
-                    <div className="mb-3">
-                      <h2 className="text-xl font-bold">
-                        {client?.name || 'Unknown Client'} 
-                        <span className="text-sm font-normal text-muted-foreground ml-2">
-                          ({vehicles.filter(v => v.clientId === clientId).length} vehicle{vehicles.filter(v => v.clientId === clientId).length !== 1 ? 's' : ''})
-                        </span>
-                      </h2>
-                      {client?.phone && <p className="text-xs text-muted-foreground">{client.phone}</p>}
-                    </div>
+                  <div key={clientId} className="rounded-xl border border-border overflow-hidden">
+                    <button
+                      onClick={() => toggleClientCollapse(clientId)}
+                      className="w-full px-4 py-2.5 bg-muted/40 flex items-center justify-between transition-colors hover:bg-muted/60"
+                    >
+                      <div className="text-left">
+                        <h2 className="text-base font-bold leading-tight">
+                          {client?.name || 'Unknown Client'}
+                        </h2>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {client?.phone && <p className="text-xs text-muted-foreground">{client.phone}</p>}
+                          <span className="text-xs text-muted-foreground">
+                            {clientTasks.length} job{clientTasks.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      {isCollapsed
+                        ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        : <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      }
+                    </button>
+                    {!isCollapsed && (
+                    <div className="px-3 pb-3 pt-3 space-y-3">
                     {clientTasks.map(task => {
                       const vehicle = vehicles.find(v => v.id === task.vehicleId);
                       const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
@@ -742,13 +837,15 @@ const Index = () => {
                           onMarkBilled={handleMarkBilled}
                           onMarkPaid={handleMarkPaid}
                           onRestartTimer={handleRestartTimer}
-                        onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
+                          onUpdateTask={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); }}
                           onUpdateVehicle={(vid, updates) => updateVehicle(vid, updates)}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}
                         />
                       );
                     })}
+                    </div>
+                    )}
                   </div>
                 );
               })

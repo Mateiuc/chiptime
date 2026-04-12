@@ -149,10 +149,21 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
     let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     (task.sessions || []).forEach(session => {
-      const dur = session.periods.reduce((sum, p) => sum + p.duration, 0);
-      baseLabor += (dur / 3600) * hourlyRate;
-      // chargeMinimumHour: rounds up to 1 hour ONLY if session is under 60 min
-      if (session.chargeMinimumHour && dur < 3600) totalMinHourAdj += ((3600 - dur) / 3600) * hourlyRate;
+      // Period-level minimum hour — each flagged period charged independently
+      session.periods.forEach(period => {
+        const dur = period.duration;
+        if (period.chargeMinimumHour && dur < 3600) {
+          baseLabor += hourlyRate; // full hour
+        } else {
+          baseLabor += (dur / 3600) * hourlyRate;
+        }
+      });
+      // Legacy session-level fallback for old data without period flags
+      const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
+      if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
+        totalMinHourAdj += ((3600 - sessionDur) / 3600) * hourlyRate;
+      }
       if (session.isCloning && cloningRate > 0) totalCloning += cloningRate;
       if (session.isProgramming && programmingRate > 0) totalProgramming += programmingRate;
       if (session.isAddKey && addKeyRate > 0) totalAddKey += addKeyRate;
@@ -160,7 +171,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     });
     const laborCost = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
     const partsCost = (task.sessions || []).reduce((total, session) =>
-      total + (session.parts || []).reduce((sum, part) => sum + part.price * part.quantity, 0), 0);
+      total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0), 0);
     return laborCost + partsCost;
   };
 
@@ -355,8 +366,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     </Popover>
   );
 
-  const clientChartHeight = Math.max(220, revenueByClient.length * 44);
-  const vehicleChartHeight = Math.max(220, revenueByVehicle.length * 38);
+  const clientChartHeight = Math.max(120, revenueByClient.length * 22);
+  const vehicleChartHeight = Math.max(120, revenueByVehicle.length * 22);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -448,7 +459,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
                     <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={120} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
                       {revenueByClient.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                     </Bar>
                   </BarChart>
@@ -473,7 +484,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
                       {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
                     </Bar>
                   </BarChart>

@@ -677,18 +677,71 @@ export const EditTaskDialog = ({
                       </Button>
                     </div>
                     {session.periods.map((period, periodIndex) => (
-                      <div key={period.id} className={`${sessionColorScheme.period} border rounded-md p-1 space-y-1`}>
-                        <div className="flex items-center justify-between px-1 py-0.5">
+                      <div key={period.id} className={`${sessionColorScheme.period} border rounded-xl p-3 space-y-3`}>
+                        {/* Header: Period N · duration · Min1hr · delete */}
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm">Period {periodIndex + 1}</span>
-                            <span className="text-sm">{formatDuration(period.duration)}</span>
+                            <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">{formatDuration(period.duration)}</span>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {/* Min 1hr pill per period */}
+                            <button
+                              type="button"
+                              onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? {
+                                ...s,
+                                periods: s.periods.map(p => p.id === period.id ? { ...p, chargeMinimumHour: !p.chargeMinimumHour } : p)
+                              } : s))}
+                              className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                                period.chargeMinimumHour
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-transparent text-muted-foreground border-border'
+                              }`}
+                            >
+                              <Flag className="h-2.5 w-2.5" fill={period.chargeMinimumHour ? 'currentColor' : 'none'} />
+                              Min 1hr
+                            </button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-1 px-1">
-                          {renderPeriodInputs(session, period, false)}
+                        {/* Start / End in 2-column grid with larger inputs */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wide text-green-600">▶ Start</Label>
+                            <Input
+                              type="date"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.dateValue : formatDateForInput(period.startTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'date', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-10 text-base font-medium w-full"
+                            />
+                            <Input
+                              type="time"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'startTime' ? editingPeriod.timeValue : formatTimeForInput(period.startTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'startTime', 'time', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-12 text-xl font-bold w-full text-center"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wide text-red-600">■ End</Label>
+                            <Input
+                              type="date"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.dateValue : formatDateForInput(period.endTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'date', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-10 text-base font-medium w-full"
+                            />
+                            <Input
+                              type="time"
+                              value={editingPeriod?.sessionId === session.id && editingPeriod?.periodId === period.id && editingPeriod?.field === 'endTime' ? editingPeriod.timeValue : formatTimeForInput(period.endTime)}
+                              onChange={e => handlePeriodTimeChange(session.id, period.id, 'endTime', 'time', e.target.value, period)}
+                              onBlur={handlePeriodTimeBlur}
+                              className="h-12 text-xl font-bold w-full text-center"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -703,7 +756,7 @@ export const EditTaskDialog = ({
                     </div>
                     {(session.parts || []).map((part, partIndex) => (
                       <div key={partIndex} className={`${sessionColorScheme.part} border rounded-md p-1 space-y-1`}>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-1">
                           <Input type="text" value={part.name} onChange={e => {
                             setSessions(prev => prev.map(s => {
                               if (s.id === session.id) {
@@ -714,6 +767,17 @@ export const EditTaskDialog = ({
                               return s;
                             }));
                           }} className="h-6 text-xs flex-1" placeholder="Part name" />
+                          {/* Me / Client pill */}
+                          <div className="flex bg-muted rounded-full border border-border p-0.5 gap-0.5 shrink-0">
+                            <button type="button"
+                              onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, parts: s.parts.map((p, i) => i === partIndex ? { ...p, providedByClient: false } : p) } : s))}
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${!part.providedByClient ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}
+                            >Me</button>
+                            <button type="button"
+                              onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, parts: s.parts.map((p, i) => i === partIndex ? { ...p, providedByClient: true } : p) } : s))}
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
+                            >Client</button>
+                          </div>
                           <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -726,7 +790,7 @@ export const EditTaskDialog = ({
                             <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="h-7 text-xs" />
                           </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">Total: {formatCurrency(part.price * part.quantity)}</div>
+                        <div className={`text-xs ${part.providedByClient ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>Total: {formatCurrency(part.price * part.quantity)}{part.providedByClient ? ' (client)' : ''}</div>
                       </div>
                     ))}
                   </div>
@@ -951,16 +1015,17 @@ export const EditTaskDialog = ({
 
                       {(session.parts || []).length > 0 && (
                         <div className="border rounded-md overflow-hidden">
-                          <div className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
+                          <div className={`grid grid-cols-[160px_60px_90px_70px_1fr_80px_36px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
                             <span>Name</span>
                             <span>Qty</span>
                             <span>Price</span>
                             <span>Total</span>
                             <span>Description</span>
+                            <span className="text-center">By</span>
                             <span></span>
                           </div>
                           {(session.parts || []).map((part, partIndex) => (
-                            <div key={partIndex} className={`grid grid-cols-[1fr_80px_100px_80px_100px_40px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
+                            <div key={partIndex} className={`grid grid-cols-[160px_60px_90px_70px_1fr_80px_36px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
                               <Input type="text" value={part.name} onChange={e => {
                                 setSessions(prev => prev.map(s => {
                                   if (s.id === session.id) {
@@ -973,7 +1038,7 @@ export const EditTaskDialog = ({
                               }} className="h-9 text-sm" placeholder="Part name" />
                               <Input type="number" min="1" value={part.quantity} onChange={e => handleUpdatePartQuantity(session.id, partIndex, parseInt(e.target.value) || 1)} className="h-9 text-sm" />
                               <Input type="number" min="0" step="0.01" value={part.price} onChange={e => handleUpdatePartPrice(session.id, partIndex, parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="h-9 text-sm" />
-                              <span className="text-sm font-medium">{formatCurrency(part.price * part.quantity)}</span>
+                              <span className={`text-sm font-medium ${part.providedByClient ? 'line-through text-muted-foreground' : ''}`}>{formatCurrency(part.price * part.quantity)}</span>
                               <Input type="text" value={part.description || ''} onChange={e => {
                                 setSessions(prev => prev.map(s => {
                                   if (s.id === session.id) {
@@ -984,6 +1049,19 @@ export const EditTaskDialog = ({
                                   return s;
                                 }));
                               }} className="h-9 text-sm" placeholder="Optional" />
+                              {/* Me / Client pill */}
+                              <div className="flex bg-muted rounded-full border border-border p-0.5 gap-0.5 w-fit">
+                                <button
+                                  type="button"
+                                  onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, parts: s.parts.map((p, i) => i === partIndex ? { ...p, providedByClient: false } : p) } : s))}
+                                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${!part.providedByClient ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}
+                                >Me</button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, parts: s.parts.map((p, i) => i === partIndex ? { ...p, providedByClient: true } : p) } : s))}
+                                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
+                                >Client</button>
+                              </div>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>

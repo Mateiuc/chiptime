@@ -676,8 +676,8 @@ const Index = () => {
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-primary leading-tight">Chip's Time</h1>
-            {runningTask && (
-              <div className="flex items-center gap-3 mt-0.5">
+            <div className="flex items-center gap-3 mt-0.5">
+              {runningTask ? (
                 <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
@@ -685,8 +685,9 @@ const Index = () => {
                   </span>
                   Timer running
                 </span>
-              </div>
-            )}
+              ) : null}
+
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />

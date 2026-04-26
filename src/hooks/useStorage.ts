@@ -344,6 +344,7 @@ export const useCloudSync = (deps: {
     if (!workspaceReady) return;
     const wsId = workspace?.id ?? null;
     if (!wsId) return;
+    if (deps.clients.loading || deps.vehicles.loading || deps.tasks.loading || deps.settings.loading) return;
     if (syncedForWorkspace.current === wsId) return;
     syncedForWorkspace.current = wsId;
 
@@ -363,20 +364,23 @@ export const useCloudSync = (deps: {
 
         if (localEmpty) {
           console.log('[CloudSync] Local empty — forcing pull from cloud');
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
           return;
         }
 
         // Desktop mode (push disabled): always pull, never seed
         if (!cloudPushEnabled) {
           console.log('[CloudSync] Desktop mode — forcing pull');
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
           return;
         }
 
         const remoteTs = await appSyncService.getRemoteUpdatedAt();
         if (appSyncService.isRemoteNewer(remoteTs)) {
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
         } else if (!remoteTs) {
           await appSyncService.pushToCloud({
             clients: localClients,
@@ -388,10 +392,11 @@ export const useCloudSync = (deps: {
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);
+        syncedForWorkspace.current = null;
       }
     };
     syncOnReady();
-  }, [workspaceReady, workspace?.id, pullAndApply]);
+  }, [workspaceReady, workspace?.id, deps.clients.loading, deps.vehicles.loading, deps.tasks.loading, deps.settings.loading, pullAndApply]);
 
   return { syncing, lastSyncAt, refresh: pullAndApply };
 };

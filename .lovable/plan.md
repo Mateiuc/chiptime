@@ -1,26 +1,34 @@
-# Fix: Google Sign-In Popup Disappears Immediately
+## Goal
+After clearing browser cache (or signing in on a new device), the app should automatically restore data from the cloud instead of showing an empty UI.
 
-## Root Cause
-This project uses `vite-plugin-pwa`, which registers a service worker that caches navigation requests. The Lovable Cloud OAuth flow redirects through `/~oauth/initiate` and `/~oauth/callback`, but the service worker is intercepting these routes — returning the cached `index.html` shell instead of letting the request hit the OAuth proxy. As a result, the popup opens, gets the cached app shell back instead of the OAuth response, and closes immediately with no session set.
+## Root cause
+1. `appSyncService.getWorkspaceId()` reads `app_sync_workspace_id` from `localStorage`. Clearing cache wipes it.
+2. `useCloudSync` runs on mount **before** `AuthContext.loadWorkspace()` finishes setting it back, so the pull silently no-ops (`workspaceId` is null → `pullFromCloud` returns null).
+3. Result: local IndexedDB/Preferences is empty AND no cloud pull happens → user sees empty app.
 
-The Lovable docs explicitly require excluding `/~oauth` from the service worker's `navigateFallbackDenylist` for OAuth to work in PWA projects.
+## Fix
+Make the workspace ID **always derive from the server** on login, and gate the cloud pull on it being ready. Pull from cloud whenever local is empty.
 
-## Change — `vite.config.ts` (~line 47)
-Add `navigateFallbackDenylist: [/^\/~oauth/]` to the `workbox` config so OAuth redirects always hit the network instead of the cached shell.
+### 1. `src/contexts/AuthContext.tsx`
+- After `loadWorkspace` resolves a `workspace_members` row, also call the existing RPC `user_primary_workspace(_user_id)` as a fallback if no row is found (covers users with claimed workspaces but no row yet — rare). Keep current logic; just guarantee `appSyncService.setWorkspaceId(ws.id)` is invoked synchronously before any consumer hook tries to use it.
+- Expose a new `workspaceReady: boolean` flag on the context (true once the workspace lookup completes — found or not).
 
-```ts
-workbox: {
-  maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-  globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-  navigateFallbackDenylist: [/^\/~oauth/],   // ← add this
-  runtimeCaching: [ /* unchanged */ ],
-},
-```
+### 2. `src/hooks/useStorage.ts` — `useCloudSync`
+Change the mount-sync logic to:
+1. **Wait** for `workspaceReady === true` and `workspace?.id` from `useAuth()` before doing anything.
+2. Read local data counts:
+   - If local is **empty** (`clients.length === 0 && tasks.length === 0 && vehicles.length === 0`) → **always pull from cloud**, regardless of timestamp. This is the "fresh device / cleared cache" case.
+   - If local has data → keep current behavior (pull only if remote is newer; otherwise seed).
+3. Re-run this effect when `workspace?.id` changes (so signing into a different account also triggers a fresh pull).
 
-## Notes
-- No app code changes required — `Auth.tsx` and `src/integrations/lovable/index.ts` are already correct.
-- After this change, users may need to do one hard refresh so the new service worker takes over from the old one.
-- The existing managed Lovable Cloud Google credentials are used automatically; nothing to configure in Google Cloud Console.
+### 3. `src/services/appSyncService.ts`
+- Remove reliance on `localStorage` as the source of truth for workspace_id. Keep the cache for fast access, but add `setWorkspaceId` calls from the AuthContext as the only writer.
+- No schema changes needed — table already has `workspace_id` and proper RLS.
 
-## Files
-- `vite.config.ts` — 1 line added
+## Out of scope
+- No UI changes. No DB migrations. No changes to push logic (already debounced and safe — won't push empty snapshots).
+
+## Verification
+- Sign in → clear site data → sign in again → data reappears within ~1s.
+- Sign in on a second browser → data appears.
+- Console shows: `[CloudSync] Local empty — forcing pull from cloud`.

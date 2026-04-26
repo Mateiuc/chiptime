@@ -13,6 +13,7 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   workspace: WorkspaceInfo | null;
+  workspaceReady: boolean;
   loading: boolean;
   refreshWorkspace: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -24,12 +25,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadWorkspace = useCallback(async (uid: string | null) => {
+    setWorkspaceReady(false);
     if (!uid) {
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     const { data, error } = await supabase
@@ -43,16 +47,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('[Auth] Failed to load workspace:', error);
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     if (!data) {
+      // Fallback: try server-side primary workspace lookup
+      const { data: wsId } = await supabase.rpc('user_primary_workspace', { _user_id: uid });
+      if (wsId) {
+        const { data: wsRow } = await supabase
+          .from('workspaces')
+          .select('id, name')
+          .eq('id', wsId as string)
+          .maybeSingle();
+        if (wsRow) {
+          setWorkspace({ id: wsRow.id, name: wsRow.name, role: 'member' });
+          appSyncService.setWorkspaceId(wsRow.id);
+          setWorkspaceReady(true);
+          return;
+        }
+      }
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     const ws = (data as any).workspaces;
     setWorkspace({ id: ws.id, name: ws.name, role: data.role as any });
     appSyncService.setWorkspaceId(ws.id);
+    setWorkspaceReady(true);
   }, []);
 
   useEffect(() => {
@@ -85,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, user, workspace, loading, refreshWorkspace, signOut }}>
+    <AuthContext.Provider value={{ session, user, workspace, workspaceReady, loading, refreshWorkspace, signOut }}>
       {children}
     </AuthContext.Provider>
   );

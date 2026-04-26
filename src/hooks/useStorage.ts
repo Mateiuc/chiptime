@@ -4,7 +4,7 @@ import { appSyncService, SyncData } from '@/services/appSyncService';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Global debounce timer for cloud push
+// Pending retry timer (used only when an immediate push fails)
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let cloudPushEnabled = true;
 
@@ -13,28 +13,36 @@ export const setCloudPushEnabled = (enabled: boolean) => {
   console.log('[CloudSync] Push enabled:', enabled);
 };
 
-// Build full snapshot from Capacitor storage and push
-const debouncedPushToCloud = () => {
+// Push the freshest local snapshot to the cloud immediately (awaitable).
+// Used after every add/edit/delete/start/pause/resume/stop so local + cloud
+// stay in lockstep. On transient failure we schedule ONE retry ~5s later.
+const immediatePushToCloud = async () => {
   if (!cloudPushEnabled) return;
-  if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(async () => {
-    try {
-      const [clients, vehicles, tasks, settings] = await Promise.all([
-        capacitorStorage.getClients(),
-        capacitorStorage.getVehicles(),
-        capacitorStorage.getTasks(),
-        capacitorStorage.getSettings(),
-      ]);
-      // Don't push empty snapshots — prevents wiping cloud data
-      if (clients.length === 0 && vehicles.length === 0 && tasks.length === 0) {
-        console.log('[CloudSync] Skipped push — snapshot is empty');
-        return;
-      }
-      await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
-    } catch (err) {
-      console.error('[CloudSync] Push failed:', err);
+  // Cancel any pending retry — we're about to push fresh data anyway.
+  if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+  try {
+    const [clients, vehicles, tasks, settings] = await Promise.all([
+      capacitorStorage.getClients(),
+      capacitorStorage.getVehicles(),
+      capacitorStorage.getTasks(),
+      capacitorStorage.getSettings(),
+    ]);
+    // Don't push empty snapshots — prevents wiping cloud data
+    if (clients.length === 0 && vehicles.length === 0 && tasks.length === 0) {
+      console.log('[CloudSync] Skipped push — snapshot is empty');
+      return;
     }
-  }, 3000);
+    await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
+  } catch (err) {
+    console.error('[CloudSync] Immediate push failed, will retry in 5s:', err);
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      pushTimer = null;
+      immediatePushToCloud().catch(e =>
+        console.error('[CloudSync] Retry push failed:', e)
+      );
+    }, 5000);
+  }
 };
 
 // For desktop: push current React state directly (passed by caller)
@@ -116,7 +124,7 @@ export const useClients = () => {
     try {
       await capacitorStorage.setClients(clients);
       setClientsState(clients);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save clients:', error);
     }
@@ -167,7 +175,7 @@ export const useVehicles = () => {
     try {
       await capacitorStorage.setVehicles(vehicles);
       setVehiclesState(vehicles);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save vehicles:', error);
     }
@@ -218,7 +226,7 @@ export const useTasks = () => {
     try {
       await capacitorStorage.setTasks(newTasks);
       setTasksState(newTasks);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save tasks:', error);
     }
@@ -281,7 +289,7 @@ export const useSettings = () => {
     try {
       await capacitorStorage.setSettings(settings);
       setSettingsState(settings);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save settings:', error);
     }

@@ -1,36 +1,26 @@
+# Fix: Google Sign-In Popup Disappears Immediately
 
+## Root Cause
+This project uses `vite-plugin-pwa`, which registers a service worker that caches navigation requests. The Lovable Cloud OAuth flow redirects through `/~oauth/initiate` and `/~oauth/callback`, but the service worker is intercepting these routes — returning the cached `index.html` shell instead of letting the request hit the OAuth proxy. As a result, the popup opens, gets the cached app shell back instead of the OAuth response, and closes immediately with no session set.
 
-# Add Financial Summary to Client Header (All Status Views)
+The Lovable docs explicitly require excluding `/~oauth` from the service worker's `navigateFallbackDenylist` for OAuth to work in PWA projects.
 
-## Problem
-The client header card (pink banner) currently only shows phone number and hourly rate. The user wants to see **Total**, **Due**, **Vehicle Deposits**, and **Client Deposit** right after the phone number — visible in Active, Completed, Billed, and Paid views.
+## Change — `vite.config.ts` (~line 47)
+Add `navigateFallbackDenylist: [/^\/~oauth/]` to the `workbox` config so OAuth redirects always hit the network instead of the cached shell.
 
-## Change — `src/pages/DesktopDashboard.tsx` (line ~1352-1356)
-
-After the phone + rate line in the client header card, add a second row showing financial summary:
-
-```
-Total: $1,789.60 | Due: $789.60 | Car Deposits: $500 | Client Deposit: $500
-```
-
-### Logic
-```typescript
-const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
-const vehicleDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
-const clientDeposit = client.prepaidAmount || 0;
-const totalDeposits = vehicleDeposits + clientDeposit;
-const balanceDue = Math.max(0, clientRevenue - totalDeposits);
+```ts
+workbox: {
+  maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+  globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+  navigateFallbackDenylist: [/^\/~oauth/],   // ← add this
+  runtimeCaching: [ /* unchanged */ ],
+},
 ```
 
-### Display rules
-- **Total** — always shown if > 0 (green)
-- **Due** — shown if deposits exist and balance > 0 (orange/bold)
-- **Car Deposits** — shown only if vehicleDeposits > 0 (red)
-- **Client Deposit** — shown only if clientDeposit > 0 (red)
+## Notes
+- No app code changes required — `Auth.tsx` and `src/integrations/lovable/index.ts` are already correct.
+- After this change, users may need to do one hard refresh so the new service worker takes over from the old one.
+- The existing managed Lovable Cloud Google credentials are used automatically; nothing to configure in Google Cloud Console.
 
-### Implementation
-Add a new `<div>` row below the existing phone/rate line (~line 1356), using the same `text-sm` styling with colored badges for each financial item.
-
-## File
-- `src/pages/DesktopDashboard.tsx` — ~10 lines added at line 1356
-
+## Files
+- `vite.config.ts` — 1 line added

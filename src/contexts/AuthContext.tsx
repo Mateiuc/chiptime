@@ -13,6 +13,7 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   workspace: WorkspaceInfo | null;
+  workspaceReady: boolean;
   loading: boolean;
   refreshWorkspace: () => Promise<void>;
   signOut: () => Promise<void>;

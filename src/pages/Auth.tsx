@@ -78,7 +78,10 @@ const Auth = () => {
     try {
       const { lovable } = await import('@/integrations/lovable');
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: `${window.location.origin}/auth`,
+        redirect_uri: window.location.origin,
+        extraParams: {
+          prompt: 'select_account',
+        },
       });
       if (result.error) throw new Error(result.error.message);
       if (result.redirected) return; // browser is navigating to Google

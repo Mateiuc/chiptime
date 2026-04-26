@@ -304,7 +304,8 @@ export const useCloudSync = (deps: {
 }) => {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
-  const hasSynced = useRef(false);
+  const syncedForWorkspace = useRef<string | null>(null);
+  const { workspace, workspaceReady } = useAuth();
 
   const pullAndApply = useCallback(async () => {
     setSyncing(true);
@@ -327,13 +328,34 @@ export const useCloudSync = (deps: {
     }
   }, [deps]);
 
-  // Auto-sync on mount
+  // Auto-sync when workspace is ready (re-runs on login / workspace change)
   useEffect(() => {
-    if (hasSynced.current) return;
-    hasSynced.current = true;
+    if (!workspaceReady) return;
+    const wsId = workspace?.id ?? null;
+    if (!wsId) return;
+    if (syncedForWorkspace.current === wsId) return;
+    syncedForWorkspace.current = wsId;
 
-    const syncOnMount = async () => {
+    const syncOnReady = async () => {
       try {
+        // Always check local first — if empty, pull from cloud
+        const [localClients, localVehicles, localTasks, localSettings] = await Promise.all([
+          capacitorStorage.getClients(),
+          capacitorStorage.getVehicles(),
+          capacitorStorage.getTasks(),
+          capacitorStorage.getSettings(),
+        ]);
+        const localEmpty =
+          localClients.length === 0 &&
+          localVehicles.length === 0 &&
+          localTasks.length === 0;
+
+        if (localEmpty) {
+          console.log('[CloudSync] Local empty — forcing pull from cloud');
+          await pullAndApply();
+          return;
+        }
+
         // Desktop mode (push disabled): always pull, never seed
         if (!cloudPushEnabled) {
           console.log('[CloudSync] Desktop mode — forcing pull');
@@ -345,26 +367,20 @@ export const useCloudSync = (deps: {
         if (appSyncService.isRemoteNewer(remoteTs)) {
           await pullAndApply();
         } else if (!remoteTs) {
-          // No remote data — only seed if local actually has data
-          const [localClients, localVehicles, localTasks, localSettings] = await Promise.all([
-            capacitorStorage.getClients(),
-            capacitorStorage.getVehicles(),
-            capacitorStorage.getTasks(),
-            capacitorStorage.getSettings(),
-          ]);
-          if (localClients.length > 0 || localTasks.length > 0) {
-            await appSyncService.pushToCloud({ clients: localClients, vehicles: localVehicles, tasks: localTasks, settings: localSettings });
-            console.log('[CloudSync] Seeded cloud with local data');
-          } else {
-            console.log('[CloudSync] Skipped seeding — local data is empty');
-          }
+          await appSyncService.pushToCloud({
+            clients: localClients,
+            vehicles: localVehicles,
+            tasks: localTasks,
+            settings: localSettings,
+          });
+          console.log('[CloudSync] Seeded cloud with local data');
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);
       }
     };
-    syncOnMount();
-  }, [pullAndApply]);
+    syncOnReady();
+  }, [workspaceReady, workspace?.id, pullAndApply]);
 
   return { syncing, lastSyncAt, refresh: pullAndApply };
 };

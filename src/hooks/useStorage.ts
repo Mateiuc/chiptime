@@ -305,10 +305,10 @@ export const useSettings = () => {
 
 // Hook for cloud sync - pull on mount, provide refresh
 export const useCloudSync = (deps: {
-  clients: { replaceAll: (c: Client[]) => void };
-  vehicles: { replaceAll: (v: Vehicle[]) => void };
-  tasks: { replaceAll: (t: Task[]) => void };
-  settings: { replaceAll: (s: Settings) => void };
+  clients: { replaceAll: (c: Client[]) => void; loading?: boolean };
+  vehicles: { replaceAll: (v: Vehicle[]) => void; loading?: boolean };
+  tasks: { replaceAll: (t: Task[]) => void; loading?: boolean };
+  settings: { replaceAll: (s: Settings) => void; loading?: boolean };
 }) => {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -328,9 +328,12 @@ export const useCloudSync = (deps: {
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         console.log('[CloudSync] Applied remote data');
+        return true;
       }
+      return false;
     } catch (err) {
       console.error('[CloudSync] Pull failed:', err);
+      return false;
     } finally {
       setSyncing(false);
     }

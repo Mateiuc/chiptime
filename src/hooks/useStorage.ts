@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { appSyncService, SyncData } from '@/services/appSyncService';
 import { Client, Vehicle, Task, Settings } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Global debounce timer for cloud push
 let pushTimer: ReturnType<typeof setTimeout> | null = null;

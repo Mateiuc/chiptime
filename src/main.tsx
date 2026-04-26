@@ -10,25 +10,37 @@ import { defineCustomElements } from '@ionic/pwa-elements/loader';
 // Define the PWA elements before app renders
 defineCustomElements(window);
 
-// One-time service worker + cache reset to free users stuck on a stale PWA bundle.
-// Bump the version key whenever a critical bug fix needs to bypass the old SW cache.
-const SW_RESET_KEY = "sw_reset_v2";
-if (typeof window !== "undefined" && !localStorage.getItem(SW_RESET_KEY)) {
-  localStorage.setItem(SW_RESET_KEY, "1");
+const isPreviewHost =
+  typeof window !== "undefined" &&
+  (window.location.hostname.includes("id-preview--") ||
+    window.location.hostname.includes("lovableproject.com"));
+
+const isInIframe = (() => {
+  try {
+    return typeof window !== "undefined" && window.self !== window.top;
+  } catch {
+    return true;
+  }
+})();
+
+const clearServiceWorkersAndCaches = async () => {
+  if ("serviceWorker" in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
+  }
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  }
+};
+
+// Keep Lovable preview/iframe OAuth routes off stale PWA caches.
+if (typeof window !== "undefined" && (isPreviewHost || isInIframe)) {
   (async () => {
     try {
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
+      await clearServiceWorkersAndCaches();
     } catch (e) {
       console.warn("[sw-reset] failed", e);
-    } finally {
-      window.location.reload();
     }
   })();
 }

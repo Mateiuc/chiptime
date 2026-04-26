@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -19,29 +19,21 @@ export type Database = {
           data: Json
           sync_id: string
           updated_at: string
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           data?: Json
           sync_id: string
           updated_at?: string
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           data?: Json
           sync_id?: string
           updated_at?: string
-          workspace_id?: string
+          workspace_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "app_sync_workspace_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       client_portals: {
         Row: {
@@ -49,53 +41,32 @@ export type Database = {
           client_local_id: string
           client_name: string
           data: Json
-          failed_attempts: number
-          first_failed_at: string | null
           id: string
-          locked_until: string | null
           updated_at: string
-          workspace_id: string
         }
         Insert: {
           access_code?: string | null
           client_local_id: string
           client_name: string
           data?: Json
-          failed_attempts?: number
-          first_failed_at?: string | null
           id: string
-          locked_until?: string | null
           updated_at?: string
-          workspace_id: string
         }
         Update: {
           access_code?: string | null
           client_local_id?: string
           client_name?: string
           data?: Json
-          failed_attempts?: number
-          first_failed_at?: string | null
           id?: string
-          locked_until?: string | null
           updated_at?: string
-          workspace_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "client_portals_workspace_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       workspace_invites: {
         Row: {
           code: string
           created_at: string
           created_by: string
-          expires_at: string | null
           id: string
           role: Database["public"]["Enums"]["workspace_role"]
           used_at: string | null
@@ -106,7 +77,6 @@ export type Database = {
           code: string
           created_at?: string
           created_by: string
-          expires_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["workspace_role"]
           used_at?: string | null
@@ -117,7 +87,6 @@ export type Database = {
           code?: string
           created_at?: string
           created_by?: string
-          expires_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["workspace_role"]
           used_at?: string | null
@@ -172,7 +141,6 @@ export type Database = {
           id: string
           is_unclaimed: boolean
           name: string
-          owner_user_id: string | null
           updated_at: string
         }
         Insert: {
@@ -180,7 +148,6 @@ export type Database = {
           id?: string
           is_unclaimed?: boolean
           name: string
-          owner_user_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -188,7 +155,6 @@ export type Database = {
           id?: string
           is_unclaimed?: boolean
           name?: string
-          owner_user_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -200,15 +166,7 @@ export type Database = {
     Functions: {
       claim_unclaimed_workspace: { Args: never; Returns: string }
       create_workspace: { Args: { _name: string }; Returns: string }
-      has_workspace_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["workspace_role"]
-          _user_id: string
-          _workspace_id: string
-        }
-        Returns: boolean
-      }
-      is_workspace_admin_or_owner: {
+      is_workspace_admin: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }

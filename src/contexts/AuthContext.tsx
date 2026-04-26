@@ -33,6 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!uid) {
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     const { data, error } = await supabase
@@ -46,16 +47,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('[Auth] Failed to load workspace:', error);
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     if (!data) {
+      // Fallback: try server-side primary workspace lookup
+      const { data: wsId } = await supabase.rpc('user_primary_workspace', { _user_id: uid });
+      if (wsId) {
+        const { data: wsRow } = await supabase
+          .from('workspaces')
+          .select('id, name')
+          .eq('id', wsId as string)
+          .maybeSingle();
+        if (wsRow) {
+          setWorkspace({ id: wsRow.id, name: wsRow.name, role: 'member' });
+          appSyncService.setWorkspaceId(wsRow.id);
+          setWorkspaceReady(true);
+          return;
+        }
+      }
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
+      setWorkspaceReady(true);
       return;
     }
     const ws = (data as any).workspaces;
     setWorkspace({ id: ws.id, name: ws.name, role: data.role as any });
     appSyncService.setWorkspaceId(ws.id);
+    setWorkspaceReady(true);
   }, []);
 
   useEffect(() => {

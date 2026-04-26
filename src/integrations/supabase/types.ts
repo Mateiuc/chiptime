@@ -19,16 +19,19 @@ export type Database = {
           data: Json
           sync_id: string
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           data?: Json
           sync_id: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           data?: Json
           sync_id?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: []
       }

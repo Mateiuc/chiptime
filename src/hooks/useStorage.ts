@@ -124,7 +124,7 @@ export const useClients = () => {
     try {
       await capacitorStorage.setClients(clients);
       setClientsState(clients);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save clients:', error);
     }
@@ -175,7 +175,7 @@ export const useVehicles = () => {
     try {
       await capacitorStorage.setVehicles(vehicles);
       setVehiclesState(vehicles);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save vehicles:', error);
     }
@@ -226,7 +226,7 @@ export const useTasks = () => {
     try {
       await capacitorStorage.setTasks(newTasks);
       setTasksState(newTasks);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save tasks:', error);
     }
@@ -289,7 +289,7 @@ export const useSettings = () => {
     try {
       await capacitorStorage.setSettings(settings);
       setSettingsState(settings);
-      debouncedPushToCloud();
+      await immediatePushToCloud();
     } catch (error) {
       console.error('Failed to save settings:', error);
     }

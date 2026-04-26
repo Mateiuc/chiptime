@@ -25,9 +25,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadWorkspace = useCallback(async (uid: string | null) => {
+    setWorkspaceReady(false);
     if (!uid) {
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);

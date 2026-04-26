@@ -225,9 +225,13 @@ export function calculateClientCosts(
           partsCost: sessionPartsCost,
           status: task.status,
           photoUrls: (session.photos || [])
-            .filter(p => p.cloudUrl)
-            .map(p => p.cloudUrl!),
-          diagnosticPdfUrl: showDiagnostic ? task.diagnosticPdfUrl : undefined,
+            // Prefer the storage path so the portal backend can mint
+            // short-lived signed URLs (bucket is private). Fall back to
+            // legacy public cloudUrl for photos uploaded before the
+            // private-bucket migration.
+            .map(p => p.cloudPath || p.cloudUrl)
+            .filter((u): u is string => !!u),
+          diagnosticPdfUrl: showDiagnostic ? (task.diagnosticPdfPath || task.diagnosticPdfUrl) : undefined,
           periods: session.periods.map(p => ({ start: new Date(p.startTime), end: new Date(p.endTime) })),
         });
       });
@@ -399,15 +403,19 @@ async function compressToBase64(payload: string): Promise<string> {
   return btoa(binary);
 }
 
-// Encode client data using slim format
-export async function encodeClientData(data: ClientCostSummary, accessCode: string): Promise<string> {
+// Encode client data using slim format.
+// SECURITY: We intentionally do NOT embed the access code in the hash payload.
+// Anyone with the URL can decode the hash, so a hash-only PIN provides no real
+// protection. PIN-gated access must use the cloud portal route (?id=...) where
+// the code is checked server-side.
+export async function encodeClientData(data: ClientCostSummary, _accessCode?: string): Promise<string> {
   const slim = slimDown(data);
-  const payload = JSON.stringify({ s: slim, c: accessCode });
+  const payload = JSON.stringify({ s: slim });
   return compressToBase64(payload);
 }
 
 // Decode client data - handles both slim and legacy formats
-export async function decodeClientData(encoded: string): Promise<{ data: ClientCostSummary; accessCode: string }> {
+export async function decodeClientData(encoded: string): Promise<{ data: ClientCostSummary; accessCode?: string }> {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
@@ -419,13 +427,13 @@ export async function decodeClientData(encoded: string): Promise<{ data: ClientC
   const text = await new Response(decompressedStream).text();
   const parsed = JSON.parse(text);
 
-  // Slim format uses { s: SlimPayload, c: accessCode }
-  if (parsed.s && parsed.c !== undefined) {
-    return { data: inflateSlimPayload(parsed.s), accessCode: parsed.c };
+  // Slim format
+  if (parsed.s) {
+    return { data: inflateSlimPayload(parsed.s) };
   }
 
   // Legacy format uses { data: ClientCostSummary, accessCode }
-  return { data: parsed.data, accessCode: parsed.accessCode };
+  return { data: parsed.data };
 }
 
 // Generate a self-contained HTML file for sharing large datasets
@@ -680,6 +688,8 @@ export async function checkPortalAccess(portalId: string, preview?: boolean): Pr
   requiresCode: boolean;
   clientName?: string;
   data?: ClientCostSummary;
+  locked?: boolean;
+  lockedUntil?: string | null;
 }> {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   let url = `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`;
@@ -698,7 +708,12 @@ export async function checkPortalAccess(portalId: string, preview?: boolean): Pr
   const result = await resp.json();
 
   if (result.requiresCode) {
-    return { requiresCode: true, clientName: result.clientName };
+    return {
+      requiresCode: true,
+      clientName: result.clientName,
+      locked: !!result.locked,
+      lockedUntil: result.lockedUntil ?? null,
+    };
   }
 
   // No code required — data is included
@@ -727,8 +742,13 @@ export async function fetchPortalWithCode(portalId: string, code: string): Promi
   );
 
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(err.error || 'Invalid access code');
+    const err: any = await resp.json().catch(() => ({ error: 'Request failed' }));
+    const e: any = new Error(err.error || 'Invalid access code');
+    e.status = resp.status;
+    e.locked = !!err.locked;
+    e.lockedUntil = err.lockedUntil ?? null;
+    e.attemptsRemaining = typeof err.attemptsRemaining === 'number' ? err.attemptsRemaining : null;
+    throw e;
   }
 
   const result = await resp.json();

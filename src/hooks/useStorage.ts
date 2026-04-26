@@ -314,17 +314,7 @@ export const useCloudSync = (deps: {
         if (d.clients) deps.clients.replaceAll(d.clients);
         if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
         if (d.tasks) deps.tasks.replaceAll(d.tasks);
-        if (d.settings) {
-          // Preserve locally-stored API keys — they are intentionally
-          // never synced to the cloud for security reasons.
-          const localSettings = await capacitorStorage.getSettings();
-          deps.settings.replaceAll({
-            ...d.settings,
-            googleApiKey: localSettings?.googleApiKey ?? d.settings.googleApiKey,
-            grokApiKey: localSettings?.grokApiKey ?? d.settings.grokApiKey,
-            ocrSpaceApiKey: localSettings?.ocrSpaceApiKey ?? d.settings.ocrSpaceApiKey,
-          });
-        }
+        if (d.settings) deps.settings.replaceAll(d.settings);
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         console.log('[CloudSync] Applied remote data');

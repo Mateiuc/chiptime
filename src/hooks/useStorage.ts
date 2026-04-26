@@ -305,10 +305,10 @@ export const useSettings = () => {
 
 // Hook for cloud sync - pull on mount, provide refresh
 export const useCloudSync = (deps: {
-  clients: { replaceAll: (c: Client[]) => void };
-  vehicles: { replaceAll: (v: Vehicle[]) => void };
-  tasks: { replaceAll: (t: Task[]) => void };
-  settings: { replaceAll: (s: Settings) => void };
+  clients: { replaceAll: (c: Client[]) => void; loading?: boolean };
+  vehicles: { replaceAll: (v: Vehicle[]) => void; loading?: boolean };
+  tasks: { replaceAll: (t: Task[]) => void; loading?: boolean };
+  settings: { replaceAll: (s: Settings) => void; loading?: boolean };
 }) => {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -328,9 +328,12 @@ export const useCloudSync = (deps: {
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         console.log('[CloudSync] Applied remote data');
+        return true;
       }
+      return false;
     } catch (err) {
       console.error('[CloudSync] Pull failed:', err);
+      return false;
     } finally {
       setSyncing(false);
     }
@@ -341,6 +344,7 @@ export const useCloudSync = (deps: {
     if (!workspaceReady) return;
     const wsId = workspace?.id ?? null;
     if (!wsId) return;
+    if (deps.clients.loading || deps.vehicles.loading || deps.tasks.loading || deps.settings.loading) return;
     if (syncedForWorkspace.current === wsId) return;
     syncedForWorkspace.current = wsId;
 
@@ -360,20 +364,23 @@ export const useCloudSync = (deps: {
 
         if (localEmpty) {
           console.log('[CloudSync] Local empty — forcing pull from cloud');
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
           return;
         }
 
         // Desktop mode (push disabled): always pull, never seed
         if (!cloudPushEnabled) {
           console.log('[CloudSync] Desktop mode — forcing pull');
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
           return;
         }
 
         const remoteTs = await appSyncService.getRemoteUpdatedAt();
         if (appSyncService.isRemoteNewer(remoteTs)) {
-          await pullAndApply();
+          const pulled = await pullAndApply();
+          if (!pulled) syncedForWorkspace.current = null;
         } else if (!remoteTs) {
           await appSyncService.pushToCloud({
             clients: localClients,
@@ -385,10 +392,11 @@ export const useCloudSync = (deps: {
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);
+        syncedForWorkspace.current = null;
       }
     };
     syncOnReady();
-  }, [workspaceReady, workspace?.id, pullAndApply]);
+  }, [workspaceReady, workspace?.id, deps.clients.loading, deps.vehicles.loading, deps.tasks.loading, deps.settings.loading, pullAndApply]);
 
   return { syncing, lastSyncAt, refresh: pullAndApply };
 };

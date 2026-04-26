@@ -28,11 +28,21 @@ export const appSyncService = {
     const syncId = this.getSyncId();
     const now = new Date().toISOString();
 
+    // SECURITY: Strip API keys before pushing. The app_sync table is
+    // intentionally publicly readable to support no-login multi-device
+    // sync, so never let third-party credentials leave the device.
+    const { googleApiKey, grokApiKey, ocrSpaceApiKey, ...safeSettings } =
+      (data.settings || {}) as any;
+    const safeData: SyncData = {
+      ...data,
+      settings: safeSettings as Settings,
+    };
+
     const { error } = await supabase
       .from('app_sync')
       .upsert({
         sync_id: syncId,
-        data: data as any,
+        data: safeData as any,
         updated_at: now,
       }, { onConflict: 'sync_id' });
 

@@ -89,7 +89,11 @@ const Index = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
   // Client collapse/expand — all collapsed by default. Track expanded set.
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    console.log('[Index] mount — expandedClients size:', expandedClients.size);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const toggleClientCollapse = (clientId: string) => {
     setExpandedClients(prev => {
       const next = new Set(prev);

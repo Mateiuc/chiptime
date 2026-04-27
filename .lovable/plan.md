@@ -1,31 +1,30 @@
-I checked the backend data for workspace **Chip EV**.
+## Investigation result
 
-Findings:
-- Workspace **Chip EV** exists and has 1 member.
-- Its workspace-specific sync row is missing, so the phone pulls nothing for that workspace.
-- The actual current data exists in the older shared sync row `chiptime-default` with:
-  - 20 clients
-  - 54 vehicles
-  - 53 tasks
-  - updated 2026-04-26 01:27:57 UTC
-- The app code now syncs by `workspace_id`, but older data is still stored in rows where `workspace_id` is empty. That is why clearing cache/login on mobile cannot find it.
+I re-read `src/pages/Index.tsx` and the collapse logic **is correctly implemented**:
 
-Plan to fix:
-1. Restore the existing cloud data into the **Chip EV** workspace sync row.
-   - Copy the data from the existing `chiptime-default` cloud row into the Chip EV workspace row.
-   - Use Chip EV workspace ID as the sync row ID so the current app can find it.
+- Line 92: `expandedClients` starts as an **empty Set** → every group is collapsed.
+- Lines 791 & 856: Task list only renders when `!isCollapsed`.
+- No other code anywhere in the project mutates `expandedClients` on mount.
 
-2. Fix the sync write conflict target.
-   - `app_sync` currently only has a primary key on `sync_id`, but the code upserts with `onConflict: 'workspace_id'`.
-   - Add a safe unique constraint/index for `workspace_id` where it is not null, or change the app upsert to use `sync_id` consistently.
-   - I will use the safest path: keep `sync_id = workspaceId`, `workspace_id = workspaceId`, and make app upsert conflict on `sync_id` so it matches the existing primary key.
+So in the web preview, every client group **must** load collapsed. If you're still seeing them expanded, the cause is almost certainly one of these:
 
-3. Make mobile pull more robust after cache clear.
-   - Ensure `appSyncService` receives the resolved workspace ID before pull.
-   - Keep the forced pull when local clients/vehicles/tasks are empty.
-   - Add clearer logs for: workspace loaded, remote row found/missing, data applied.
+### Most likely cause: stale app on your phone
+You're testing on the installed mobile app (Capacitor/PWA). Capacitor bundles the JS at build time, and PWAs aggressively cache. Your phone is still running the **old** JS where groups defaulted to expanded. The fix in code is already there — your device just hasn't picked it up.
 
-4. Verify after implementation.
-   - Confirm the Chip EV row contains the copied data counts.
-   - Confirm TypeScript build passes.
-   - The expected result: after clearing mobile browser/app cache, login resolves Chip EV and pulls 20 clients, 54 vehicles, and 53 tasks from cloud automatically.
+### What to do
+
+**Option A — Quick check (no code change needed):**
+1. Open the **web preview** (https://chiptime.lovable.app) in your phone browser, hard-refresh (close tab, reopen). Groups should be collapsed. This proves the code works.
+2. If yes → the installed app needs a fresh build/install to get the new JS.
+
+**Option B — If even the web preview shows them expanded**, then I'll add diagnostic changes:
+1. Add a `console.log('[Index] expandedClients on mount', expandedClients.size)` to confirm initial state.
+2. Check if anything in `useStorage`/sync is causing a remount that loses state — unlikely, but worth verifying.
+3. Force-reset `expandedClients` to empty whenever the active tab changes, as a defensive measure.
+
+### My recommendation
+Try Option A first (open the published web URL on your phone in a fresh browser tab). That will tell us in 10 seconds whether this is a code problem or a stale-build problem — and save us from changing code that's already correct.
+
+Reply telling me which you see in the **web browser** (not the installed app):
+- ✅ Collapsed in browser → it's a stale install; rebuild & reinstall the mobile app.
+- ❌ Still expanded in browser → approve this plan and I'll add the diagnostics in Option B.

@@ -1,43 +1,31 @@
-# Write every mutation to local + cloud simultaneously
+I checked the backend data for workspace **Chip EV**.
 
-## Goal
-Every add / edit / delete / start / pause / resume / stop must persist to **local storage AND the cloud at the same time**, instead of the 3-second debounced background push that exists today.
+Findings:
+- Workspace **Chip EV** exists and has 1 member.
+- Its workspace-specific sync row is missing, so the phone pulls nothing for that workspace.
+- The actual current data exists in the older shared sync row `chiptime-default` with:
+  - 20 clients
+  - 54 vehicles
+  - 53 tasks
+  - updated 2026-04-26 01:27:57 UTC
+- The app code now syncs by `workspace_id`, but older data is still stored in rows where `workspace_id` is empty. That is why clearing cache/login on mobile cannot find it.
 
-## Root cause
-In `src/hooks/useStorage.ts`, every `setClients` / `setVehicles` / `setTasks` / `setSettings` writes locally, then calls `debouncedPushToCloud()` which waits **3 seconds** before pushing. If the user closes the tab, navigates, or the network drops in that window, the cloud copy stays stale. Timer events (start/pause/resume/stop) all flow through `updateTask`, so they hit the same debounce.
+Plan to fix:
+1. Restore the existing cloud data into the **Chip EV** workspace sync row.
+   - Copy the data from the existing `chiptime-default` cloud row into the Chip EV workspace row.
+   - Use Chip EV workspace ID as the sync row ID so the current app can find it.
 
-## Changes
+2. Fix the sync write conflict target.
+   - `app_sync` currently only has a primary key on `sync_id`, but the code upserts with `onConflict: 'workspace_id'`.
+   - Add a safe unique constraint/index for `workspace_id` where it is not null, or change the app upsert to use `sync_id` consistently.
+   - I will use the safest path: keep `sync_id = workspaceId`, `workspace_id = workspaceId`, and make app upsert conflict on `sync_id` so it matches the existing primary key.
 
-### 1. `src/hooks/useStorage.ts` — replace debounced push with immediate push
-- Add `immediatePushToCloud()` that:
-  - Cancels any pending debounced timer.
-  - Reads the freshest local snapshot from `capacitorStorage`.
-  - Skips empty snapshots (existing safety guard).
-  - Skips if `!cloudPushEnabled`.
-  - Awaits `appSyncService.pushToCloud(...)`.
-- Replace every `debouncedPushToCloud()` call inside `setClients`, `setVehicles`, `setTasks`, `setSettings` with `await immediatePushToCloud()` so the local write and the cloud write resolve together.
-- Keep `pushNow()` exported for the desktop view (now just calls the same helper).
-- Keep the `cloudPushEnabled` flag so desktop/read-only mode still works.
+3. Make mobile pull more robust after cache clear.
+   - Ensure `appSyncService` receives the resolved workspace ID before pull.
+   - Keep the forced pull when local clients/vehicles/tasks are empty.
+   - Add clearer logs for: workspace loaded, remote row found/missing, data applied.
 
-### 2. Mutation paths already funnel through `setX`
-No further changes needed — `addClient`, `updateClient`, `deleteClient`, `addVehicle`, `updateVehicle`, `deleteVehicle`, `addTask`, `updateTask`, `deleteTask`, `batchUpdateTasks`, and `setSettings` all route through the four `setX` functions, so updating those four covers every add/edit/delete and every timer start/pause/resume/stop (which are `updateTask` calls).
-
-### 3. Resilience — single retry on transient failure
-- If `pushToCloud` throws (offline, 5xx), enqueue ONE retry via a short timer (~5 s). Local data is already safe; this is best-effort recovery so we don't lose the cloud copy on a flaky network.
-- Log clearly to console so issues are debuggable.
-
-### 4. No schema changes
-No DB migration. RLS, tables, and `appSyncService` stay as-is. The `app_sync` upsert is already idempotent on `workspace_id`.
-
-## Files touched
-- `src/hooks/useStorage.ts` — swap debounced push for immediate push, add lightweight retry.
-
-## Out of scope
-- Read-side cloud pull on login (already fixed last turn).
-- Portal sync, photo sync, diagnostic upload (already immediate).
-- UI changes.
-
-## Verification
-- Add a client → reload immediately → client persists from cloud.
-- Start a task → close tab within 1 s → reopen on another device → timer state is current.
-- Stop a task while offline → console shows retry → coming back online pushes successfully.
+4. Verify after implementation.
+   - Confirm the Chip EV row contains the copied data counts.
+   - Confirm TypeScript build passes.
+   - The expected result: after clearing mobile browser/app cache, login resolves Chip EV and pulls 20 clients, 54 vehicles, and 53 tasks from cloud automatically.

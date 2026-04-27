@@ -65,7 +65,7 @@ export const appSyncService = {
         workspace_id: workspaceId,
         data: sanitized as any,
         updated_at: now,
-      }, { onConflict: 'workspace_id' });
+      }, { onConflict: 'sync_id' });
 
     if (error) {
       console.error('[AppSync] Push failed:', error);

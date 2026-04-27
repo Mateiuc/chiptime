@@ -88,15 +88,16 @@ const Index = () => {
   const [showCompleteWork, setShowCompleteWork] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
-  // Client collapse/expand — all expanded by default
-  const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set());
+  // Client collapse/expand — all collapsed by default. Track expanded set.
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const toggleClientCollapse = (clientId: string) => {
-    setCollapsedClients(prev => {
+    setExpandedClients(prev => {
       const next = new Set(prev);
       if (next.has(clientId)) next.delete(clientId); else next.add(clientId);
       return next;
     });
   };
+  const collapsedClients = { has: (id: string) => !expandedClients.has(id) };
 
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);

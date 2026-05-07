@@ -228,14 +228,23 @@ async function signPortalPhotos(supabase: any, payload: any): Promise<any> {
 async function signPortalDiagnosticPdfs(supabase: any, payload: any): Promise<any> {
   if (!payload || !Array.isArray(payload.v)) return payload
 
+  const LEGACY_URL_RE = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/diagnostic-pdfs\/([^?#]+)/i
+  const extractPath = (entry: string): string | null => {
+    if (!entry) return null
+    if (!/^https?:\/\//i.test(entry)) return entry
+    const m = entry.match(LEGACY_URL_RE)
+    if (!m) return null
+    try { return decodeURIComponent(m[1]) } catch { return m[1] }
+  }
+
   const paths = new Set<string>()
   for (const vehicle of payload.v) {
     if (!Array.isArray(vehicle?.s)) continue
     for (const session of vehicle.s) {
       const entry = session?.dpdf
-      if (typeof entry === 'string' && entry && !/^https?:\/\//i.test(entry)) {
-        paths.add(entry)
-      }
+      if (typeof entry !== 'string' || !entry) continue
+      const p = extractPath(entry)
+      if (p) paths.add(p)
     }
   }
 

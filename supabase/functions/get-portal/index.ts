@@ -267,9 +267,9 @@ async function signPortalDiagnosticPdfs(supabase: any, payload: any): Promise<an
     if (!Array.isArray(vehicle?.s)) continue
     for (const session of vehicle.s) {
       const entry = session?.dpdf
-      if (typeof entry === 'string' && map[entry]) {
-        session.dpdf = map[entry]
-      }
+      if (typeof entry !== 'string' || !entry) continue
+      const p = extractPath(entry)
+      if (p && map[p]) session.dpdf = map[p]
     }
   }
 

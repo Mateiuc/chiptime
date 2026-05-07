@@ -1462,11 +1462,16 @@ const DesktopDashboard = () => {
                               {client.accessCode ? `PIN: ${client.accessCode}` : 'Set PIN'}
                             </Button>
                             <Button size="sm" variant="outline" className="h-8 gap-1" onClick={async () => {
+                              // Open synchronously to preserve user-gesture (avoids popup blocker)
+                              const win = window.open('about:blank', '_blank');
                               try {
                                 const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl);
                                 updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-                                window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
+                                const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`;
+                                if (win) win.location.href = url;
+                                else window.open(url, '_blank');
                               } catch {
+                                if (win) win.close();
                                 toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
                               }
                             }}>

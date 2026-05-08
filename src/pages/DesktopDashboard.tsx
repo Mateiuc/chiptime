@@ -1279,23 +1279,25 @@ const DesktopDashboard = () => {
                         </div>
                         {clientRevenue > 0 && (() => {
                           const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
-                          const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const isFullyPaid = unpaidRevenue === 0;
+                          const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
                           return (
                             <div className="mt-2">
                               <div className={`text-lg font-bold ${
-                              filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
-                              clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                              isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                              balanceDue > 0 ? 'text-orange-600 dark:text-orange-400' :
                               filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                               filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                               'text-emerald-600 dark:text-emerald-400'
                             }`}>{formatCurrency(clientRevenue)}</div>
-                              {clientDeposits > 0 && filter === 'paid' && (
+                              {clientDeposits > 0 && isFullyPaid && (
                                 <div className="text-xs font-semibold text-muted-foreground">Deposit: -{formatCurrency(clientDeposits)}</div>
                               )}
-                              {clientDeposits > 0 && filter !== 'paid' && (
+                              {clientDeposits > 0 && !isFullyPaid && (
                                 <>
                                   <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
-                                  <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>
+                                  {balanceDue > 0 && <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>}
                                 </>
                               )}
                             </div>

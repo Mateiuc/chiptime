@@ -1,61 +1,22 @@
-# Fix: "Portal" button does nothing on desktop
+## Problem
 
-## Root cause
+On the client portal's **Paid** tab, the totals card still shows "Vehicle Deposits", "Client Deposit", and a big orange "BALANCE DUE" row, plus the per-vehicle "Deposit / Balance due" lines. When everything is paid, these labels are misleading — there is nothing due.
 
-In `src/pages/DesktopDashboard.tsx` (lines ~1464–1474), the **Portal** button handler is:
+## Fix (UI only, `src/components/ClientCostBreakdown.tsx`)
 
-```ts
-onClick={async () => {
-  const result = await syncPortalToCloud(...);   // async network call
-  updateClient(...);
-  window.open(`${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`, '_blank');
-}}
-```
+When `filter === 'paid'`:
 
-`window.open` runs **after** an `await`, so it is no longer tied to the original user click. Chrome/Edge/Safari treat this as a programmatic popup and silently block it — exactly matching the reported symptom: *nothing happens, no new tab*.
+1. **Per-vehicle subtotal block (lines 383–388)**: skip the `Deposit:` and `Balance due:` rows entirely. The "Vehicle total" row stays.
+2. **Grand total card (lines 412–424)**: skip the `Vehicle Deposits`, `Client Deposit`, and `BALANCE DUE` rows. Replace with a single green row:
+   ```
+   PAID IN FULL          $X,XXX
+   ```
+   styled with `text-emerald-600` matching the existing paid-tab GRAND TOTAL color.
+3. The GRAND TOTAL row already turns green on the paid tab — keep as-is.
 
-The Share button doesn't suffer from this because it copies to clipboard instead of opening a window.
-
-## Fix
-
-Open the tab **synchronously** at click time, then navigate it once `syncPortalToCloud` resolves.
-
-### Change in `src/pages/DesktopDashboard.tsx` (Portal button, ~line 1464)
-
-```ts
-onClick={async () => {
-  // Open the tab synchronously so the browser keeps the user-gesture trust
-  const win = window.open('about:blank', '_blank');
-  try {
-    const result = await syncPortalToCloud(
-      client, vehicles, tasks,
-      settings.defaultHourlyRate, settings.defaultCloningRate,
-      settings.defaultProgrammingRate, settings.defaultAddKeyRate,
-      settings.defaultAllKeysLostRate,
-      settings.paymentLink, settings.paymentLabel, settings.paymentMethods,
-      client.portalLogoUrl || settings.portalLogoUrl,
-      client.portalBgColor || settings.portalBgColor,
-      client.portalBusinessName || settings.portalBusinessName,
-      client.portalBgImageUrl || settings.portalBgImageUrl,
-    );
-    updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
-    const url = `${PORTAL_BASE_URL}/client-view?id=${result.portalId}&preview=1`;
-    if (win) win.location.href = url;
-    else window.open(url, '_blank'); // fallback if popup was blocked
-  } catch {
-    if (win) win.close();
-    toast({ title: 'Error', description: 'Could not open portal preview', variant: 'destructive' });
-  }
-}}
-```
+No changes to billing logic, totals math, or other tabs (pending / billed remain unchanged).
 
 ## Verification
 
-1. Click **Portal** on a client card in the desktop dashboard.
-2. A new tab should open immediately (showing about:blank), then navigate to `https://chiptime.chipplc.one/client-view?id=...&preview=1` once sync finishes.
-3. Confirm no popup-blocker icon appears in the address bar.
-
-## Out of scope
-
-- No changes to `syncPortalToCloud`, the edge function, or the client-portal route itself.
-- Share / PIN / PDF buttons are unaffected.
+- Open a client portal → **Paid** tab → confirm no "Balance due" / "Deposit" rows; shows "PAID IN FULL".
+- **Pending** and **Billed** tabs still show deposits and balance due as before.

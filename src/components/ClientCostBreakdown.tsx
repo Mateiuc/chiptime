@@ -409,7 +409,9 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                 'text-blue-600 dark:text-blue-400'
               }`}><span>GRAND TOTAL:</span><span>{formatCurrency(grandTotal)}</span></div>
-              {(() => {
+              {filter === 'paid' ? (
+                <div className="flex justify-between text-lg font-bold text-emerald-600 dark:text-emerald-400 border-t pt-2 mt-2"><span>PAID IN FULL</span><span>{formatCurrency(grandTotal)}</span></div>
+              ) : (() => {
                 const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
                 const clientDeposit = costSummary.client.prepaidAmount || 0;
                 const totalDeposits = vehicleDeposits + clientDeposit;

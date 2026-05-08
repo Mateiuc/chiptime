@@ -1217,7 +1217,9 @@ const DesktopDashboard = () => {
                 const isSelected = selectedClientId === client.id;
                 const clientColor = getVehicleColorScheme(client.id);
                 const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
-                const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
+                const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
 
                 return (
                   <button
@@ -1233,15 +1235,15 @@ const DesktopDashboard = () => {
                       <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
                       {clientRevenue > 0 && (
                         <span className={`font-semibold ${
-                          filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
-                          clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                          isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                          balanceDue > 0 ? 'text-orange-600 dark:text-orange-400' :
                           filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                           filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                           'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {filter === 'paid'
+                          {isFullyPaid
                             ? formatCurrency(clientRevenue)
-                            : (clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue))}
+                            : (balanceDue > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue))}
                         </span>
                       )}
                     </div>
@@ -1277,23 +1279,25 @@ const DesktopDashboard = () => {
                         </div>
                         {clientRevenue > 0 && (() => {
                           const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
-                          const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const isFullyPaid = unpaidRevenue === 0;
+                          const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
                           return (
                             <div className="mt-2">
                               <div className={`text-lg font-bold ${
-                              filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
-                              clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                              isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                              balanceDue > 0 ? 'text-orange-600 dark:text-orange-400' :
                               filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                               filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                               'text-emerald-600 dark:text-emerald-400'
                             }`}>{formatCurrency(clientRevenue)}</div>
-                              {clientDeposits > 0 && filter === 'paid' && (
+                              {clientDeposits > 0 && isFullyPaid && (
                                 <div className="text-xs font-semibold text-muted-foreground">Deposit: -{formatCurrency(clientDeposits)}</div>
                               )}
-                              {clientDeposits > 0 && filter !== 'paid' && (
+                              {clientDeposits > 0 && !isFullyPaid && (
                                 <>
                                   <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
-                                  <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>
+                                  {balanceDue > 0 && <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>}
                                 </>
                               )}
                             </div>
@@ -1542,19 +1546,21 @@ const DesktopDashboard = () => {
                           const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
                           const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
                           const clientDep = client.prepaidAmount || 0;
-                          const balanceDue = Math.max(0, clientRevenue - vehicleDeps - clientDep);
+                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
+                          const balanceDue = Math.max(0, unpaidRevenue - vehicleDeps - clientDep);
                           if (clientRevenue <= 0) return null;
                           return (
                             <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
                               <span className={`font-semibold ${
-                                filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                                isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                 filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                 'text-emerald-600 dark:text-emerald-400'
                               }`}>Total: {formatCurrency(clientRevenue)}</span>
-                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && filter !== 'paid' && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
-                              {vehicleDeps > 0 && <span className={filter === 'paid' ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
-                              {clientDep > 0 && <span className={filter === 'paid' ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
+                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              {vehicleDeps > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
+                              {clientDep > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
                             </div>
                           );
                         })()}
@@ -1585,6 +1591,8 @@ const DesktopDashboard = () => {
                       const isVExpanded = expandedVehicles.has(vehicle.id);
                       const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown Vehicle';
                       const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleUnpaid = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleFullyPaid = vehicleUnpaid === 0 && vehicleCost > 0;
 
                       return (
                         <div key={vehicle.id} className={`rounded-xl border-2 overflow-hidden ${vColor.border}`}>
@@ -1601,7 +1609,7 @@ const DesktopDashboard = () => {
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
                               {vehicleCost > 0 && (
                                 <span className={`font-bold text-sm ml-1 ${
-                                  filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                                  vehicleFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                   filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                   filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                   'text-emerald-600 dark:text-emerald-400'
@@ -1609,8 +1617,8 @@ const DesktopDashboard = () => {
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
-                                   <span className={`font-bold text-sm ml-1 ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
-                                  {filter === 'paid' || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
+                                   <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
+                                  {vehicleFullyPaid || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
                                     <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0))}</span>

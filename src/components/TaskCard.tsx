@@ -1602,10 +1602,17 @@ export const TaskCard = ({
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
               {(vehicle?.prepaidAmount || 0) > 0 && (
-                <>
-                  <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(vehicle?.prepaidAmount || 0)}</span></div>
-                  <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)))}</span></div>
-                </>
+                task.status === 'paid' ? (
+                  <>
+                    <div className="flex justify-between text-muted-foreground"><span>Deposit:</span><span>-{formatCurrency(vehicle?.prepaidAmount || 0)}</span></div>
+                    <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400"><span>Paid:</span><span>{formatCurrency(totalCost)}</span></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(vehicle?.prepaidAmount || 0)}</span></div>
+                    <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)))}</span></div>
+                  </>
+                )
               )}
             </div>
           </div>

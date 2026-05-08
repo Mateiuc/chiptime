@@ -1281,13 +1281,16 @@ const DesktopDashboard = () => {
                           return (
                             <div className="mt-2">
                               <div className={`text-lg font-bold ${
-                              clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
                               filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                              clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
                               filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                               filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                               'text-emerald-600 dark:text-emerald-400'
                             }`}>{formatCurrency(clientRevenue)}</div>
-                              {clientDeposits > 0 && (
+                              {clientDeposits > 0 && filter === 'paid' && (
+                                <div className="text-xs font-semibold text-muted-foreground">Deposit: -{formatCurrency(clientDeposits)}</div>
+                              )}
+                              {clientDeposits > 0 && filter !== 'paid' && (
                                 <>
                                   <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
                                   <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>

@@ -258,15 +258,17 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <div className="flex items-center gap-2 shrink-0">
                       {vehicleSummary.vehicleTotal > 0 && (
                         <span className={`text-sm font-bold ${
-                          deposit > 0
-                            ? 'text-orange-600 dark:text-orange-400'
-                            : filter === 'paid'
-                              ? 'text-emerald-600 dark:text-emerald-400'
+                          filter === 'paid'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : deposit > 0
+                              ? 'text-orange-600 dark:text-orange-400'
                               : filter === 'billed'
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-blue-600 dark:text-blue-400'
                         }`}>
-                          {deposit > 0 ? formatCurrency(balanceDue) : formatCurrency(vehicleSummary.vehicleTotal)}
+                          {filter === 'paid'
+                            ? formatCurrency(vehicleSummary.vehicleTotal)
+                            : deposit > 0 ? formatCurrency(balanceDue) : formatCurrency(vehicleSummary.vehicleTotal)}
                         </span>
                       )}
                       {showPayButtons && vehicleSummary.vehicleTotal > 0 && (
@@ -380,10 +382,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         {(vehicleSummary.totalAllKeysLost || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">All Keys Lost:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAllKeysLost)}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Parts:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span></div>
                         <div className="flex justify-between font-bold text-sm border-t border-border/30 pt-1 mt-1"><span>Vehicle total:</span><span>{formatCurrency(vehicleSummary.vehicleTotal)}</span></div>
-                        {filter !== 'paid' && deposit > 0 && (
+                        {deposit > 0 && (
                           <>
-                            <div className="flex justify-between text-destructive"><span>Deposit:</span><span className="font-semibold">-{formatCurrency(deposit)}</span></div>
-                            <div className="flex justify-between font-bold text-orange-600"><span>Balance due:</span><span>{formatCurrency(balanceDue)}</span></div>
+                            <div className={`flex justify-between ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}><span>Deposit:</span><span className="font-semibold">-{formatCurrency(deposit)}</span></div>
+                            {filter === 'paid' ? (
+                              <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400"><span>Paid:</span><span>{formatCurrency(balanceDue)}</span></div>
+                            ) : (
+                              <div className="flex justify-between font-bold text-orange-600"><span>Balance due:</span><span>{formatCurrency(balanceDue)}</span></div>
+                            )}
                           </>
                         )}
                       </div>
@@ -409,18 +415,21 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                 'text-blue-600 dark:text-blue-400'
               }`}><span>GRAND TOTAL:</span><span>{formatCurrency(grandTotal)}</span></div>
-              {filter === 'paid' ? (
-                <div className="flex justify-between text-lg font-bold text-emerald-600 dark:text-emerald-400 border-t pt-2 mt-2"><span>PAID IN FULL</span><span>{formatCurrency(grandTotal)}</span></div>
-              ) : (() => {
+              {(() => {
                 const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
                 const clientDeposit = costSummary.client.prepaidAmount || 0;
                 const totalDeposits = vehicleDeposits + clientDeposit;
-                if (totalDeposits <= 0) return null;
+                const isPaid = filter === 'paid';
+                const depositColor = isPaid ? 'text-muted-foreground' : 'text-destructive';
                 return (
                   <>
-                    {vehicleDeposits > 0 && <div className="flex justify-between text-sm text-destructive"><span>Vehicle Deposits:</span><span className="font-semibold">-{formatCurrency(vehicleDeposits)}</span></div>}
-                    {clientDeposit > 0 && <div className="flex justify-between text-sm text-destructive"><span>Client Deposit:</span><span className="font-semibold">-{formatCurrency(clientDeposit)}</span></div>}
-                    <div className="flex justify-between text-lg font-bold text-orange-500"><span>BALANCE DUE:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
+                    {vehicleDeposits > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Vehicle Deposits:</span><span className="font-semibold">-{formatCurrency(vehicleDeposits)}</span></div>}
+                    {clientDeposit > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Client Deposit:</span><span className="font-semibold">-{formatCurrency(clientDeposit)}</span></div>}
+                    {isPaid ? (
+                      <div className="flex justify-between text-lg font-bold text-emerald-600 dark:text-emerald-400"><span>PAID IN FULL</span><span>{formatCurrency(grandTotal)}</span></div>
+                    ) : (
+                      totalDeposits > 0 && <div className="flex justify-between text-lg font-bold text-orange-500"><span>BALANCE DUE:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
+                    )}
                   </>
                 );
               })()}

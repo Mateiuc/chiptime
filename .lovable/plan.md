@@ -1,29 +1,38 @@
-## Issue
+## Fix: Lock down `client_portals` writes
 
-In the **Paid Tasks** dialog, Valy Ilasca's MERCEDES card shows `Due $4,391` instead of `Cost $5,191` (paid in green). Lance Naidoo's card next to it correctly shows `Cost $765`.
+**Problem:** `client_portals` has a SELECT policy (`USING: false`) but no INSERT/UPDATE/DELETE policies. With RLS enabled and no policies, writes are denied by default — but the scanner flags this as risky because the intent isn't explicit, and a future permissive policy could open it up.
 
-## Root cause
+**Context:** All legitimate writes to `client_portals` go through the `sync-portal` edge function, which uses the **service role key** (bypasses RLS entirely). No client-side code ever writes to this table directly. So the correct posture is: **explicitly deny all writes from anon/authenticated roles**.
 
-`src/components/TaskCard.tsx` line **1460-1461** (the 3-column header row: Total / Sessions / Due-or-Cost) only checks `vehicle?.prepaidAmount > 0` to decide between "Due" and "Cost". It never checks `task.status === 'paid'`.
+### Migration
 
-So any paid task whose vehicle has a deposit (Valy Ilasca: $800 deposit) keeps showing "Due: $5,186 − $800 = $4,391". Lance Naidoo has no deposit on that vehicle, so it falls into the "Cost" branch and looks fine.
+Add three explicit "deny" policies so the security posture is documented and enforced:
 
-The collapsed Cost Summary (lines 1604–1616) was already fixed earlier; only this header row was missed.
+```sql
+CREATE POLICY "No direct insert to portals"
+ON public.client_portals FOR INSERT
+TO authenticated, anon
+WITH CHECK (false);
 
-## Fix
+CREATE POLICY "No direct update to portals"
+ON public.client_portals FOR UPDATE
+TO authenticated, anon
+USING (false) WITH CHECK (false);
 
-`src/components/TaskCard.tsx` lines 1459-1462:
+CREATE POLICY "No direct delete from portals"
+ON public.client_portals FOR DELETE
+TO authenticated, anon
+USING (false);
+```
 
-- If `task.status === 'paid'` → label = `Cost`, value = `totalCost` (full amount), styled emerald-green (matches "Paid:" line in details and the green totals elsewhere).
-- Else if `vehicle?.prepaidAmount > 0` → label = `Due`, value = `max(0, totalCost - prepaidAmount)` (current behavior, primary color).
-- Else → label = `Cost`, value = `totalCost` (current behavior).
+Service-role writes (from the `sync-portal` edge function) continue to work because service role bypasses RLS.
 
-This mirrors the rule used everywhere else: drive paid styling off `task.status`, not off the presence of a deposit.
+### No code changes needed
 
-## Verification
+`sync-portal/index.ts` already uses `SUPABASE_SERVICE_ROLE_KEY` — unaffected.
 
-1. Open **Settings → View Paid Tasks**.
-2. Valy Ilasca's MERCEDES card now shows `Cost $5,186` in green (no "Due").
-3. Lance Naidoo's BMW unchanged: `Cost $765`.
-4. On the **All / Active / Billed** tabs, an unpaid task with a deposit still shows `Due $X` in primary color.
-5. Expanded "Details" still shows muted "Deposit: -$800" + green "Paid: $5,186" (already correct).
+### Verification
+
+- Portal sync from the app still works (creates/updates portal rows).
+- Client portal access via `get-portal` still works.
+- A direct write attempt from the browser (using the anon/JWT client) is rejected.

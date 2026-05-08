@@ -1609,8 +1609,8 @@ const DesktopDashboard = () => {
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
-                                   <span className="font-bold text-sm text-destructive ml-1">Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
-                                  {(vehicle.prepaidAmount || 0) >= vehicleCost ? (
+                                   <span className={`font-bold text-sm ml-1 ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
+                                  {filter === 'paid' || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
                                     <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0))}</span>

@@ -258,15 +258,17 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     <div className="flex items-center gap-2 shrink-0">
                       {vehicleSummary.vehicleTotal > 0 && (
                         <span className={`text-sm font-bold ${
-                          deposit > 0
-                            ? 'text-orange-600 dark:text-orange-400'
-                            : filter === 'paid'
-                              ? 'text-emerald-600 dark:text-emerald-400'
+                          filter === 'paid'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : deposit > 0
+                              ? 'text-orange-600 dark:text-orange-400'
                               : filter === 'billed'
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-blue-600 dark:text-blue-400'
                         }`}>
-                          {deposit > 0 ? formatCurrency(balanceDue) : formatCurrency(vehicleSummary.vehicleTotal)}
+                          {filter === 'paid'
+                            ? formatCurrency(vehicleSummary.vehicleTotal)
+                            : deposit > 0 ? formatCurrency(balanceDue) : formatCurrency(vehicleSummary.vehicleTotal)}
                         </span>
                       )}
                       {showPayButtons && vehicleSummary.vehicleTotal > 0 && (

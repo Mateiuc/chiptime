@@ -1552,9 +1552,9 @@ const DesktopDashboard = () => {
                                 filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                 'text-emerald-600 dark:text-emerald-400'
                               }`}>Total: {formatCurrency(clientRevenue)}</span>
-                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
-                              {vehicleDeps > 0 && <span className="text-red-500">Car Deposits: {formatCurrency(vehicleDeps)}</span>}
-                              {clientDep > 0 && <span className="text-red-500">Client Deposit: {formatCurrency(clientDep)}</span>}
+                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && filter !== 'paid' && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              {vehicleDeps > 0 && <span className={filter === 'paid' ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
+                              {clientDep > 0 && <span className={filter === 'paid' ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
                             </div>
                           );
                         })()}

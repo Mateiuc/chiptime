@@ -41,26 +41,46 @@ export type Database = {
           client_local_id: string
           client_name: string
           data: Json
+          failed_attempts: number
+          first_failed_at: string | null
           id: string
+          locked_until: string | null
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           access_code?: string | null
           client_local_id: string
           client_name: string
           data?: Json
+          failed_attempts?: number
+          first_failed_at?: string | null
           id: string
+          locked_until?: string | null
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           access_code?: string | null
           client_local_id?: string
           client_name?: string
           data?: Json
+          failed_attempts?: number
+          first_failed_at?: string | null
           id?: string
+          locked_until?: string | null
           updated_at?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_portals_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workspace_invites: {
         Row: {

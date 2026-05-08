@@ -1,50 +1,29 @@
-## Problem
+## Issue
 
-My previous fix only checked `filter === 'paid'`. But the user is on the **All** tab (see screenshots) where the task IS paid — so deposit-as-history styling never kicked in. We need to drive the styling off **task payment status**, not the tab filter.
+In the **Paid Tasks** dialog, Valy Ilasca's MERCEDES card shows `Due $4,391` instead of `Cost $5,191` (paid in green). Lance Naidoo's card next to it correctly shows `Cost $765`.
 
-## Rule (applies app-wide)
+## Root cause
 
-For any scope (single task, vehicle, or client), compute:
-- `unpaidRevenue` = sum of `getTaskCost(t)` for tasks where `t.status !== 'paid'`
-- `effectiveDeposits` = vehicle.prepaidAmount (+ client.prepaidAmount where shown)
-- `balanceDue` = `max(0, unpaidRevenue - effectiveDeposits)`
-- `isFullyPaid` = `unpaidRevenue === 0` (every task in scope is paid)
+`src/components/TaskCard.tsx` line **1460-1461** (the 3-column header row: Total / Sessions / Due-or-Cost) only checks `vehicle?.prepaidAmount > 0` to decide between "Due" and "Cost". It never checks `task.status === 'paid'`.
 
-Then:
-- **isFullyPaid = true** → total in green, deposit shown in muted (`text-muted-foreground`) as historical, **no** "Due" / "Balance Due" line. If filter happens to be `paid`, also show "PAID" / "PAID IN FULL" badge.
-- **isFullyPaid = false** → existing behavior (red deposit, orange Due/Balance Due).
+So any paid task whose vehicle has a deposit (Valy Ilasca: $800 deposit) keeps showing "Due: $5,186 − $800 = $4,391". Lance Naidoo has no deposit on that vehicle, so it falls into the "Cost" branch and looks fine.
 
-This naturally fixes all tabs (All, Active, Billed, Paid) for any client/vehicle whose tasks are all paid.
+The collapsed Cost Summary (lines 1604–1616) was already fixed earlier; only this header row was missed.
 
-## Files to change
+## Fix
 
-### 1. `src/components/TaskCard.tsx` (lines ~1604‑1609)
-Single‑task scope. `isFullyPaid = task.status === 'paid'`.
-- Paid → muted "Deposit: -$X" + green "Paid: $Y" (where Y = totalCost shown as green positive). No "Balance Due" row.
-- Otherwise → unchanged (red Deposit, orange Balance Due).
+`src/components/TaskCard.tsx` lines 1459-1462:
 
-### 2. `src/pages/DesktopDashboard.tsx`
+- If `task.status === 'paid'` → label = `Cost`, value = `totalCost` (full amount), styled emerald-green (matches "Paid:" line in details and the green totals elsewhere).
+- Else if `vehicle?.prepaidAmount > 0` → label = `Due`, value = `max(0, totalCost - prepaidAmount)` (current behavior, primary color).
+- Else → label = `Cost`, value = `totalCost` (current behavior).
 
-**a) Sidebar client list (~lines 1234‑1246):**
-Compute `unpaidRevenue` over `clientVehicles.flatMap(v=>v.tasks)`. If unpaidRevenue === 0 → green `clientRevenue`, no "Due:". Else if deposits>0 → orange "Due: …". Else green/blue per filter.
-
-**b) Overview client cards (~lines 1278‑1301):**
-Same `unpaidRevenue` calc. If 0 → green big total, muted "Deposit: -$X" history line, NO "Due:" row. Else current red+orange behavior.
-
-**c) Expanded client header totals (~lines 1541‑1560):**
-Same calc. If `unpaidRevenue === 0` → Total green, hide "Due:", show "Car Deposits"/"Client Deposit" in muted. Else current behavior.
-
-**d) Vehicle header (~lines 1602‑1619):**
-Compute `vehicleUnpaid` = sum over vehicleTasks where status!=='paid'. If 0 → green vehicleCost, muted "Deposit: $X", green "Paid" (no "Balance Due"). Else if deposit covers cost → green "Paid". Else orange "Balance Due: …".
-
-### 3. `src/components/ClientCostBreakdown.tsx` (mobile/portal — lines ~258‑271, 385‑395, 418‑432)
-
-The portal uses `filter` prop to scope which sessions are shown, so a vehicle on the Paid tab is by definition fully paid — current `filter === 'paid'` check there is correct. **No changes needed** unless we want to also fix the All-equivalent (none in portal). Leave as-is.
+This mirrors the rule used everywhere else: drive paid styling off `task.status`, not off the presence of a deposit.
 
 ## Verification
 
-1. Mobile **Paid Tasks** dialog (Settings → View Paid Tasks) on a paid task with deposit: shows muted "Deposit: -$800", green "Paid: $5,191". No red/orange.
-2. Desktop **All** tab — Valy Ilasca card: green "$5,186", muted "Deposit: -$800", **no** "Due:" line.
-3. Desktop **All** tab — expanded Valy Ilasca: green Total $5,186, **no** "Due:" badge, muted "Car Deposits: $800". Vehicle row: green "$5,186", muted "Deposit: $800", green "Paid" (no Balance Due).
-4. Desktop **Active/Billed** tabs on a client with mixed paid+unpaid tasks: still shows orange "Due:" computed against the unpaid portion only. Red deposit color preserved when there is a real outstanding balance.
-5. A client with active tasks AND paid tasks: deposit displayed in red, "Due" reflects only unpaid revenue minus deposits.
+1. Open **Settings → View Paid Tasks**.
+2. Valy Ilasca's MERCEDES card now shows `Cost $5,186` in green (no "Due").
+3. Lance Naidoo's BMW unchanged: `Cost $765`.
+4. On the **All / Active / Billed** tabs, an unpaid task with a deposit still shows `Due $X` in primary color.
+5. Expanded "Details" still shows muted "Deposit: -$800" + green "Paid: $5,186" (already correct).

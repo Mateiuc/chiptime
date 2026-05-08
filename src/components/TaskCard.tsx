@@ -1457,8 +1457,8 @@ export const TaskCard = ({
               <div className="font-bold text-sm">{(task.sessions || []).length}</div>
             </div>
             <div className="text-center">
-              <div className="text-muted-foreground text-xs font-medium mb-1">{(vehicle?.prepaidAmount || 0) > 0 ? 'Due' : 'Cost'}</div>
-              <div className="font-bold text-sm text-primary">{formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)) : totalCost)}</div>
+              <div className="text-muted-foreground text-xs font-medium mb-1">{task.status !== 'paid' && (vehicle?.prepaidAmount || 0) > 0 ? 'Due' : 'Cost'}</div>
+              <div className={`font-bold text-sm ${task.status === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>{formatCurrency(task.status !== 'paid' && (vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)) : totalCost)}</div>
             </div>
           </div>
 

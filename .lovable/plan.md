@@ -1,37 +1,34 @@
 ## Problem
 
-In the previous fix, the **Paid** tab hides all deposit info and shows only "PAID IN FULL". The user wants the deposit history preserved — the client paid a deposit before, that fact must still be visible. We just shouldn't show "Balance due" / "Amount due" since nothing is owed.
+On the desktop dashboard, the **Paid** tab still shows "Due:" / "Balance Due:" labels and uses orange/red colors when a client has a deposit. The mobile portal was fixed (paid = green "PAID IN FULL", deposit kept as muted history). Desktop needs the same treatment in 4 spots in `src/pages/DesktopDashboard.tsx`.
 
-## Fix (UI only, `src/components/ClientCostBreakdown.tsx`)
+## Fix (UI only, `src/pages/DesktopDashboard.tsx`)
 
-When `filter === 'paid'`:
+When `filter === 'paid'`, treat deposits as historical (muted, no "Due" label) and show full amounts in green.
 
-### 1. Per-vehicle subtotal block (lines 383–388)
-Replace the conditional. On Paid tab:
-- Keep the `Deposit:` line (in muted/neutral color, not destructive red — it's history, not money owed)
-- Replace `Balance due:` with `Paid:` showing the same amount (in green) — represents what the client paid after the deposit
-- On non-paid tabs: behavior unchanged (red Deposit, orange Balance due)
+### 1. Sidebar client list (lines ~1234–1244)
+Currently: if `clientDeposits > 0`, shows orange `Due: {balanceDue}` regardless of filter.
+Change: on Paid tab, always show `clientRevenue` in emerald (ignore deposit-orange branch).
 
-### 2. Grand total card (lines 412–426)
-Replace the `filter === 'paid' ? <PAID IN FULL> : <deposits + BALANCE DUE>` ternary with a unified block that always shows deposits when present, but swaps the final row label:
-- Always show `Vehicle Deposits:` and `Client Deposit:` rows when > 0 (muted color on Paid tab, destructive on others)
-- Final row:
-  - Paid tab → `PAID IN FULL` in green, amount = `grandTotal` (or `grandTotal - totalDeposits` representing the post-deposit payment — see Q below)
-  - Other tabs → `BALANCE DUE` in orange, amount = `max(0, grandTotal - totalDeposits)`
+### 2. Overview client cards (lines ~1276–1296)
+Currently: if deposits > 0, the big total turns orange and shows red `Deposit: -X` + orange `Due: Y`.
+Change: on Paid tab → big total stays emerald; deposit row shown as muted `Deposit: -X` (using `text-muted-foreground`); no "Due:" row.
+Other tabs unchanged.
 
-### 3. Header per-vehicle amount (lines 259–270)
-Currently when `deposit > 0` it shows orange `balanceDue`. On the Paid tab this is misleading (shows $0 or wrong color). Change so on Paid tab it always shows `vehicleTotal` in green, regardless of deposit.
+### 3. Client header totals row (lines ~1542–1554)
+Currently always shows red `Car Deposits` / `Client Deposit` and orange `Due:`.
+Change: on Paid tab → show deposits in muted color, hide the `Due:` span entirely. Other tabs unchanged.
 
-## Open question
-
-On Paid tab, should "PAID IN FULL" show:
-- (A) The full `grandTotal` (total work value, including what was covered by deposit), or
-- (B) `grandTotal - totalDeposits` (only the amount paid after the deposit)?
-
-Most natural interpretation: show **grandTotal** (full amount paid in total, deposit included), with the deposit row above documenting how it was split. Will go with (A) unless you say otherwise.
+### 4. Vehicle header amount block (lines ~1597–1614)
+Currently when deposit > 0: red `Deposit: $X` + orange `Balance Due: $Y` (or green "Paid" if fully covered).
+Change: on Paid tab → show muted `Deposit: $X` and emerald `Paid` (no "Balance Due" label). Vehicle cost on the left already turns emerald via existing `filter==='paid'` branch.
+Other tabs unchanged.
 
 ## Verification
 
-- **Paid** tab: Deposit rows visible (neutral color), no "Balance due" label, final row says "PAID IN FULL" in green.
-- **Pending** / **Billed** tabs: unchanged — red Deposit, orange Balance due.
-- Vehicle header on Paid tab shows green total, not orange balance.
+- Switch to **Paid** tab on desktop with a client who paid a deposit:
+  - Sidebar: client total green, no "Due:".
+  - Overview card: green total, muted "Deposit: -$X", no "Due:" row.
+  - Expanded client header: green total, muted deposit lines, no "Due:".
+  - Vehicle header: green vehicle cost, muted "Deposit: $X", green "Paid" (no "Balance Due").
+- **Pending / Billed / Active** tabs unchanged (red deposit, orange Due/Balance Due).

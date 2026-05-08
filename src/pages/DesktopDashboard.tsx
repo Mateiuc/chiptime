@@ -1233,13 +1233,15 @@ const DesktopDashboard = () => {
                       <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
                       {clientRevenue > 0 && (
                         <span className={`font-semibold ${
-                          clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
                           filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                          clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
                           filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                           filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                           'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue)}
+                          {filter === 'paid'
+                            ? formatCurrency(clientRevenue)
+                            : (clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue))}
                         </span>
                       )}
                     </div>

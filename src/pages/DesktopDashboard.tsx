@@ -1591,6 +1591,8 @@ const DesktopDashboard = () => {
                       const isVExpanded = expandedVehicles.has(vehicle.id);
                       const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown Vehicle';
                       const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleUnpaid = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleFullyPaid = vehicleUnpaid === 0 && vehicleCost > 0;
 
                       return (
                         <div key={vehicle.id} className={`rounded-xl border-2 overflow-hidden ${vColor.border}`}>
@@ -1607,7 +1609,7 @@ const DesktopDashboard = () => {
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
                               {vehicleCost > 0 && (
                                 <span className={`font-bold text-sm ml-1 ${
-                                  filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
+                                  vehicleFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                   filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                   filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                   'text-emerald-600 dark:text-emerald-400'
@@ -1615,8 +1617,8 @@ const DesktopDashboard = () => {
                               )}
                               {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
                                 <>
-                                   <span className={`font-bold text-sm ml-1 ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
-                                  {filter === 'paid' || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
+                                   <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
+                                  {vehicleFullyPaid || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
                                     <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
                                   ) : (
                                     <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0))}</span>

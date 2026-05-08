@@ -439,7 +439,10 @@ export async function decodeClientData(encoded: string): Promise<{ data: ClientC
 // Generate a self-contained HTML file for sharing large datasets
 export function generatePortalHtmlFile(data: ClientCostSummary, accessCode: string): Blob {
   const slim = slimDown(data);
-  const jsonData = JSON.stringify({ s: slim, c: accessCode });
+  // Escape `</script>` to prevent breaking out of the <script> block (XSS hardening)
+  const jsonData = JSON.stringify({ s: slim, c: accessCode })
+    .replace(/<\/script>/gi, '<\\/script>')
+    .replace(/<!--/g, '<\\!--');
 
   const html = `<!DOCTYPE html>
 <html lang="en">

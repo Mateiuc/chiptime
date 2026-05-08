@@ -1217,7 +1217,9 @@ const DesktopDashboard = () => {
                 const isSelected = selectedClientId === client.id;
                 const clientColor = getVehicleColorScheme(client.id);
                 const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
-                const balanceDue = Math.max(0, clientRevenue - clientDeposits);
+                const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
+                const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
 
                 return (
                   <button
@@ -1233,15 +1235,15 @@ const DesktopDashboard = () => {
                       <span>{clientVehicles.length} vehicles · {taskCount} tasks</span>
                       {clientRevenue > 0 && (
                         <span className={`font-semibold ${
-                          filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
-                          clientDeposits > 0 ? 'text-orange-600 dark:text-orange-400' :
+                          isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                          balanceDue > 0 ? 'text-orange-600 dark:text-orange-400' :
                           filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                           filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                           'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {filter === 'paid'
+                          {isFullyPaid
                             ? formatCurrency(clientRevenue)
-                            : (clientDeposits > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue))}
+                            : (balanceDue > 0 ? `Due: ${formatCurrency(balanceDue)}` : formatCurrency(clientRevenue))}
                         </span>
                       )}
                     </div>

@@ -380,7 +380,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         {(vehicleSummary.totalAllKeysLost || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">All Keys Lost:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAllKeysLost)}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Parts:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span></div>
                         <div className="flex justify-between font-bold text-sm border-t border-border/30 pt-1 mt-1"><span>Vehicle total:</span><span>{formatCurrency(vehicleSummary.vehicleTotal)}</span></div>
-                        {deposit > 0 && (
+                        {filter !== 'paid' && deposit > 0 && (
                           <>
                             <div className="flex justify-between text-destructive"><span>Deposit:</span><span className="font-semibold">-{formatCurrency(deposit)}</span></div>
                             <div className="flex justify-between font-bold text-orange-600"><span>Balance due:</span><span>{formatCurrency(balanceDue)}</span></div>

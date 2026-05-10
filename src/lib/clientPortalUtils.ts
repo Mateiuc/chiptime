@@ -260,6 +260,10 @@ export function calculateClientCosts(
       });
     });
 
+    // Compute the per-vehicle discount once, against total un-billed labor.
+    const { discount: vehicleDiscount } = applyLaborDiscount(unbilledLabor, vehicle);
+    totalDiscount = vehicleDiscount;
+
     grandTotalLabor += totalLabor;
     grandTotalParts += totalParts;
     grandTotalCloning += totalCloning;
@@ -282,7 +286,7 @@ export function calculateClientCosts(
       totalDiscount,
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
-      vehicleTotal: totalLabor + totalParts,
+      vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
     };
   });
 
@@ -297,7 +301,7 @@ export function calculateClientCosts(
     grandTotalAllKeysLost,
     grandTotalMinHourAdj,
     grandTotalDiscount,
-    grandTotal: grandTotalLabor + grandTotalParts,
+    grandTotal: Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts,
   };
 }
 

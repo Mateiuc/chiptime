@@ -769,7 +769,12 @@ const DesktopDashboard = () => {
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
     );
-    if (task.importedSalary != null) return task.importedSalary + partsCost;
+    const vehicle = vehicles.find(v => v.id === task.vehicleId);
+    if (task.billedAmount != null) return task.billedAmount;
+    if (task.importedSalary != null) {
+      const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
+      return laborAfter + partsCost;
+    }
     const client = clients.find(c => c.id === task.clientId);
     const rate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
@@ -786,7 +791,8 @@ const DesktopDashboard = () => {
       if (session.isAllKeysLost && allKeysLostRate > 0) sessionCost += allKeysLostRate;
       return total + sessionCost;
     }, 0);
-    return laborCost + partsCost;
+    const { laborAfter } = applyLaborDiscount(laborCost, vehicle);
+    return laborAfter + partsCost;
   };
 
   // --- Money Over Time chart data ---

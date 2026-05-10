@@ -436,11 +436,46 @@ export async function decodeClientData(encoded: string): Promise<{ data: ClientC
   return { data: parsed.data };
 }
 
-// Generate a self-contained HTML file for sharing large datasets
-export function generatePortalHtmlFile(data: ClientCostSummary, accessCode: string): Blob {
+// Generate a self-contained HTML file for sharing large datasets.
+// SECURITY: The access code is NEVER embedded in the file. The slim payload
+// is encrypted with AES-GCM using a key derived from the access code via
+// PBKDF2 (200k iters, SHA-256). The recipient must enter the correct PIN to
+// decrypt — wrong PINs fail decryption and reveal nothing.
+export async function generatePortalHtmlFileAsync(data: ClientCostSummary, accessCode: string): Promise<Blob> {
   const slim = slimDown(data);
-  // Escape `</script>` to prevent breaking out of the <script> block (XSS hardening)
-  const jsonData = JSON.stringify({ s: slim, c: accessCode })
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iters = 200_000;
+
+  const baseKey = await crypto.subtle.importKey(
+    'raw', enc.encode(accessCode), 'PBKDF2', false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: iters, hash: 'SHA-256' },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
+  const ctBuf = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    enc.encode(JSON.stringify(slim))
+  );
+  const b64 = (u8: Uint8Array) => {
+    let bin = '';
+    u8.forEach(b => bin += String.fromCharCode(b));
+    return btoa(bin);
+  };
+  const payload = {
+    v: 2,
+    salt: b64(salt),
+    iv: b64(iv),
+    it: iters,
+    ct: b64(new Uint8Array(ctBuf)),
+  };
+  const jsonData = JSON.stringify(payload)
     .replace(/<\/script>/gi, '<\\/script>')
     .replace(/<!--/g, '<\\!--');
 

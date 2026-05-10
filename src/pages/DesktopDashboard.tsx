@@ -138,7 +138,7 @@ const DesktopDashboard = () => {
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '' });
+  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string; discountType: 'fixed' | 'percent'; discountValue: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '', discountType: 'fixed', discountValue: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   // Delete confirmation dialogs
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });

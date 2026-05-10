@@ -1718,9 +1718,15 @@ const DesktopDashboard = () => {
                       const vColor = getVehicleColorScheme(vehicle.id);
                       const isVExpanded = expandedVehicles.has(vehicle.id);
                       const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown Vehicle';
-                      const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
-                      const vehicleUnpaid = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleGross = vehicleTasks.reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                      const vehicleDiscount = getVehicleDiscount(vehicle, vehicleTasks);
+                      const vehicleCost = Math.max(0, vehicleGross - vehicleDiscount);
+                      const vehicleUnpaidGross = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                      const vehicleUnpaidDiscount = getVehicleDiscount(vehicle, vehicleTasks.filter(t => t.status !== 'paid'));
+                      const vehicleUnpaid = Math.max(0, vehicleUnpaidGross - vehicleUnpaidDiscount);
+                      const deposit = vehicle.prepaidAmount || 0;
                       const vehicleFullyPaid = vehicleUnpaid === 0 && vehicleCost > 0;
+                      const balanceDue = Math.max(0, vehicleUnpaid - deposit);
 
                       return (
                         <div key={vehicle.id} className={`rounded-xl border-2 overflow-hidden ${vColor.border}`}>
@@ -1729,29 +1735,34 @@ const DesktopDashboard = () => {
                             className={`${vColor.card} px-4 py-3 cursor-pointer flex items-center justify-between`}
                             onClick={() => toggleVehicle(vehicle.id)}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               {isVExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               <Car className="h-4 w-4" />
                               <span className="font-bold">{vehicleLabel}</span>
                               {vehicle.vin && <span className="text-xs font-mono text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</span>}
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
-                              {vehicleCost > 0 && (
+                              {vehicleGross > 0 && (
                                 <span className={`font-bold text-sm ml-1 ${
                                   vehicleFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                   filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                   filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                   'text-emerald-600 dark:text-emerald-400'
-                                }`}>{formatCurrency(vehicleCost)}</span>
+                                }`}>{formatCurrency(vehicleGross)}</span>
                               )}
-                              {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
-                                <>
-                                   <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
-                                  {vehicleFullyPaid || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
-                                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
-                                  ) : (
-                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0))}</span>
-                                  )}
-                                </>
+                              {vehicleDiscount > 0 && vehicleGross > 0 && (
+                                <span className="font-bold text-sm ml-1 text-emerald-600 dark:text-emerald-400" title={vehicle.discountType === 'percent' ? `${vehicle.discountValue}% off labor` : 'Fixed labor discount'}>
+                                  Discount: -{formatCurrency(vehicleDiscount)}
+                                </span>
+                              )}
+                              {deposit > 0 && vehicleGross > 0 && (
+                                <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: -{formatCurrency(deposit)}</span>
+                              )}
+                              {vehicleGross > 0 && (deposit > 0 || vehicleDiscount > 0) && (
+                                vehicleFullyPaid || balanceDue === 0 ? (
+                                  <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
+                                ) : (
+                                  <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(balanceDue)}</span>
+                                )
                               )}
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>

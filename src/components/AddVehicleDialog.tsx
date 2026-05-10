@@ -38,8 +38,6 @@ export const AddVehicleDialog = ({
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
   const [prepaidAmount, setPrepaidAmount] = useState('');
-  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
-  const [discountValue, setDiscountValue] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
   const [showVinScanner, setShowVinScanner] = useState(false);
   const {

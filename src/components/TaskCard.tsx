@@ -1394,12 +1394,12 @@ export const TaskCard = ({
   const partsCost = task.importedSalary != null ? 0 : (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
   }, 0);
-  const rawLabor = task.importedSalary != null ? task.importedSalary : calculatedLabor;
-  // Apply per-vehicle labor discount (only on un-billed tasks; billedAmount is already locked)
-  const { discount: laborDiscount, laborAfter: laborCost } =
-    task.billedAmount != null ? { discount: 0, laborAfter: rawLabor } : applyLaborDiscount(rawLabor, vehicle);
-  // billedAmount locks the cost at billing time; otherwise calculate with round-up
-  const totalCost = task.billedAmount != null ? task.billedAmount : Math.ceil(laborCost + partsCost);
+  // billedAmount/importedSalary act as the gross labor; discount is always applied on top
+  const rawLabor = task.billedAmount != null
+    ? task.billedAmount
+    : (task.importedSalary != null ? task.importedSalary : calculatedLabor);
+  const { discount: laborDiscount, laborAfter: laborCost } = applyLaborDiscount(rawLabor, vehicle);
+  const totalCost = Math.ceil(laborCost + partsCost);
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="p-3 py-0">

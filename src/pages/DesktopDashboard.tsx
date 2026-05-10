@@ -315,8 +315,7 @@ const DesktopDashboard = () => {
     const laborCost = task.importedSalary != null ? task.importedSalary : (baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
-    const { discount: laborDiscount, laborAfter } =
-      task.billedAmount != null ? { discount: 0, laborAfter: laborCost } : applyLaborDiscount(laborCost, vehicle);
+    const { discount: laborDiscount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
     const total = laborAfter + partsCost;
 
     const doc = new jsPDF({ format: 'letter' });
@@ -791,7 +790,10 @@ const DesktopDashboard = () => {
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
     );
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
-    if (task.billedAmount != null) return task.billedAmount;
+    if (task.billedAmount != null) {
+      const { laborAfter } = applyLaborDiscount(task.billedAmount, vehicle);
+      return laborAfter + partsCost;
+    }
     if (task.importedSalary != null) {
       const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
       return laborAfter + partsCost;
@@ -853,22 +855,22 @@ const DesktopDashboard = () => {
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
     const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    const unbilledLabor = vehicleTasks
-      .filter(t => t.billedAmount == null && t.importedSalary == null)
-      .reduce((sum, task) => {
-        const labor = (task.sessions || []).reduce((total, session) => {
-          const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
-          const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-          let sc = (effectiveTime / 3600) * rate;
-          if (session.isCloning && cloningRate > 0) sc += cloningRate;
-          if (session.isProgramming && programmingRate > 0) sc += programmingRate;
-          if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
-          if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
-          return total + sc;
-        }, 0);
-        return sum + labor;
+    const discountableLabor = vehicleTasks.reduce((sum, task) => {
+      if (task.billedAmount != null) return sum + task.billedAmount;
+      if (task.importedSalary != null) return sum + task.importedSalary;
+      const labor = (task.sessions || []).reduce((total, session) => {
+        const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
+        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+        let sc = (effectiveTime / 3600) * rate;
+        if (session.isCloning && cloningRate > 0) sc += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sc += programmingRate;
+        if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
+        return total + sc;
       }, 0);
-    return applyLaborDiscount(unbilledLabor, vehicle).discount;
+      return sum + labor;
+    }, 0);
+    return applyLaborDiscount(discountableLabor, vehicle).discount;
   };
 
   // --- Money Over Time chart data ---
@@ -1872,7 +1874,7 @@ const DesktopDashboard = () => {
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
-                                        {task.billedAmount == null && vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
+                                        {vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
                                           <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/40 bg-emerald-500/10">
                                             🏷 {vehicle.discountType === 'percent' ? `-${vehicle.discountValue}%` : `-${formatCurrency(vehicle.discountValue || 0)}`}
                                           </Badge>

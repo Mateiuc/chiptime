@@ -210,13 +210,12 @@ export function calculateClientCosts(
           sessionPartsCost = (session.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0);
         }
 
-        // Per-vehicle labor discount: track un-billed labor; the actual
-        // discount is computed ONCE per vehicle below (so a fixed-dollar
-        // discount isn't multiplied across multiple tasks).
+        // Per-vehicle labor discount: track ALL task labor (including billed/paid)
+        // so the discount keeps showing on Billed and Paid tabs. The discount is
+        // computed ONCE per vehicle below (so a fixed-dollar discount isn't
+        // multiplied across multiple tasks).
         let sessionDiscount = 0;
-        if (task.billedAmount == null) {
-          unbilledLabor += laborCost;
-        }
+        unbilledLabor += laborCost;
 
         totalLabor += laborCost;
         totalParts += sessionPartsCost;

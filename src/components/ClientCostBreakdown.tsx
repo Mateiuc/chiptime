@@ -153,11 +153,9 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
       const totalAddKey = sessions.reduce((sum, s) => sum + (s.addKeyCost || 0), 0);
       const totalAllKeysLost = sessions.reduce((sum, s) => sum + (s.allKeysLostCost || 0), 0);
-      // Per-vehicle discount (computed once on un-billed labor in this filter)
-      const unbilledFilteredLabor = sessions
-        .filter(s => s.status !== 'billed' && s.status !== 'paid')
-        .reduce((sum, s) => sum + s.laborCost, 0);
-      const totalDiscount = applyLaborDiscount(unbilledFilteredLabor, vehicleSummary.vehicle).discount;
+      // Per-vehicle discount applies to ALL filtered sessions (incl. billed/paid)
+      const discountableLabor = sessions.reduce((sum, s) => sum + s.laborCost, 0);
+      const totalDiscount = applyLaborDiscount(discountableLabor, vehicleSummary.vehicle).discount;
       return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, totalDiscount, vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts };
     })
     .filter(v => v.sessions.length > 0);

@@ -489,7 +489,7 @@ export const TaskCard = ({
       const showDiscount = laborDiscount > 0;
       const showDeposit = deposit > 0;
       const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
-      let yPos = 261 - 7 * extraLines;
+      yPos = 261 - 7 * extraLines;
       const totalX = col3X - 45;
       if (extraLines > 0) {
         doc.setFontSize(12);

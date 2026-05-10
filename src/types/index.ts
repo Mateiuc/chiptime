@@ -37,6 +37,10 @@ export interface Vehicle {
   diagnosticPdfUrl?: string;
   diagnosticPdfPath?: string; // Storage path in private bucket (re-sign on demand)
   prepaidAmount?: number;
+  // Per-vehicle labor discount — applied to each task's labor for this vehicle.
+  // Parts and deposit are not affected. Locked (billed) tasks are not re-discounted.
+  discountType?: 'fixed' | 'percent';
+  discountValue?: number; // dollars if 'fixed', 0-100 if 'percent'
 }
 
 export interface Part {

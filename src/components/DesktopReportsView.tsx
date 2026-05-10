@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
+import { applyLaborDiscount } from '@/lib/discount';
 
 const CHART_COLORS = [
   '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
@@ -140,7 +141,11 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
   const getTaskCost = (task: Task) => {
     if (task.billedAmount != null) return task.billedAmount;
-    if (task.importedSalary != null) return task.importedSalary;
+    const vehicle = vehicles.find(v => v.id === task.vehicleId);
+    if (task.importedSalary != null) {
+      const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
+      return laborAfter;
+    }
     const client = clients.find(c => c.id === task.clientId);
     const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
     const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
@@ -168,7 +173,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     });
     const partsCost = (task.sessions || []).reduce((total, session) =>
       total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0), 0);
-    return Math.ceil(labor + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost + partsCost);
+    const totalLabor = labor + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
+    const { laborAfter } = applyLaborDiscount(totalLabor, vehicle);
+    return Math.ceil(laborAfter + partsCost);
   };
 
   const getTaskSeconds = (task: Task) =>

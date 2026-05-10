@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronUp, FileText, DollarSign, CheckCircle2, Play, MoreVertical, Edit, Wrench, Pause, Square, Trash, Camera as CameraIcon, Eye } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
+import { applyLaborDiscount } from '@/lib/discount';
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -484,28 +485,42 @@ export const TaskCard = ({
 
 
       // Total Section
-      yPos = 261;
       const deposit = vehicle?.prepaidAmount || 0;
-      if (deposit > 0) {
+      const showDiscount = laborDiscount > 0;
+      const showDeposit = deposit > 0;
+      const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
+      yPos = 261 - 7 * extraLines;
+      const totalX = col3X - 45;
+      if (extraLines > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
         doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(Math.ceil(rawLabor + partsCost)), col3X + 2, yPos, { align: 'right' });
         yPos += 7;
-        doc.setFontSize(11);
-        doc.setTextColor(220, 38, 38);
-        doc.text('Deposit:', totalX, yPos);
-        doc.text(`-${formatCurrency(deposit)}`, col3X + 2, yPos, { align: 'right' });
-        doc.setTextColor(0, 0, 0);
-        yPos += 8;
+        if (showDiscount) {
+          doc.setFontSize(11);
+          doc.setTextColor(22, 163, 74);
+          const dLabel = vehicle?.discountType === 'percent' ? `Discount (${vehicle?.discountValue}%):` : 'Discount:';
+          doc.text(dLabel, totalX, yPos);
+          doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 7;
+        }
+        if (showDeposit) {
+          doc.setFontSize(11);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Deposit:', totalX, yPos);
+          doc.text(`-${formatCurrency(deposit)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 8;
+        }
         doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
         doc.text('TOTAL:', totalX, yPos);
         doc.text(formatCurrency(Math.max(0, totalCost - deposit)), col3X + 2, yPos, { align: 'right' });
       } else {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
         doc.text('TOTAL:', totalX, yPos);
         doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
       }
@@ -872,27 +887,42 @@ export const TaskCard = ({
 
       yPos = 261;
       const previewDeposit = vehicle?.prepaidAmount || 0;
-      if (previewDeposit > 0) {
+      const showDiscountP = laborDiscount > 0;
+      const showDepositP = previewDeposit > 0;
+      const extraLinesP = (showDiscountP ? 1 : 0) + (showDepositP ? 1 : 0);
+      yPos = 261 - 7 * extraLinesP;
+      const totalXP = col3X - 45;
+      if (extraLinesP > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
-        doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        doc.text('Subtotal:', totalXP, yPos);
+        doc.text(formatCurrency(Math.ceil(rawLabor + partsCost)), col3X + 2, yPos, { align: 'right' });
         yPos += 7;
-        doc.setFontSize(11);
-        doc.setTextColor(220, 38, 38);
-        doc.text('Deposit:', totalX, yPos);
-        doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
-        doc.setTextColor(0, 0, 0);
-        yPos += 8;
+        if (showDiscountP) {
+          doc.setFontSize(11);
+          doc.setTextColor(22, 163, 74);
+          const dLabel = vehicle?.discountType === 'percent' ? `Discount (${vehicle?.discountValue}%):` : 'Discount:';
+          doc.text(dLabel, totalXP, yPos);
+          doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 7;
+        }
+        if (showDepositP) {
+          doc.setFontSize(11);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Deposit:', totalXP, yPos);
+          doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 8;
+        }
         doc.setFontSize(16);
-        doc.text('TOTAL:', totalX, yPos);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL:', totalXP, yPos);
         doc.text(formatCurrency(Math.max(0, totalCost - previewDeposit)), col3X + 2, yPos, { align: 'right' });
       } else {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
-        doc.text('TOTAL:', totalX, yPos);
+        doc.text('TOTAL:', totalXP, yPos);
         doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
       }
 
@@ -1364,7 +1394,10 @@ export const TaskCard = ({
   const partsCost = task.importedSalary != null ? 0 : (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
   }, 0);
-  const laborCost = task.importedSalary != null ? task.importedSalary : calculatedLabor;
+  const rawLabor = task.importedSalary != null ? task.importedSalary : calculatedLabor;
+  // Apply per-vehicle labor discount (only on un-billed tasks; billedAmount is already locked)
+  const { discount: laborDiscount, laborAfter: laborCost } =
+    task.billedAmount != null ? { discount: 0, laborAfter: rawLabor } : applyLaborDiscount(rawLabor, vehicle);
   // billedAmount locks the cost at billing time; otherwise calculate with round-up
   const totalCost = task.billedAmount != null ? task.billedAmount : Math.ceil(laborCost + partsCost);
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
@@ -1641,6 +1674,9 @@ export const TaskCard = ({
               {totalAddKey > 0 && <div className="flex justify-between"><span>Add Key (×{addKeyCount}):</span><span>{formatCurrency(totalAddKey)}</span></div>}
               {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
+              {laborDiscount > 0 && (
+                <div className="flex justify-between text-emerald-700 dark:text-emerald-400"><span>Discount{vehicle?.discountType === 'percent' ? ` (${vehicle?.discountValue}%)` : ''}:</span><span>-{formatCurrency(laborDiscount)}</span></div>
+              )}
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
               {(vehicle?.prepaidAmount || 0) > 0 && (
                 task.status === 'paid' ? (

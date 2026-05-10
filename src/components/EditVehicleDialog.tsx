@@ -35,6 +35,8 @@ export const EditVehicleDialog = ({
   const [year, setYear] = useState(vehicle.year?.toString() || '');
   const [color, setColor] = useState(vehicle.color || '');
   const [prepaidAmount, setPrepaidAmount] = useState(vehicle.prepaidAmount?.toString() || '');
+  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>(vehicle.discountType || 'fixed');
+  const [discountValue, setDiscountValue] = useState(vehicle.discountValue?.toString() || '');
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
@@ -44,6 +46,8 @@ export const EditVehicleDialog = ({
     setYear(vehicle.year?.toString() || '');
     setColor(vehicle.color || '');
     setPrepaidAmount(vehicle.prepaidAmount?.toString() || '');
+    setDiscountType(vehicle.discountType || 'fixed');
+    setDiscountValue(vehicle.discountValue?.toString() || '');
   }, [vehicle]);
 
   const handleVinChange = (newVin: string) => {
@@ -95,6 +99,11 @@ export const EditVehicleDialog = ({
       return;
     }
 
+    const parsedDiscount = discountValue ? parseFloat(discountValue) : 0;
+    const validDiscount = !isNaN(parsedDiscount) && parsedDiscount > 0
+      ? (discountType === 'percent' ? Math.min(100, Math.max(0, parsedDiscount)) : Math.max(0, parsedDiscount))
+      : 0;
+
     const updates: Partial<Vehicle> = {
       vin: trimmedVin,
       make: make.trim() || undefined,
@@ -102,6 +111,8 @@ export const EditVehicleDialog = ({
       year: year ? parseInt(year) : undefined,
       color: color.trim() || undefined,
       prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
+      discountType: validDiscount > 0 ? discountType : undefined,
+      discountValue: validDiscount > 0 ? validDiscount : undefined,
     };
 
     onSave(vehicle.id, updates);
@@ -204,6 +215,35 @@ export const EditVehicleDialog = ({
                 placeholder="0.00"
                 className="h-10"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Labor Discount</Label>
+              <div className="flex gap-2">
+                <div className="flex rounded-md border-2 border-input overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('fixed')}
+                    className={`px-3 h-10 text-sm font-bold ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
+                  >$</button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('percent')}
+                    className={`px-3 h-10 text-sm font-bold border-l-2 border-input ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
+                  >%</button>
+                </div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={discountType === 'percent' ? 100 : undefined}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder={discountType === 'percent' ? '0–100' : '0.00'}
+                  className="h-10 flex-1"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Applied to each task's labor for this vehicle. Parts and deposit are unaffected.</p>
             </div>
           </div>
 

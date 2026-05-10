@@ -816,6 +816,61 @@ const DesktopDashboard = () => {
     return laborAfter + partsCost;
   };
 
+  // Pre-discount cost (for headline display alongside Discount/Deposit chips).
+  // Billed/imported tasks lock their amount, so they're returned unchanged.
+  const getTaskCostGross = (task: Task) => {
+    const partsCost = (task.sessions || []).reduce((sum, s) =>
+      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
+    );
+    if (task.billedAmount != null) return task.billedAmount;
+    if (task.importedSalary != null) return task.importedSalary + partsCost;
+    const client = clients.find(c => c.id === task.clientId);
+    const rate = client?.hourlyRate || settings.defaultHourlyRate;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
+    const laborCost = (task.sessions || []).reduce((total, session) => {
+      const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+      let sessionCost = (effectiveTime / 3600) * rate;
+      if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
+      if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
+      if (session.isAddKey && addKeyRate > 0) sessionCost += addKeyRate;
+      if (session.isAllKeysLost && allKeysLostRate > 0) sessionCost += allKeysLostRate;
+      return total + sessionCost;
+    }, 0);
+    return laborCost + partsCost;
+  };
+
+  // Per-vehicle discount applied ONCE to the sum of un-billed task labor.
+  // Optionally restrict to a subset of tasks (e.g. only un-paid for Balance Due).
+  const getVehicleDiscount = (vehicle: Vehicle | undefined, vehicleTasks: Task[]) => {
+    if (!vehicle?.discountType || !vehicle.discountValue) return 0;
+    const client = clients.find(c => c.id === vehicleTasks[0]?.clientId);
+    const rate = client?.hourlyRate || settings.defaultHourlyRate;
+    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
+    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
+    const unbilledLabor = vehicleTasks
+      .filter(t => t.billedAmount == null && t.importedSalary == null)
+      .reduce((sum, task) => {
+        const labor = (task.sessions || []).reduce((total, session) => {
+          const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
+          const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+          let sc = (effectiveTime / 3600) * rate;
+          if (session.isCloning && cloningRate > 0) sc += cloningRate;
+          if (session.isProgramming && programmingRate > 0) sc += programmingRate;
+          if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
+          if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
+          return total + sc;
+        }, 0);
+        return sum + labor;
+      }, 0);
+    return applyLaborDiscount(unbilledLabor, vehicle).discount;
+  };
+
   // --- Money Over Time chart data ---
   const monthlyRevenueData = useMemo(() => {
     const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
@@ -1616,13 +1671,17 @@ const DesktopDashboard = () => {
 
                         {/* Totals */}
                         {(() => {
-                          const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          const clientDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks), 0);
+                          const clientRevenue = Math.max(0, clientGross - clientDiscount);
                           const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
                           const clientDep = client.prepaidAmount || 0;
-                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
+                          const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);
                           const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
                           const balanceDue = Math.max(0, unpaidRevenue - vehicleDeps - clientDep);
-                          if (clientRevenue <= 0) return null;
+                          if (clientGross <= 0) return null;
                           return (
                             <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
                               <span className={`font-semibold ${
@@ -1630,8 +1689,9 @@ const DesktopDashboard = () => {
                                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                 filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                 'text-emerald-600 dark:text-emerald-400'
-                              }`}>Total: {formatCurrency(clientRevenue)}</span>
-                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              }`}>Total: {formatCurrency(clientGross)}</span>
+                              {clientDiscount > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-bold">Discount: -{formatCurrency(clientDiscount)}</span>}
+                              {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
                               {vehicleDeps > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
                               {clientDep > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
                             </div>
@@ -1663,9 +1723,15 @@ const DesktopDashboard = () => {
                       const vColor = getVehicleColorScheme(vehicle.id);
                       const isVExpanded = expandedVehicles.has(vehicle.id);
                       const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Unknown Vehicle';
-                      const vehicleCost = vehicleTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
-                      const vehicleUnpaid = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                      const vehicleGross = vehicleTasks.reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                      const vehicleDiscount = getVehicleDiscount(vehicle, vehicleTasks);
+                      const vehicleCost = Math.max(0, vehicleGross - vehicleDiscount);
+                      const vehicleUnpaidGross = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                      const vehicleUnpaidDiscount = getVehicleDiscount(vehicle, vehicleTasks.filter(t => t.status !== 'paid'));
+                      const vehicleUnpaid = Math.max(0, vehicleUnpaidGross - vehicleUnpaidDiscount);
+                      const deposit = vehicle.prepaidAmount || 0;
                       const vehicleFullyPaid = vehicleUnpaid === 0 && vehicleCost > 0;
+                      const balanceDue = Math.max(0, vehicleUnpaid - deposit);
 
                       return (
                         <div key={vehicle.id} className={`rounded-xl border-2 overflow-hidden ${vColor.border}`}>
@@ -1674,29 +1740,34 @@ const DesktopDashboard = () => {
                             className={`${vColor.card} px-4 py-3 cursor-pointer flex items-center justify-between`}
                             onClick={() => toggleVehicle(vehicle.id)}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               {isVExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               <Car className="h-4 w-4" />
                               <span className="font-bold">{vehicleLabel}</span>
                               {vehicle.vin && <span className="text-xs font-mono text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(vehicle.vin); toast({ title: 'VIN Copied!', description: vehicle.vin }); }} title="Click to copy VIN">VIN: {vehicle.vin}</span>}
                               {vehicle.color && <Badge variant="outline" className="text-xs">{vehicle.color}</Badge>}
-                              {vehicleCost > 0 && (
+                              {vehicleGross > 0 && (
                                 <span className={`font-bold text-sm ml-1 ${
                                   vehicleFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                   filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                   filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                   'text-emerald-600 dark:text-emerald-400'
-                                }`}>{formatCurrency(vehicleCost)}</span>
+                                }`}>{formatCurrency(vehicleGross)}</span>
                               )}
-                              {(vehicle.prepaidAmount || 0) > 0 && vehicleCost > 0 && (
-                                <>
-                                   <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: {formatCurrency(vehicle.prepaidAmount || 0)}</span>
-                                  {vehicleFullyPaid || (vehicle.prepaidAmount || 0) >= vehicleCost ? (
-                                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
-                                  ) : (
-                                    <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(vehicleCost - (vehicle.prepaidAmount || 0))}</span>
-                                  )}
-                                </>
+                              {vehicleDiscount > 0 && vehicleGross > 0 && (
+                                <span className="font-bold text-sm ml-1 text-emerald-600 dark:text-emerald-400" title={vehicle.discountType === 'percent' ? `${vehicle.discountValue}% off labor` : 'Fixed labor discount'}>
+                                  Discount: -{formatCurrency(vehicleDiscount)}
+                                </span>
+                              )}
+                              {deposit > 0 && vehicleGross > 0 && (
+                                <span className={`font-bold text-sm ml-1 ${vehicleFullyPaid ? 'text-muted-foreground' : 'text-destructive'}`}>Deposit: -{formatCurrency(deposit)}</span>
+                              )}
+                              {vehicleGross > 0 && (deposit > 0 || vehicleDiscount > 0) && (
+                                vehicleFullyPaid || balanceDue === 0 ? (
+                                  <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 ml-1">Paid</span>
+                                ) : (
+                                  <span className="font-bold text-sm text-orange-500 ml-1">Balance Due: {formatCurrency(balanceDue)}</span>
+                                )
                               )}
                             </div>
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>

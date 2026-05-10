@@ -203,7 +203,15 @@ export function calculateClientCosts(
           laborCost = Math.ceil(baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost + sessionAddKeyCost + sessionAllKeysLostCost);
           sessionPartsCost = (session.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0);
         }
-        
+
+        // Apply per-vehicle labor discount on un-billed tasks only
+        let sessionDiscount = 0;
+        if (task.billedAmount == null) {
+          const { discount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
+          sessionDiscount = discount;
+          laborCost = laborAfter;
+        }
+
         totalLabor += laborCost;
         totalParts += sessionPartsCost;
         totalCloning += sessionCloningCost;
@@ -211,6 +219,7 @@ export function calculateClientCosts(
         totalAddKey += sessionAddKeyCost;
         totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
+        totalDiscount += sessionDiscount;
 
         // Only attach diagnostic PDF to the first session of each task
         const showDiagnostic = !diagnosticShown && !!task.diagnosticPdfUrl;

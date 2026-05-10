@@ -41,7 +41,7 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
-  const [prepaidAmount, setPrepaidAmount] = useState('');
+  
   const [isDecoding, setIsDecoding] = useState(false);
   const [decoded, setDecoded] = useState(false);
   const { toast } = useNotifications();

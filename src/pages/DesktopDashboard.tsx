@@ -790,7 +790,10 @@ const DesktopDashboard = () => {
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
     );
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
-    if (task.billedAmount != null) return task.billedAmount;
+    if (task.billedAmount != null) {
+      const { laborAfter } = applyLaborDiscount(task.billedAmount, vehicle);
+      return laborAfter + partsCost;
+    }
     if (task.importedSalary != null) {
       const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
       return laborAfter + partsCost;

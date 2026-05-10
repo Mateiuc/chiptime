@@ -170,6 +170,27 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
   const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts;
 
+  // [DEBUG: reconciliation] — remove once verified
+  useEffect(() => {
+    if (filter !== 'paid') return;
+    filteredVehicles.forEach(v => {
+      const name = [v.vehicle.year, v.vehicle.make, v.vehicle.model].filter(Boolean).join(' ') || v.vehicle.vin;
+      const sessionsSum = v.sessions.reduce((s, x) => s + x.laborCost, 0);
+      const partsSum = v.sessions.reduce((s, x) => s + x.partsCost, 0);
+      const discount = v.totalDiscount || 0;
+      const expected = Math.max(0, sessionsSum - discount) + partsSum;
+      // eslint-disable-next-line no-console
+      console.log('[portal-reconcile]', name, {
+        sessionsSum,
+        partsSum,
+        discount,
+        vehicleTotal: v.vehicleTotal,
+        reconciles: v.vehicleTotal === expected,
+        expected,
+      });
+    });
+  }, [filteredVehicles, filter]);
+
   const monthlyData = useMemo(() => {
     if (filter !== 'paid') return [];
     const now = new Date();

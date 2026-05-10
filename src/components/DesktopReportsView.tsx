@@ -140,8 +140,11 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   };
 
   const getTaskCost = (task: Task) => {
-    if (task.billedAmount != null) return task.billedAmount;
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
+    if (task.billedAmount != null) {
+      const { laborAfter } = applyLaborDiscount(task.billedAmount, vehicle);
+      return laborAfter;
+    }
     if (task.importedSalary != null) {
       const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
       return laborAfter;

@@ -262,6 +262,7 @@ export function calculateClientCosts(
     grandTotalAddKey += totalAddKey;
     grandTotalAllKeysLost += totalAllKeysLost;
     grandTotalMinHourAdj += totalMinHourAdj;
+    grandTotalDiscount += totalDiscount;
 
     return {
       vehicle,
@@ -273,6 +274,9 @@ export function calculateClientCosts(
       totalAddKey,
       totalAllKeysLost,
       totalMinHourAdj,
+      totalDiscount,
+      discountType: vehicle.discountType,
+      discountValue: vehicle.discountValue,
       vehicleTotal: totalLabor + totalParts,
     };
   });
@@ -287,6 +291,7 @@ export function calculateClientCosts(
     grandTotalAddKey,
     grandTotalAllKeysLost,
     grandTotalMinHourAdj,
+    grandTotalDiscount,
     grandTotal: grandTotalLabor + grandTotalParts,
   };
 }

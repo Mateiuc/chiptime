@@ -74,7 +74,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
       model: model || undefined,
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
-      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     });
   };
 

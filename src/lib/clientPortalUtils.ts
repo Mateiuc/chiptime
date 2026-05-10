@@ -84,6 +84,7 @@ interface SlimSession {
   aklc?: number;
   dpdf?: string;
   pds?: [number, number][];
+  ld?: number; // labor discount applied to this session
 }
 
 interface SlimVehicle {
@@ -102,6 +103,9 @@ interface SlimVehicle {
   tmh?: number;
   tak?: number;
   takl?: number;
+  td?: number; // total discount on this vehicle
+  dt?: 'fixed' | 'percent';
+  dv?: number;
 }
 
 interface SlimPayload {
@@ -116,6 +120,7 @@ interface SlimPayload {
   tmh?: number;
   tak?: number;
   takl?: number;
+  gtd?: number; // grand total discount
   pl?: string;
   plbl?: string;
   pms?: { l: string; u: string; i?: string }[];

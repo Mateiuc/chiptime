@@ -152,7 +152,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
       const totalAddKey = sessions.reduce((sum, s) => sum + (s.addKeyCost || 0), 0);
       const totalAllKeysLost = sessions.reduce((sum, s) => sum + (s.allKeysLostCost || 0), 0);
-      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, vehicleTotal: totalLabor + totalParts };
+      const totalDiscount = sessions.reduce((sum, s) => sum + (s.laborDiscount || 0), 0);
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, totalDiscount, vehicleTotal: totalLabor + totalParts };
     })
     .filter(v => v.sessions.length > 0);
 
@@ -163,6 +164,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalMinHourAdj = filteredVehicles.reduce((sum, v) => sum + v.totalMinHourAdj, 0);
   const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
   const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
+  const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
   const grandTotal = grandTotalLabor + grandTotalParts;
 
   const monthlyData = useMemo(() => {

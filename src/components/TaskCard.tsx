@@ -969,9 +969,31 @@ export const TaskCard = ({
           doc.setFont('helvetica', 'bold');
           doc.text(`Session ${item.sessionNum}`, x, photoYPos);
 
-          const photoBase64 = item.photo.filePath 
+          let photoBase64: string | undefined = item.photo.filePath 
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
+
+          if (!photoBase64) {
+            const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+            const fetchUrl = (path && cloudSigned2[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+            if (fetchUrl) {
+              try {
+                const response = await fetch(fetchUrl);
+                const blob = await response.blob();
+                photoBase64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const result = reader.result as string;
+                    resolve(result.split(',')[1]);
+                  };
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+              } catch (e) {
+                console.warn('Failed to fetch photo from cloud:', e);
+              }
+            }
+          }
 
           if (photoBase64) {
             try {

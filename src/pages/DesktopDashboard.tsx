@@ -152,6 +152,7 @@ const DesktopDashboard = () => {
   const [chartShowCompleted, setChartShowCompleted] = useState(true);
   const [chartShowBilled, setChartShowBilled] = useState(true);
   const [chartShowPaid, setChartShowPaid] = useState(true);
+  const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {

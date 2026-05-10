@@ -1741,6 +1741,13 @@ const DesktopDashboard = () => {
                                   color: vehicleEditData.color.trim() || undefined,
                                   prepaidAmount: vehicleEditData.prepaidAmount ? parseFloat(vehicleEditData.prepaidAmount) : undefined,
                                 };
+                                const parsedDisc = vehicleEditData.discountValue ? parseFloat(vehicleEditData.discountValue) : 0;
+                                const validDisc = !isNaN(parsedDisc) && parsedDisc > 0
+                                  ? (vehicleEditData.discountType === 'percent' ? Math.min(100, Math.max(0, parsedDisc)) : Math.max(0, parsedDisc))
+                                  : 0;
+                                updates.discountType = validDisc > 0 ? vehicleEditData.discountType : undefined;
+                                updates.discountValue = validDisc > 0 ? validDisc : undefined;
+                                {
                                 updateVehicle(vehicle.id, updates);
                                 if (updates.vin) {
                                   tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: updates.vin! }));

@@ -233,6 +233,7 @@ export function calculateClientCosts(
                 : session.createdAt),
           duration,
           laborCost,
+          laborDiscount: sessionDiscount,
           cloningCost: sessionCloningCost,
           programmingCost: sessionProgrammingCost,
           addKeyCost: sessionAddKeyCost,

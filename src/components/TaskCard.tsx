@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronUp, FileText, DollarSign, CheckCircle2, Play, MoreVertical, Edit, Wrench, Pause, Square, Trash, Camera as CameraIcon, Eye } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
+import { applyLaborDiscount } from '@/lib/discount';
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -1364,7 +1365,10 @@ export const TaskCard = ({
   const partsCost = task.importedSalary != null ? 0 : (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
   }, 0);
-  const laborCost = task.importedSalary != null ? task.importedSalary : calculatedLabor;
+  const rawLabor = task.importedSalary != null ? task.importedSalary : calculatedLabor;
+  // Apply per-vehicle labor discount (only on un-billed tasks; billedAmount is already locked)
+  const { discount: laborDiscount, laborAfter: laborCost } =
+    task.billedAmount != null ? { discount: 0, laborAfter: rawLabor } : applyLaborDiscount(rawLabor, vehicle);
   // billedAmount locks the cost at billing time; otherwise calculate with round-up
   const totalCost = task.billedAmount != null ? task.billedAmount : Math.ceil(laborCost + partsCost);
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>

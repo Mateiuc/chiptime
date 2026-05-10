@@ -37,7 +37,7 @@ export const AddVehicleDialog = ({
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
-  const [prepaidAmount, setPrepaidAmount] = useState('');
+  
   const [isDecoding, setIsDecoding] = useState(false);
   const [showVinScanner, setShowVinScanner] = useState(false);
   const {
@@ -154,7 +154,6 @@ export const AddVehicleDialog = ({
       model: model || undefined,
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
-      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     }, clientId ? undefined : clientNameTrimmed, pendingContactData || undefined);
 
     // Reset form
@@ -166,7 +165,7 @@ export const AddVehicleDialog = ({
     setModel('');
     setYear('');
     setColor('');
-    setPrepaidAmount('');
+    
     onOpenChange(false);
   };
   return <>
@@ -235,16 +234,6 @@ export const AddVehicleDialog = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Deposit ($)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={prepaidAmount}
-              onChange={e => setPrepaidAmount(e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
         </div>
 
         <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm">

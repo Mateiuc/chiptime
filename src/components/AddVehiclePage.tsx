@@ -41,7 +41,7 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
-  const [prepaidAmount, setPrepaidAmount] = useState('');
+  
   const [isDecoding, setIsDecoding] = useState(false);
   const [decoded, setDecoded] = useState(false);
   const { toast } = useNotifications();
@@ -74,7 +74,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
       model: model || undefined,
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
-      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     });
   };
 
@@ -190,7 +189,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
               <F label="Model"><input value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. X5" className={inp} /></F>
               <F label="Year"><input type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="e.g. 2023" min={1900} max={new Date().getFullYear() + 2} className={inp} /></F>
               <F label="Color"><input value={color} onChange={e => setColor(e.target.value)} placeholder="e.g. Black" className={inp} /></F>
-              <F label="Deposit ($)"><input type="number" step="0.01" value={prepaidAmount} onChange={e => setPrepaidAmount(e.target.value)} placeholder="0.00" className={inp} /></F>
             </div>
           </div>
 

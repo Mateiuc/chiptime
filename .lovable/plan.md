@@ -1,34 +1,48 @@
-## Problem
+## Per-Vehicle Labor Discount
 
-Photos in work sessions fail to load with "Bucket not found" / 404. The desktop dashboard renders `<img src={photo.cloudUrl}>` directly, but:
+Add an optional discount on each vehicle that reduces only the **labor** portion of its tasks. Parts and deposits remain unchanged. Income everywhere (cards, PDFs, reports) reflects the discounted labor.
 
-1. The `session-photos` bucket is **private** — the legacy `/object/public/...` URLs return 404.
-2. Even valid signed URLs (`/object/sign/...`) expire after 24h, so saved `cloudUrl` values stop working.
+### 1. Data model — `src/types/index.ts`
+Extend `Vehicle`:
+- `discountType?: 'fixed' | 'percent'`
+- `discountValue?: number` (dollars if fixed, 0–100 if percent)
 
-The canonical reference is `photo.cloudPath`. The `sign-photo-urls` edge function already exists to mint fresh short-lived signed URLs for the caller's workspace.
+No DB migration needed — vehicle data lives inside `app_sync.data` JSON.
 
-## Fix
+### 2. Edit / Add Vehicle UI
+Files: `EditVehicleDialog.tsx`, `AddVehicleDialog.tsx`, `AddVehiclePage.tsx` (and the desktop equivalents in `DesktopClientsView.tsx` if present).
 
-Refresh signed URLs at render time in the desktop dashboard photo strip (and any other view that renders cloud photos directly).
+Add a **Labor Discount** group below the Deposit field:
+- Toggle/segmented control: `$` | `%`
+- Numeric input bound to a string state (per project rule)
+- Helper text: "Applied to labor only. Parts and deposit are unaffected."
+- Validate: percent 0–100, fixed ≥ 0, never produces negative labor (clamp to 0).
 
-### Changes
+### 3. Discount math — new helper `src/lib/formatTime.ts` (or new `src/lib/discount.ts`)
+```ts
+applyLaborDiscount(labor: number, vehicle?: Vehicle): {
+  discount: number;     // amount removed (rounded up)
+  laborAfter: number;   // max(0, labor - discount)
+}
+```
+Rules:
+- `percent`: `discount = ceil(labor * value / 100)`
+- `fixed`: `discount = min(value, labor)`
+- Returns `{0, labor}` when no discount set.
 
-1. **`src/pages/DesktopDashboard.tsx`** (around line 1808–1822):
-   - Collect all `cloudPath` values for the currently-visible task's session photos.
-   - Call `photoStorageService.signPhotoUrls(paths)` once when the task expands (or in a `useEffect` keyed on visible task IDs) and store the resulting `path → signedUrl` map in local state.
-   - Render `<img src={signedUrlMap[photo.cloudPath] ?? photo.cloudUrl}>`. Filter the "device only" badge by `!photo.cloudPath && !photo.cloudUrl` instead of just `!cloudUrl`.
-   - Show a small placeholder while signing is pending; show `ImageOff` if signing returned no URL for that path.
+### 4. Apply in totals
+- **`TaskCard.tsx`** (line 1367–1369): wrap `laborCost` with `applyLaborDiscount` before computing `totalCost`. Show a "Discount" line in the bill summary block (lines 1645–1656) when > 0, between labor and deposit.
+- **`ClientCostBreakdown.tsx`** (lines 148, 182, 319, 370): subtract discount from each session's effective labor in the per-vehicle aggregation. Show a discount row per vehicle.
+- **`DesktopReportsView.tsx`** and **`DesktopDashboard.tsx`**: apply the same helper wherever `laborCost`/income totals are summed so analytics match.
+- **PDF / share bill** paths in `TaskCard.tsx` (around lines 671, 687, 874, 1096, 1128) — include a "Discount" line and use the discounted total before subtracting deposit.
+- **Client portal** (`clientPortalUtils.ts`): include discount in the rendered breakdown so client view matches.
 
-2. **`src/components/TaskCard.tsx`** (PDF generation paths around lines 587 and similar): when `fetch(item.photo.cloudUrl)` fails or `cloudUrl` is absent but `cloudPath` exists, mint a fresh signed URL via `signPhotoUrls([cloudPath])` and fetch that instead. This prevents PDFs from silently dropping cloud-only photos whose URLs have expired.
-
-3. **Backfill missing `cloudPath`** (defensive): for legacy photos that only have a `cloudUrl` pointing at `/object/public/session-photos/<workspace>/<task>/<photo>.jpg`, derive the path by stripping the prefix so the same render path works. Add this small helper in `photoStorageService` and use it when collecting paths.
+### 5. Display rules
+- Card: small italic line "Discount −$X" under the Cost row when applicable.
+- PDF/printed bill: explicit row `Labor Discount  −$X` between Subtotal and Deposit.
+- Reports: discount reduces "Income" / labor revenue; parts revenue unchanged.
 
 ### Out of scope
-
-- No schema or RLS changes. The bucket stays private and `sign-photo-urls` keeps enforcing workspace-scoped access.
-- No change to upload flow — `upload-photo` already returns a 24h signed URL plus the canonical path.
-
-## Technical notes
-
-- `signPhotoUrls` accepts up to 200 paths per call and returns `{ [path]: signedUrl }`. Default TTL 1h is fine for a render session.
-- Keep the signed-URL map in component state, not in persisted task data, so it's never stale on disk.
+- No per-session or per-client discounts.
+- No retroactive change to `task.billedAmount` for already-billed tasks (locked totals stay as-is).
+- No DB schema change.

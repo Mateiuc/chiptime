@@ -1747,7 +1747,6 @@ const DesktopDashboard = () => {
                                   : 0;
                                 updates.discountType = validDisc > 0 ? vehicleEditData.discountType : undefined;
                                 updates.discountValue = validDisc > 0 ? validDisc : undefined;
-                                {
                                 updateVehicle(vehicle.id, updates);
                                 if (updates.vin) {
                                   tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: updates.vin! }));

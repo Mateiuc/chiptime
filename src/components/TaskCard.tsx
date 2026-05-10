@@ -549,6 +549,14 @@ export const TaskCard = ({
           .filter((fp): fp is string => !!fp);
         
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
+
+        // Pre-mint signed URLs for cloud-only photos
+        const cloudPaths1 = Array.from(new Set(
+          allPhotos
+            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+            .filter((p): p is string => !!p)
+        ));
+        const cloudSigned1 = cloudPaths1.length ? await photoStorageService.signPhotoUrls(cloudPaths1) : {};
         
         doc.addPage();
         

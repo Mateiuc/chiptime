@@ -476,12 +476,20 @@ const DesktopDashboard = () => {
     doc.text(`Generated: ${ts}`, 107.95, 277.4, { align: 'center' });
 
     // --- Photos section (port from mobile) ---
-    const allPhotos: Array<{ photo: { cloudUrl?: string; base64?: string }; sessionNum: number }> = [];
+    const allPhotos: Array<{ photo: { cloudUrl?: string; cloudPath?: string; base64?: string }; sessionNum: number }> = [];
     (task.sessions || []).forEach((session, idx) => {
       (session.photos || []).forEach(photo => {
         allPhotos.push({ photo, sessionNum: idx + 1 });
       });
     });
+
+    // Pre-mint signed URLs for any cloud photos to avoid expired/public URLs
+    const pdfPaths = Array.from(new Set(
+      allPhotos
+        .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+        .filter((p): p is string => !!p)
+    ));
+    const pdfSigned = pdfPaths.length ? await photoStorageService.signPhotoUrls(pdfPaths) : {};
 
     if (allPhotos.length > 0) {
       doc.addPage();

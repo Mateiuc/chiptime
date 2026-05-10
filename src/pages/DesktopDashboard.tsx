@@ -138,7 +138,7 @@ const DesktopDashboard = () => {
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '' });
+  const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string; discountType: 'fixed' | 'percent'; discountValue: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '', discountType: 'fixed', discountValue: '' });
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   // Delete confirmation dialogs
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
@@ -1683,7 +1683,7 @@ const DesktopDashboard = () => {
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                 setEditingVehicleId(vehicle.id);
-                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '' });
+                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '', discountType: vehicle.discountType || 'fixed', discountValue: vehicle.discountValue?.toString() || '' });
                               }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -1715,6 +1715,13 @@ const DesktopDashboard = () => {
                               <Input className="w-20 h-8 text-sm" placeholder="Year" type="number" value={vehicleEditData.year} onChange={e => setVehicleEditData(p => ({ ...p, year: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Color" value={vehicleEditData.color} onChange={e => setVehicleEditData(p => ({ ...p, color: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Deposit $" type="number" step="0.01" value={vehicleEditData.prepaidAmount} onChange={e => setVehicleEditData(p => ({ ...p, prepaidAmount: e.target.value }))} />
+                              <div className="flex items-center gap-1">
+                                <div className="flex rounded-md border-2 border-input overflow-hidden shrink-0 h-8">
+                                  <button type="button" onClick={() => setVehicleEditData(p => ({ ...p, discountType: 'fixed' }))} className={`px-2 h-full text-xs font-bold ${vehicleEditData.discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>$</button>
+                                  <button type="button" onClick={() => setVehicleEditData(p => ({ ...p, discountType: 'percent' }))} className={`px-2 h-full text-xs font-bold border-l-2 border-input ${vehicleEditData.discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>%</button>
+                                </div>
+                                <Input className="w-24 h-8 text-sm" placeholder="Discount" type="number" step="0.01" min="0" max={vehicleEditData.discountType === 'percent' ? 100 : undefined} value={vehicleEditData.discountValue} onChange={e => setVehicleEditData(p => ({ ...p, discountValue: e.target.value }))} />
+                              </div>
                               <Button size="sm" className="h-8" onClick={() => {
                                 const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
                                 if (!trimmedVin || trimmedVin.length !== 17) {
@@ -1734,6 +1741,12 @@ const DesktopDashboard = () => {
                                   color: vehicleEditData.color.trim() || undefined,
                                   prepaidAmount: vehicleEditData.prepaidAmount ? parseFloat(vehicleEditData.prepaidAmount) : undefined,
                                 };
+                                const parsedDisc = vehicleEditData.discountValue ? parseFloat(vehicleEditData.discountValue) : 0;
+                                const validDisc = !isNaN(parsedDisc) && parsedDisc > 0
+                                  ? (vehicleEditData.discountType === 'percent' ? Math.min(100, Math.max(0, parsedDisc)) : Math.max(0, parsedDisc))
+                                  : 0;
+                                updates.discountType = validDisc > 0 ? vehicleEditData.discountType : undefined;
+                                updates.discountValue = validDisc > 0 ? validDisc : undefined;
                                 updateVehicle(vehicle.id, updates);
                                 if (updates.vin) {
                                   tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: updates.vin! }));

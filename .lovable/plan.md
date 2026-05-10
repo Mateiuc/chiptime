@@ -1,9 +1,20 @@
-## Remove Deposit field from Add Vehicle screens
+## Add Discount input next to Deposit — desktop inline vehicle editor
 
-The **Deposit ($)** input must not appear when adding a new vehicle. It stays only on **Edit Vehicle** (alongside the discount).
+Vehicle Deposit appears as an editable input in two places only:
+1. **`EditVehicleDialog.tsx`** (mobile) — Discount is already here, next to Deposit. ✅
+2. **`src/pages/DesktopDashboard.tsx`** — desktop inline row (VIN / Make / Model / Year / Color / Deposit / Save). ❌ Discount missing.
 
-### Changes
-1. **`src/components/AddVehicleDialog.tsx`** — remove `prepaidAmount` state, the Deposit input block, the `setPrepaidAmount('')` reset, and the `prepaidAmount` field on the `onSave` payload.
-2. **`src/components/AddVehiclePage.tsx`** — same cleanup (state, reset, the `<F label="Deposit ($)">` input, and the `prepaidAmount` on `onSave`).
-3. **No change** to `EditVehicleDialog.tsx` — Deposit and Discount stay there.
-4. **No change** to data model or any totals — vehicles created without a deposit simply have `prepaidAmount = undefined`; existing vehicles keep their deposit and the rest of the app works unchanged.
+The other "Deposit" inputs (`DesktopClientsView.tsx:281`, `DesktopDashboard.tsx:1629`, `ManageClientsDialog.tsx:610`) belong to the **Client** record, not the Vehicle. Since discount is a per-vehicle field, it does not apply there.
+
+So this plan adds the Discount input to the one remaining place.
+
+### Changes — `src/pages/DesktopDashboard.tsx`
+
+1. Extend `vehicleEditData` (line 141) with:
+   - `discountType: 'fixed' | 'percent'`
+   - `discountValue: string`
+2. When opening the editor (line 1686), seed those from `vehicle.discountType` / `vehicle.discountValue`.
+3. After the Deposit input (line 1717), add a compact `$ | %` toggle plus a numeric Input for the discount value (max 100 when percent).
+4. In Save (lines 1729–1736), parse + clamp the value (same logic as `EditVehicleDialog`) and set `discountType` / `discountValue` on the `updates` payload, or `undefined` when blank/0.
+
+No other files change. All math, PDFs, reports, and the client portal already consume `applyLaborDiscount`, so they pick up the new value automatically.

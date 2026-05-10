@@ -1683,7 +1683,7 @@ const DesktopDashboard = () => {
                               <Badge variant="secondary" className="text-xs">{vehicleTasks.length} tasks</Badge>
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                 setEditingVehicleId(vehicle.id);
-                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '' });
+                                setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '', discountType: vehicle.discountType || 'fixed', discountValue: vehicle.discountValue?.toString() || '' });
                               }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>

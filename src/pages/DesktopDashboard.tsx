@@ -1671,13 +1671,17 @@ const DesktopDashboard = () => {
 
                         {/* Totals */}
                         {(() => {
-                          const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          const clientDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks), 0);
+                          const clientRevenue = Math.max(0, clientGross - clientDiscount);
                           const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
                           const clientDep = client.prepaidAmount || 0;
-                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
+                          const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);
                           const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
                           const balanceDue = Math.max(0, unpaidRevenue - vehicleDeps - clientDep);
-                          if (clientRevenue <= 0) return null;
+                          if (clientGross <= 0) return null;
                           return (
                             <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
                               <span className={`font-semibold ${
@@ -1685,8 +1689,9 @@ const DesktopDashboard = () => {
                                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                                 filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
                                 'text-emerald-600 dark:text-emerald-400'
-                              }`}>Total: {formatCurrency(clientRevenue)}</span>
-                              {(vehicleDeps > 0 || clientDep > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              }`}>Total: {formatCurrency(clientGross)}</span>
+                              {clientDiscount > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-bold">Discount: -{formatCurrency(clientDiscount)}</span>}
+                              {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
                               {vehicleDeps > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
                               {clientDep > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
                             </div>

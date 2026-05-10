@@ -67,10 +67,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
     if (activeTasks.find(t => t.carVin.toUpperCase() === vinTrimmed)) {
       toast({ title: 'Duplicate VIN', description: 'This VIN is already on an active task.', variant: 'destructive' }); return;
     }
-    const parsedDiscount = discountValue ? parseFloat(discountValue) : 0;
-    const validDiscount = !isNaN(parsedDiscount) && parsedDiscount > 0
-      ? (discountType === 'percent' ? Math.min(100, Math.max(0, parsedDiscount)) : Math.max(0, parsedDiscount))
-      : 0;
     onSave({
       clientId,
       vin: vinTrimmed,
@@ -79,8 +75,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
       prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
-      discountType: validDiscount > 0 ? discountType : undefined,
-      discountValue: validDiscount > 0 ? validDiscount : undefined,
     });
   };
 

@@ -1839,21 +1839,30 @@ const DesktopDashboard = () => {
                                             </div>
                                           )}
                                           {/* Photos */}
-                                          {(session.photos || []).length > 0 && (
-                                            <div className="flex gap-2 mt-1">
-                                              {session.photos!.filter(p => p.cloudUrl).map(photo => (
-                                                <a key={photo.id} href={photo.cloudUrl} target="_blank" rel="noopener noreferrer">
-                                                  <img src={photo.cloudUrl} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
-                                                </a>
-                                              ))}
-                                              {session.photos!.filter(p => !p.cloudUrl).length > 0 && (
-                                                <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
-                                                  <ImageOff className="h-3 w-3" />
-                                                  {session.photos!.filter(p => !p.cloudUrl).length} device only
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
+                                          {(session.photos || []).length > 0 && (() => {
+                                            const photosWithUrl = (session.photos || []).map(p => {
+                                              const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+                                              const signed = path ? photoSignedUrls[path] : undefined;
+                                              return { photo: p, url: signed || (p.cloudUrl && !p.cloudUrl.includes('/object/public/') ? p.cloudUrl : undefined) };
+                                            });
+                                            const viewable = photosWithUrl.filter(x => x.url);
+                                            const deviceOnly = photosWithUrl.length - viewable.length;
+                                            return (
+                                              <div className="flex gap-2 mt-1">
+                                                {viewable.map(({ photo, url }) => (
+                                                  <a key={photo.id} href={url} target="_blank" rel="noopener noreferrer">
+                                                    <img src={url} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
+                                                  </a>
+                                                ))}
+                                                {deviceOnly > 0 && (
+                                                  <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
+                                                    <ImageOff className="h-3 w-3" />
+                                                    {deviceOnly} device only
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       );
                                     })}

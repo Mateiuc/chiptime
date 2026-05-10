@@ -154,7 +154,6 @@ export const AddVehicleDialog = ({
       model: model || undefined,
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
-      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
     }, clientId ? undefined : clientNameTrimmed, pendingContactData || undefined);
 
     // Reset form

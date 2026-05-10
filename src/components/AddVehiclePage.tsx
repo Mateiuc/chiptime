@@ -41,6 +41,9 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
+  const [prepaidAmount, setPrepaidAmount] = useState('');
+  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+  const [discountValue, setDiscountValue] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
   const [decoded, setDecoded] = useState(false);
   const { toast } = useNotifications();
@@ -66,7 +69,21 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
     if (activeTasks.find(t => t.carVin.toUpperCase() === vinTrimmed)) {
       toast({ title: 'Duplicate VIN', description: 'This VIN is already on an active task.', variant: 'destructive' }); return;
     }
-    onSave({ clientId, vin: vinTrimmed, make: make || undefined, model: model || undefined, year: year ? parseInt(year) : undefined, color: color || undefined });
+    const parsedDiscount = discountValue ? parseFloat(discountValue) : 0;
+    const validDiscount = !isNaN(parsedDiscount) && parsedDiscount > 0
+      ? (discountType === 'percent' ? Math.min(100, Math.max(0, parsedDiscount)) : Math.max(0, parsedDiscount))
+      : 0;
+    onSave({
+      clientId,
+      vin: vinTrimmed,
+      make: make || undefined,
+      model: model || undefined,
+      year: year ? parseInt(year) : undefined,
+      color: color || undefined,
+      prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
+      discountType: validDiscount > 0 ? discountType : undefined,
+      discountValue: validDiscount > 0 ? validDiscount : undefined,
+    });
   };
 
   const vehicleName = [year, make, model].filter(Boolean).join(' ') || 'New Vehicle';
@@ -181,6 +198,16 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
               <F label="Model"><input value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. X5" className={inp} /></F>
               <F label="Year"><input type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="e.g. 2023" min={1900} max={new Date().getFullYear() + 2} className={inp} /></F>
               <F label="Color"><input value={color} onChange={e => setColor(e.target.value)} placeholder="e.g. Black" className={inp} /></F>
+              <F label="Deposit ($)"><input type="number" step="0.01" value={prepaidAmount} onChange={e => setPrepaidAmount(e.target.value)} placeholder="0.00" className={inp} /></F>
+              <F label="Labor Discount">
+                <div className="flex gap-2">
+                  <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+                    <button type="button" onClick={() => setDiscountType('fixed')} className={`px-3 h-9 text-xs font-bold ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>$</button>
+                    <button type="button" onClick={() => setDiscountType('percent')} className={`px-3 h-9 text-xs font-bold border-l border-border ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>%</button>
+                  </div>
+                  <input type="number" step="0.01" min="0" max={discountType === 'percent' ? 100 : undefined} value={discountValue} onChange={e => setDiscountValue(e.target.value)} placeholder={discountType === 'percent' ? '0–100' : '0.00'} className={inp} />
+                </div>
+              </F>
             </div>
           </div>
 

@@ -152,6 +152,40 @@ const DesktopDashboard = () => {
   const [chartShowCompleted, setChartShowCompleted] = useState(true);
   const [chartShowBilled, setChartShowBilled] = useState(true);
   const [chartShowPaid, setChartShowPaid] = useState(true);
+  const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
+
+  // Mint short-lived signed URLs for all cloud session photos so they can be
+  // displayed from the private bucket. Refresh periodically (signed URLs expire).
+  useEffect(() => {
+    const paths = new Set<string>();
+    for (const t of tasks) {
+      for (const s of t.sessions || []) {
+        for (const p of s.photos || []) {
+          const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+          if (path) paths.add(path);
+        }
+      }
+    }
+    if (paths.size === 0) {
+      setPhotoSignedUrls({});
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      const arr = Array.from(paths);
+      const chunks: string[][] = [];
+      for (let i = 0; i < arr.length; i += 200) chunks.push(arr.slice(i, i + 200));
+      const merged: Record<string, string> = {};
+      for (const c of chunks) {
+        const map = await photoStorageService.signPhotoUrls(c);
+        Object.assign(merged, map);
+      }
+      if (!cancelled) setPhotoSignedUrls(merged);
+    };
+    refresh();
+    const id = setInterval(refresh, 50 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [tasks]);
 
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
@@ -442,12 +476,20 @@ const DesktopDashboard = () => {
     doc.text(`Generated: ${ts}`, 107.95, 277.4, { align: 'center' });
 
     // --- Photos section (port from mobile) ---
-    const allPhotos: Array<{ photo: { cloudUrl?: string; base64?: string }; sessionNum: number }> = [];
+    const allPhotos: Array<{ photo: { cloudUrl?: string; cloudPath?: string; base64?: string }; sessionNum: number }> = [];
     (task.sessions || []).forEach((session, idx) => {
       (session.photos || []).forEach(photo => {
         allPhotos.push({ photo, sessionNum: idx + 1 });
       });
     });
+
+    // Pre-mint signed URLs for any cloud photos to avoid expired/public URLs
+    const pdfPaths = Array.from(new Set(
+      allPhotos
+        .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+        .filter((p): p is string => !!p)
+    ));
+    const pdfSigned = pdfPaths.length ? await photoStorageService.signPhotoUrls(pdfPaths) : {};
 
     if (allPhotos.length > 0) {
       doc.addPage();
@@ -477,22 +519,26 @@ const DesktopDashboard = () => {
 
         let photoBase64: string | undefined = item.photo.base64;
 
-        // Fetch from cloudUrl
-        if (!photoBase64 && item.photo.cloudUrl) {
-          try {
-            const response = await fetch(item.photo.cloudUrl);
-            const blob = await response.blob();
-            photoBase64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const result = reader.result as string;
-                resolve(result.split(',')[1]);
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          } catch (fetchError) {
-            console.warn('Failed to fetch photo from cloud:', fetchError);
+        // Fetch from signed cloud URL
+        if (!photoBase64) {
+          const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+          const fetchUrl = (path && pdfSigned[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+          if (fetchUrl) {
+            try {
+              const response = await fetch(fetchUrl);
+              const blob = await response.blob();
+              photoBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (fetchError) {
+              console.warn('Failed to fetch photo from cloud:', fetchError);
+            }
           }
         }
 
@@ -1805,21 +1851,30 @@ const DesktopDashboard = () => {
                                             </div>
                                           )}
                                           {/* Photos */}
-                                          {(session.photos || []).length > 0 && (
-                                            <div className="flex gap-2 mt-1">
-                                              {session.photos!.filter(p => p.cloudUrl).map(photo => (
-                                                <a key={photo.id} href={photo.cloudUrl} target="_blank" rel="noopener noreferrer">
-                                                  <img src={photo.cloudUrl} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
-                                                </a>
-                                              ))}
-                                              {session.photos!.filter(p => !p.cloudUrl).length > 0 && (
-                                                <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
-                                                  <ImageOff className="h-3 w-3" />
-                                                  {session.photos!.filter(p => !p.cloudUrl).length} device only
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
+                                          {(session.photos || []).length > 0 && (() => {
+                                            const photosWithUrl = (session.photos || []).map(p => {
+                                              const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+                                              const signed = path ? photoSignedUrls[path] : undefined;
+                                              return { photo: p, url: signed || (p.cloudUrl && !p.cloudUrl.includes('/object/public/') ? p.cloudUrl : undefined) };
+                                            });
+                                            const viewable = photosWithUrl.filter(x => x.url);
+                                            const deviceOnly = photosWithUrl.length - viewable.length;
+                                            return (
+                                              <div className="flex gap-2 mt-1">
+                                                {viewable.map(({ photo, url }) => (
+                                                  <a key={photo.id} href={url} target="_blank" rel="noopener noreferrer">
+                                                    <img src={url} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
+                                                  </a>
+                                                ))}
+                                                {deviceOnly > 0 && (
+                                                  <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
+                                                    <ImageOff className="h-3 w-3" />
+                                                    {deviceOnly} device only
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       );
                                     })}

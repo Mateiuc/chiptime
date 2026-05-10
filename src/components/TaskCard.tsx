@@ -549,6 +549,14 @@ export const TaskCard = ({
           .filter((fp): fp is string => !!fp);
         
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
+
+        // Pre-mint signed URLs for cloud-only photos
+        const cloudPaths1 = Array.from(new Set(
+          allPhotos
+            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+            .filter((p): p is string => !!p)
+        ));
+        const cloudSigned1 = cloudPaths1.length ? await photoStorageService.signPhotoUrls(cloudPaths1) : {};
         
         doc.addPage();
         
@@ -583,22 +591,26 @@ export const TaskCard = ({
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
 
-          // Fallback to cloudUrl if local photo is missing
-          if (!photoBase64 && item.photo.cloudUrl) {
-            try {
-              const response = await fetch(item.photo.cloudUrl);
-              const blob = await response.blob();
-              photoBase64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  const result = reader.result as string;
-                  resolve(result.split(',')[1]); // strip data:...;base64, prefix
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            } catch (fetchError) {
-              console.warn('Failed to fetch photo from cloud:', fetchError);
+          // Fallback to signed cloud URL if local photo is missing
+          if (!photoBase64) {
+            const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+            const fetchUrl = (path && cloudSigned1[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+            if (fetchUrl) {
+              try {
+                const response = await fetch(fetchUrl);
+                const blob = await response.blob();
+                photoBase64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const result = reader.result as string;
+                    resolve(result.split(',')[1]);
+                  };
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+              } catch (fetchError) {
+                console.warn('Failed to fetch photo from cloud:', fetchError);
+              }
             }
           }
 
@@ -922,6 +934,13 @@ export const TaskCard = ({
           .filter((fp): fp is string => !!fp);
         
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
+
+        const cloudPaths2 = Array.from(new Set(
+          allPhotos
+            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+            .filter((p): p is string => !!p)
+        ));
+        const cloudSigned2 = cloudPaths2.length ? await photoStorageService.signPhotoUrls(cloudPaths2) : {};
         
         doc.addPage();
         
@@ -950,9 +969,31 @@ export const TaskCard = ({
           doc.setFont('helvetica', 'bold');
           doc.text(`Session ${item.sessionNum}`, x, photoYPos);
 
-          const photoBase64 = item.photo.filePath 
+          let photoBase64: string | undefined = item.photo.filePath 
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
+
+          if (!photoBase64) {
+            const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+            const fetchUrl = (path && cloudSigned2[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+            if (fetchUrl) {
+              try {
+                const response = await fetch(fetchUrl);
+                const blob = await response.blob();
+                photoBase64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const result = reader.result as string;
+                    resolve(result.split(',')[1]);
+                  };
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+              } catch (e) {
+                console.warn('Failed to fetch photo from cloud:', e);
+              }
+            }
+          }
 
           if (photoBase64) {
             try {

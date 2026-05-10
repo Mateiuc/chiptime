@@ -329,6 +329,17 @@ class PhotoStorageService {
    * Mint short-lived signed URLs for a batch of private storage paths.
    * Returns a map of path -> signed URL for paths the caller is allowed to read.
    */
+  /**
+   * Derive a storage path from a legacy public/signed cloud URL, e.g.
+   * .../storage/v1/object/public/session-photos/<ws>/<task>/<photo>.jpg
+   * .../storage/v1/object/sign/session-photos/<ws>/<task>/<photo>.jpg?token=...
+   */
+  derivePathFromCloudUrl(url?: string): string | null {
+    if (!url) return null;
+    const m = url.match(/\/session-photos\/([^?#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
   async signPhotoUrls(paths: string[]): Promise<Record<string, string>> {
     if (!paths || paths.length === 0) return {};
     const { data, error } = await supabase.functions.invoke('sign-photo-urls', {

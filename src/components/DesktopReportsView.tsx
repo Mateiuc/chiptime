@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
+import { applyLaborDiscount } from '@/lib/discount';
 
 const CHART_COLORS = [
   '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',

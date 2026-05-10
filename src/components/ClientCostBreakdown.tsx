@@ -152,7 +152,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
       const totalAddKey = sessions.reduce((sum, s) => sum + (s.addKeyCost || 0), 0);
       const totalAllKeysLost = sessions.reduce((sum, s) => sum + (s.allKeysLostCost || 0), 0);
-      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, vehicleTotal: totalLabor + totalParts };
+      const totalDiscount = sessions.reduce((sum, s) => sum + (s.laborDiscount || 0), 0);
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, totalDiscount, vehicleTotal: totalLabor + totalParts };
     })
     .filter(v => v.sessions.length > 0);
 
@@ -163,6 +164,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalMinHourAdj = filteredVehicles.reduce((sum, v) => sum + v.totalMinHourAdj, 0);
   const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
   const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
+  const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
   const grandTotal = grandTotalLabor + grandTotalParts;
 
   const monthlyData = useMemo(() => {
@@ -316,7 +318,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </span>
                             <span className="flex items-center gap-1 font-semibold text-foreground">
                               <DollarSign className="h-3 w-3" />
-                              {formatCurrency(session.laborCost - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
+                              {formatCurrency(session.laborCost + (session.laborDiscount || 0) - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                             </span>
                           </div>
 
@@ -328,13 +330,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </div>
                           )}
 
-                          {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0) && (
+                          {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0 || (session.laborDiscount || 0) > 0) && (
                             <div className="ml-7 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
                               {(session.minHourAdj || 0) > 0 && <span>🚩 Min 1hr: {formatCurrency(session.minHourAdj)}</span>}
                               {(session.cloningCost || 0) > 0 && <span>📋 Cloning: {formatCurrency(session.cloningCost)}</span>}
                               {(session.programmingCost || 0) > 0 && <span>💻 Programming: {formatCurrency(session.programmingCost)}</span>}
                               {(session.addKeyCost || 0) > 0 && <span>🔑 Add Key: {formatCurrency(session.addKeyCost)}</span>}
                               {(session.allKeysLostCost || 0) > 0 && <span>🗝️ All Keys Lost: {formatCurrency(session.allKeysLostCost)}</span>}
+                              {(session.laborDiscount || 0) > 0 && <span className="text-emerald-600 dark:text-emerald-400">🏷️ Discount: -{formatCurrency(session.laborDiscount)}</span>}
                             </div>
                           )}
 
@@ -374,12 +377,13 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
                       {/* Vehicle subtotal */}
                       <div className={`mx-3 mb-3 px-3 py-2 rounded-lg text-xs space-y-0.5 ${color.card}`}>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor + (vehicleSummary.totalDiscount || 0) - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
                         {vehicleSummary.totalMinHourAdj > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Min 1 Hour:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalMinHourAdj)}</span></div>}
                         {vehicleSummary.totalCloning > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Cloning:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalCloning)}</span></div>}
                         {vehicleSummary.totalProgramming > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Programming:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalProgramming)}</span></div>}
                         {(vehicleSummary.totalAddKey || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Add Key:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAddKey)}</span></div>}
                         {(vehicleSummary.totalAllKeysLost || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">All Keys Lost:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAllKeysLost)}</span></div>}
+                        {(vehicleSummary.totalDiscount || 0) > 0 && <div className="flex justify-between text-emerald-600 dark:text-emerald-400"><span>Discount{vehicleSummary.discountType === 'percent' ? ` (${vehicleSummary.discountValue}%)` : ''}:</span><span className="font-semibold">-{formatCurrency(vehicleSummary.totalDiscount)}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Parts:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span></div>
                         <div className="flex justify-between font-bold text-sm border-t border-border/30 pt-1 mt-1"><span>Vehicle total:</span><span>{formatCurrency(vehicleSummary.vehicleTotal)}</span></div>
                         {deposit > 0 && (
@@ -403,12 +407,13 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           {/* Grand total */}
           <Card className="border-2 border-primary/30 md:max-w-lg md:mx-auto shadow-md" style={{ background: 'var(--color-background-primary, white)' }}>
             <CardContent className="p-4 space-y-1">
-              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
+              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor + grandTotalDiscount - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
               {grandTotalMinHourAdj > 0 && <div className="flex justify-between text-sm"><span>Min 1 Hour:</span><span className="font-semibold">{formatCurrency(grandTotalMinHourAdj)}</span></div>}
               {grandTotalCloning > 0 && <div className="flex justify-between text-sm"><span>Cloning:</span><span className="font-semibold">{formatCurrency(grandTotalCloning)}</span></div>}
               {grandTotalProgramming > 0 && <div className="flex justify-between text-sm"><span>Programming:</span><span className="font-semibold">{formatCurrency(grandTotalProgramming)}</span></div>}
               {grandTotalAddKey > 0 && <div className="flex justify-between text-sm"><span>Add Key:</span><span className="font-semibold">{formatCurrency(grandTotalAddKey)}</span></div>}
               {grandTotalAllKeysLost > 0 && <div className="flex justify-between text-sm"><span>All Keys Lost:</span><span className="font-semibold">{formatCurrency(grandTotalAllKeysLost)}</span></div>}
+              {grandTotalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400"><span>Total Discount:</span><span className="font-semibold">-{formatCurrency(grandTotalDiscount)}</span></div>}
               <div className="flex justify-between text-sm"><span>Total Parts:</span><span className="font-semibold">{formatCurrency(grandTotalParts)}</span></div>
               <div className={`flex justify-between text-lg font-bold border-t pt-2 mt-2 ${
                 filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :

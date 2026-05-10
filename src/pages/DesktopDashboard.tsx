@@ -315,7 +315,9 @@ const DesktopDashboard = () => {
     const laborCost = task.importedSalary != null ? task.importedSalary : (baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
-    const total = laborCost + partsCost;
+    const { discount: laborDiscount, laborAfter } =
+      task.billedAmount != null ? { discount: 0, laborAfter: laborCost } : applyLaborDiscount(laborCost, vehicle);
+    const total = laborAfter + partsCost;
 
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);
@@ -452,20 +454,38 @@ const DesktopDashboard = () => {
     // Prepaid & Total
     yPos = 261;
     const prepaid = vehicle.prepaidAmount || 0;
-    if (prepaid > 0) {
+    const showDiscount = laborDiscount > 0;
+    const showDeposit = prepaid > 0;
+    const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
+    yPos = 261 - 7 * extraLines;
+    const totalX = col3X - 45;
+    if (extraLines > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text('Subtotal:', col3X - 45, yPos - 14);
-      doc.text(formatCurrency(total), col3X + 2, yPos - 14, { align: 'right' });
-      doc.setTextColor(200, 0, 0);
-      doc.text('Deposit:', col3X - 45, yPos - 7);
-      doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos - 7, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
+      doc.text('Subtotal:', totalX, yPos);
+      doc.text(formatCurrency(laborCost + partsCost), col3X + 2, yPos, { align: 'right' });
+      yPos += 7;
+      if (showDiscount) {
+        doc.setFontSize(11);
+        doc.setTextColor(22, 163, 74);
+        const dLabel = vehicle.discountType === 'percent' ? `Discount (${vehicle.discountValue}%):` : 'Discount:';
+        doc.text(dLabel, totalX, yPos);
+        doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 7;
+      }
+      if (showDeposit) {
+        doc.setTextColor(200, 0, 0);
+        doc.text('Deposit:', totalX, yPos);
+        doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 7;
+      }
     }
     const finalTotal = Math.max(0, total - prepaid);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', col3X - 45, yPos);
+    doc.text('TOTAL:', totalX, yPos);
     doc.text(formatCurrency(finalTotal), col3X + 2, yPos, { align: 'right' });
 
     // Timestamp
@@ -1781,6 +1801,11 @@ const DesktopDashboard = () => {
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
+                                        {task.billedAmount == null && vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
+                                          <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/40 bg-emerald-500/10">
+                                            🏷 {vehicle.discountType === 'percent' ? `-${vehicle.discountValue}%` : `-${formatCurrency(vehicle.discountValue || 0)}`}
+                                          </Badge>
+                                        )}
                                         {task.needsFollowUp && (
                                           <Badge variant="outline" className="text-xs text-orange-600 border-orange-400/50 bg-orange-500/10">
                                             ⚑ Follow-up

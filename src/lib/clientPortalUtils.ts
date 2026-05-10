@@ -184,9 +184,24 @@ export function calculateClientCosts(
         s.periods.reduce((sum, p) => sum + p.duration, 0)
       );
       const taskTotalDuration = sessionDurations.reduce((a, b) => a + b, 0);
+      // Real per-session parts cost — always computed (even for billed/paid)
+      // so the Parts subtotal in the portal reflects actual parts.
+      // importedSalary tasks intentionally have no parts surfaced.
+      const sessionPartsCosts = task.sessions.map(s =>
+        task.importedSalary != null
+          ? 0
+          : (s.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0)
+      );
+      const taskTotalParts = sessionPartsCosts.reduce((a, b) => a + b, 0);
       const lockedTaskTotal = task.billedAmount != null
         ? task.billedAmount
         : task.importedSalary != null ? task.importedSalary : null;
+      // For locked tasks, split the total into a labor pool (= total - parts)
+      // distributed across sessions, plus the real per-session parts on top.
+      // Sum still equals lockedTaskTotal so vehicleTotal stays unchanged.
+      const lockedLaborPool = lockedTaskTotal != null
+        ? Math.max(0, lockedTaskTotal - taskTotalParts)
+        : null;
       let lockedAllocated = 0;
       task.sessions.forEach((session, sIdx) => {
         const duration = sessionDurations[sIdx];
@@ -196,18 +211,18 @@ export function calculateClientCosts(
         let sessionProgrammingCost = 0;
         let sessionAddKeyCost = 0;
         let sessionAllKeysLostCost = 0;
-        let sessionPartsCost = 0;
-        if (lockedTaskTotal != null) {
+        let sessionPartsCost = sessionPartsCosts[sIdx];
+        if (lockedLaborPool != null) {
           const isLast = sIdx === task.sessions.length - 1;
           if (isLast) {
-            // Give the last session the remainder so per-session pieces
-            // always sum exactly to the locked task total.
-            laborCost = Math.max(0, lockedTaskTotal - lockedAllocated);
+            // Give the last session the remainder so per-session labor
+            // pieces always sum exactly to the locked labor pool.
+            laborCost = Math.max(0, lockedLaborPool - lockedAllocated);
           } else {
             const share = taskTotalDuration > 0
               ? duration / taskTotalDuration
               : 1 / task.sessions.length;
-            laborCost = Math.round(lockedTaskTotal * share);
+            laborCost = Math.round(lockedLaborPool * share);
             lockedAllocated += laborCost;
           }
         } else {
@@ -225,7 +240,6 @@ export function calculateClientCosts(
           sessionAddKeyCost = (session.isAddKey && addKeyRate > 0) ? addKeyRate : 0;
           sessionAllKeysLostCost = (session.isAllKeysLost && allKeysLostRate > 0) ? allKeysLostRate : 0;
           laborCost = Math.ceil(baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost + sessionAddKeyCost + sessionAllKeysLostCost);
-          sessionPartsCost = (session.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0);
         }
 
         // Per-vehicle labor discount: track ALL task labor (including billed/paid)

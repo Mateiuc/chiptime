@@ -855,22 +855,22 @@ const DesktopDashboard = () => {
     const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
     const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
     const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    const unbilledLabor = vehicleTasks
-      .filter(t => t.billedAmount == null && t.importedSalary == null)
-      .reduce((sum, task) => {
-        const labor = (task.sessions || []).reduce((total, session) => {
-          const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
-          const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-          let sc = (effectiveTime / 3600) * rate;
-          if (session.isCloning && cloningRate > 0) sc += cloningRate;
-          if (session.isProgramming && programmingRate > 0) sc += programmingRate;
-          if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
-          if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
-          return total + sc;
-        }, 0);
-        return sum + labor;
+    const discountableLabor = vehicleTasks.reduce((sum, task) => {
+      if (task.billedAmount != null) return sum + task.billedAmount;
+      if (task.importedSalary != null) return sum + task.importedSalary;
+      const labor = (task.sessions || []).reduce((total, session) => {
+        const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
+        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
+        let sc = (effectiveTime / 3600) * rate;
+        if (session.isCloning && cloningRate > 0) sc += cloningRate;
+        if (session.isProgramming && programmingRate > 0) sc += programmingRate;
+        if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
+        return total + sc;
       }, 0);
-    return applyLaborDiscount(unbilledLabor, vehicle).discount;
+      return sum + labor;
+    }, 0);
+    return applyLaborDiscount(discountableLabor, vehicle).discount;
   };
 
   // --- Money Over Time chart data ---

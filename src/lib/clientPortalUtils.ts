@@ -655,7 +655,7 @@ if(v.vin)h+='<div class="vin">VIN: '+esc(v.vin)+'</div>';
 h+='</div>';
 v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
-var baseLab=ss.lc-(ss.mha||0)-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
+var baseLab=(ss.lc+(ss.ld||0))-(ss.mha||0)-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
 h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(baseLab)+'</b></span></div>';
 if(ss.pds&&ss.pds.length>0){ss.pds.forEach(function(pd){h+='<div class="extra-line">🕐 <span style="color:#22c55e;font-weight:600">'+fmtTime(pd[0])+'</span> → <span style="color:#ef4444;font-weight:600">'+fmtTime(pd[1])+'</span></div>'})}
 if(ss.mha&&ss.mha>0)h+='<div class="extra-line">🚩 Min 1 Hour: <b>'+fmt(ss.mha)+'</b></div>';
@@ -663,6 +663,7 @@ if(ss.clc&&ss.clc>0)h+='<div class="extra-line">📋 Cloning: <b>'+fmt(ss.clc)+'
 if(ss.prc&&ss.prc>0)h+='<div class="extra-line">💻 Programming: <b>'+fmt(ss.prc)+'</b></div>';
 if(ss.akc&&ss.akc>0)h+='<div class="extra-line">🔑 Add Key: <b>'+fmt(ss.akc)+'</b></div>';
 if(ss.aklc&&ss.aklc>0)h+='<div class="extra-line">🗝️ All Keys Lost: <b>'+fmt(ss.aklc)+'</b></div>';
+if(ss.ld&&ss.ld>0)h+='<div class="extra-line" style="color:#22c55e">🏷️ Discount: <b>-'+fmt(ss.ld)+'</b></div>';
 if(ss.ph&&ss.ph.length>0){
 h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
 ss.ph.forEach(function(url,pi){h+='<img src="'+esc(url)+'" onclick="openLB('+JSON.stringify(ss.ph)+','+pi+')" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer" loading="lazy">'});
@@ -676,13 +677,14 @@ h+='</table><div style="text-align:right;font-size:11px;font-weight:600;margin-t
 }
 h+='<div style="text-align:right;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:4px;margin-top:8px">Session Total: '+fmt(ss.lc+ss.pc)+'</div></div>';
 });
-var vBaseLab=v.tl-(v.tmh||0)-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
+var vBaseLab=(v.tl+(v.td||0))-(v.tmh||0)-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
 h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(vBaseLab)+'</b></span></div>';
 if(v.tmh&&v.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(v.tmh)+'</b></span></div>';
 if(v.tcl&&v.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(v.tcl)+'</b></span></div>';
 if(v.tpr&&v.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(v.tpr)+'</b></span></div>';
 if(v.tak&&v.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(v.tak)+'</b></span></div>';
 if(v.takl&&v.takl>0)h+='<div class="row"><span>All Keys Lost:</span><span><b>'+fmt(v.takl)+'</b></span></div>';
+if(v.td&&v.td>0)h+='<div class="row" style="color:#22c55e"><span>Discount'+(v.dt==="percent"?" ("+v.dv+"%)":"")+':</span><span><b>-'+fmt(v.td)+'</b></span></div>';
 h+='<div class="row"><span>Vehicle Parts:</span><span><b>'+fmt(v.tp)+'</b></span></div><div class="row total"><span>Vehicle Total:</span><span>'+fmt(v.vt)+'</span></div>';
 if(v.pa&&v.pa>0){h+='<div class="row" style="color:#ef4444"><span>Deposit:</span><span><b>-'+fmt(v.pa)+'</b></span></div><div class="row total" style="color:#f97316"><span>Balance Due:</span><span>'+fmt(Math.max(0,v.vt-v.pa))+'</span></div>';}
 h+='</div></div>';

@@ -153,6 +153,7 @@ export function calculateClientCosts(
   let grandTotalAddKey = 0;
   let grandTotalAllKeysLost = 0;
   let grandTotalMinHourAdj = 0;
+  let grandTotalDiscount = 0;
 
   const vehicleSummaries: VehicleCostSummary[] = clientVehicles.map(vehicle => {
     const vehicleTasks = tasks.filter(t => t.vehicleId === vehicle.id);
@@ -163,6 +164,7 @@ export function calculateClientCosts(
     let totalAddKey = 0;
     let totalAllKeysLost = 0;
     let totalMinHourAdj = 0;
+    let totalDiscount = 0;
     
     const sessions: SessionCostDetail[] = [];
 

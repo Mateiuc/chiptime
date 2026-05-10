@@ -210,12 +210,12 @@ export function calculateClientCosts(
           sessionPartsCost = (session.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0);
         }
 
-        // Apply per-vehicle labor discount on un-billed tasks only
+        // Per-vehicle labor discount: track un-billed labor; the actual
+        // discount is computed ONCE per vehicle below (so a fixed-dollar
+        // discount isn't multiplied across multiple tasks).
         let sessionDiscount = 0;
         if (task.billedAmount == null) {
-          const { discount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
-          sessionDiscount = discount;
-          laborCost = laborAfter;
+          unbilledLabor += laborCost;
         }
 
         totalLabor += laborCost;
@@ -225,7 +225,6 @@ export function calculateClientCosts(
         totalAddKey += sessionAddKeyCost;
         totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
-        totalDiscount += sessionDiscount;
 
         // Only attach diagnostic PDF to the first session of each task
         const showDiagnostic = !diagnosticShown && !!task.diagnosticPdfUrl;

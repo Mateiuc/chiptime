@@ -38,8 +38,6 @@ export const AddVehicleDialog = ({
   const [year, setYear] = useState('');
   const [color, setColor] = useState('');
   const [prepaidAmount, setPrepaidAmount] = useState('');
-  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
-  const [discountValue, setDiscountValue] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
   const [showVinScanner, setShowVinScanner] = useState(false);
   const {
@@ -149,10 +147,6 @@ export const AddVehicleDialog = ({
 
     // Determine final clientId (will be generated in parent if creating new client)
     const finalClientId = clientId || 'pending';
-    const parsedDiscount = discountValue ? parseFloat(discountValue) : 0;
-    const validDiscount = !isNaN(parsedDiscount) && parsedDiscount > 0
-      ? (discountType === 'percent' ? Math.min(100, Math.max(0, parsedDiscount)) : Math.max(0, parsedDiscount))
-      : 0;
     onSave({
       clientId: finalClientId,
       vin: vinTrimmed,
@@ -161,8 +155,6 @@ export const AddVehicleDialog = ({
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
       prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
-      discountType: validDiscount > 0 ? discountType : undefined,
-      discountValue: validDiscount > 0 ? validDiscount : undefined,
     }, clientId ? undefined : clientNameTrimmed, pendingContactData || undefined);
 
     // Reset form
@@ -175,8 +167,6 @@ export const AddVehicleDialog = ({
     setYear('');
     setColor('');
     setPrepaidAmount('');
-    setDiscountValue('');
-    setDiscountType('fixed');
     onOpenChange(false);
   };
   return <>
@@ -254,35 +244,6 @@ export const AddVehicleDialog = ({
               onChange={e => setPrepaidAmount(e.target.value)}
               placeholder="0.00"
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Labor Discount</Label>
-            <div className="flex gap-2">
-              <div className="flex rounded-md border-2 border-input overflow-hidden shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setDiscountType('fixed')}
-                  className={`px-3 h-10 text-sm font-bold ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
-                >$</button>
-                <button
-                  type="button"
-                  onClick={() => setDiscountType('percent')}
-                  className={`px-3 h-10 text-sm font-bold border-l-2 border-input ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
-                >%</button>
-              </div>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max={discountType === 'percent' ? 100 : undefined}
-                value={discountValue}
-                onChange={e => setDiscountValue(e.target.value)}
-                placeholder={discountType === 'percent' ? '0–100' : '0.00'}
-                className="flex-1"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">Applied to each task's labor for this vehicle.</p>
           </div>
         </div>
 

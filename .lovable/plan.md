@@ -1,71 +1,35 @@
 ## Goal
 
-Surface the per-vehicle labor discount on the desktop dashboard the same way deposits are surfaced today: as a chip on the vehicle row and the client header, with the math reading **Gross → Discount → Deposit → Balance Due**.
+Today the per-vehicle discount only applies to un-billed tasks, because once a task is billed its `billedAmount` is treated as a locked, post-everything number. You want the discount to keep working on **Billed** and **Paid** tasks too, and to be visible on all tabs of the portal, on the bill PDF, and on the desktop dashboard.
 
-## Current behaviour (problem)
+## Approach
 
-- Vehicle row shows: `$3,500  Deposit: $100  Balance Due: $3,400`
-- Client header shows: `Total: $3,500  Due: $3,400  Car Deposits: $100`
-- The `$3,500` is already **post-discount**; the $203 discount only appears as a tiny `-$203` badge on a single task. There is no Discount chip alongside Deposit, and you can't see what the gross was.
+Treat `task.billedAmount` (and `task.importedSalary`) as the **gross labor** for that task — the discount is then re-applied on top, the same way it is for un-billed tasks. Nothing about how the bill is created changes; the discount just stops being skipped when status flips to billed/paid.
 
-## Target behaviour
+## Changes
 
-When the vehicle has a discount and there are un-billed tasks, the headers read:
+### 1. `src/pages/DesktopDashboard.tsx`
+- `getTaskCost(task)` (~line 794): remove the `if (task.billedAmount != null) return task.billedAmount;` short-circuit. Pass `task.billedAmount` (or `importedSalary`) into `applyLaborDiscount(labor, vehicle)` and add `partsCost` after, just like the un-billed branch.
+- `generateBillPdf` (~line 319): remove the `task.billedAmount != null ? { discount: 0 } : applyLaborDiscount(...)` branch — always call `applyLaborDiscount`. Render a "Discount" line on the PDF whenever `discount > 0` (mirrors the un-billed layout).
+- `getVehicleDiscount` / `getTaskCostGross` (~lines 821, 857-871): drop the `t.billedAmount == null && t.importedSalary == null` filter so billed/paid labor is included in `unbilledLabor` (rename it `discountableLabor`). Vehicle/client header chips will then show Discount on Billed/Paid views too.
 
-- Vehicle row: `$3,703  Discount: -$203  Deposit: -$100  Balance Due: $3,400`
-- Client header: `Total: $3,703  Discount: $203  Car Deposits: $100  Due: $3,400`
+### 2. `src/lib/clientPortalUtils.ts` (`calculateClientCosts`, ~line 189-264)
+- Keep the `billedAmount`/`importedSalary` branch that sets `laborCost`, but **remove** the `if (task.billedAmount == null)` guard around `unbilledLabor += laborCost;`. Rename to `discountableLabor` for clarity.
+- The single `applyLaborDiscount(discountableLabor, vehicle)` call at the bottom now covers all sessions.
 
-When no discount is set, layout is unchanged.
+### 3. `src/components/ClientCostBreakdown.tsx` (~line 156-160)
+- Remove the `s.status !== 'billed' && s.status !== 'paid'` filter. Sum labor from **all** filtered sessions and apply the per-vehicle discount, so the Discount line and adjusted total show on Billed and Paid tabs too.
 
-## Implementation
+### 4. `src/components/TaskCard.tsx` (~line 1398 + `generateBillingPDF` ~line 318)
+- Drop the `task.billedAmount != null` short-circuit before `applyLaborDiscount` so the per-task chip and the bill PDF generated from the mobile card both reflect the discount on billed/paid tasks.
 
-### 1. New helper next to `getTaskCost` (`src/pages/DesktopDashboard.tsx`)
+### 5. `src/components/DesktopReportsView.tsx` (~line 143-177)
+- Same treatment in the reports cost helper: pass billed/imported labor through `applyLaborDiscount` instead of returning it as-is, so analytics labor cost stays consistent with what the client sees.
 
-Add `getTaskCostGross(task)` — same as `getTaskCost` but **does not** call `applyLaborDiscount`. Returns labor + parts before the per-vehicle discount. Billed/imported tasks return their locked amount unchanged (their discount is already baked in).
+## Out of scope
+- The "lock" of `task.billedAmount` itself stays as the source of truth for the labor amount (so editing periods after billing doesn't change the bill). Only the discount is unlocked, per your request.
+- No schema or storage changes. No portal sync changes (slim payload already carries `dt`/`dv` and per-session labor).
 
-Also add a tiny `getVehicleDiscount(vehicle, vehicleTasks)` that:
-- sums labor of un-billed tasks (not `billedAmount`, not `importedSalary`)
-- returns `applyLaborDiscount(unbilledLabor, vehicle).discount` (one-time per vehicle, matching the fix already shipped to the portal)
-
-### 2. Vehicle row header (around lines 1666–1701)
-
-Replace the current `vehicleCost` / Deposit / Balance Due block with:
-
-```text
-vehicleGross   = sum(getTaskCostGross(t))
-vehicleDiscount = getVehicleDiscount(vehicle, tasks)
-deposit        = vehicle.prepaidAmount || 0
-balanceDue     = max(0, vehicleGross - vehicleDiscount - deposit)   // for un-paid tasks only
-```
-
-Render in this order:
-1. `formatCurrency(vehicleGross)` — main number (green/amber/blue per existing status logic)
-2. `Discount: -$X` — emerald, only when `vehicleDiscount > 0`
-3. `Deposit: $Y` — destructive red, only when `deposit > 0` (existing styling)
-4. `Balance Due: $Z` or `Paid` — orange/emerald (existing logic, recomputed)
-
-### 3. Client header summary (around lines 1619–1638 and the parallel block ~1288)
-
-```text
-clientGross    = sum over vehicles of vehicleGross
-clientDiscount = sum over vehicles of vehicleDiscount
-vehicleDeps    = sum of vehicle.prepaidAmount
-clientDep      = client.prepaidAmount
-unpaidGross    = sum(getTaskCostGross) for tasks where status !== 'paid'
-balanceDue     = max(0, unpaidGross - clientDiscount(unpaid only) - vehicleDeps - clientDep)
-```
-
-Render: `Total: $gross` → `Discount: $X` (emerald, when > 0) → `Due: $balance` → `Car Deposits` → `Client Deposit`.
-
-### 4. Per-task badge (line 1804)
-
-Keep the small `🏷 -10%` / `🏷 -$203` badge on un-billed tasks for at-a-glance scanning. The chip is informational; the actual amount is now reflected in the vehicle/client totals above.
-
-### 5. Anywhere `getTaskCost` is summed for a "revenue" header
-
-Audit the other call sites that feed the same headers (lines 1288, 1339, 1619, 1666, 1937 — chart + Expected Gain). Update only the ones that drive the **vehicle/client revenue chips** to use `getTaskCostGross` so the headline matches the new "gross" presentation. Leave analytics/chart series (`monthlyRevenueData`, Expected Gain) on `getTaskCost` (post-discount) so reports keep showing actual money earned — discounts shouldn't inflate revenue charts.
-
-### Out of scope
-
-- Mobile UI, bill PDF, client portal — already updated in the previous turn.
-- `applyLaborDiscount` math and per-task `billedAmount` locking behaviour — unchanged.
+## Verification
+- Apply a 10% / fixed discount on a vehicle that has at least one Pending, one Billed, and one Paid task.
+- Check on **Desktop dashboard** vehicle/client headers, **Bill PDF**, and **Client Portal** Pending / Billed / Paid tabs that the Discount line is shown and the total is reduced consistently.

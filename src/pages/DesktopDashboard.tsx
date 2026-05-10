@@ -519,22 +519,26 @@ const DesktopDashboard = () => {
 
         let photoBase64: string | undefined = item.photo.base64;
 
-        // Fetch from cloudUrl
-        if (!photoBase64 && item.photo.cloudUrl) {
-          try {
-            const response = await fetch(item.photo.cloudUrl);
-            const blob = await response.blob();
-            photoBase64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const result = reader.result as string;
-                resolve(result.split(',')[1]);
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          } catch (fetchError) {
-            console.warn('Failed to fetch photo from cloud:', fetchError);
+        // Fetch from signed cloud URL
+        if (!photoBase64) {
+          const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+          const fetchUrl = (path && pdfSigned[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+          if (fetchUrl) {
+            try {
+              const response = await fetch(fetchUrl);
+              const blob = await response.blob();
+              photoBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (fetchError) {
+              console.warn('Failed to fetch photo from cloud:', fetchError);
+            }
           }
         }
 

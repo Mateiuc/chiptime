@@ -934,6 +934,13 @@ export const TaskCard = ({
           .filter((fp): fp is string => !!fp);
         
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
+
+        const cloudPaths2 = Array.from(new Set(
+          allPhotos
+            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+            .filter((p): p is string => !!p)
+        ));
+        const cloudSigned2 = cloudPaths2.length ? await photoStorageService.signPhotoUrls(cloudPaths2) : {};
         
         doc.addPage();
         

@@ -154,6 +154,39 @@ const DesktopDashboard = () => {
   const [chartShowPaid, setChartShowPaid] = useState(true);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
 
+  // Mint short-lived signed URLs for all cloud session photos so they can be
+  // displayed from the private bucket. Refresh periodically (signed URLs expire).
+  useEffect(() => {
+    const paths = new Set<string>();
+    for (const t of tasks) {
+      for (const s of t.sessions || []) {
+        for (const p of s.photos || []) {
+          const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+          if (path) paths.add(path);
+        }
+      }
+    }
+    if (paths.size === 0) {
+      setPhotoSignedUrls({});
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      const arr = Array.from(paths);
+      const chunks: string[][] = [];
+      for (let i = 0; i < arr.length; i += 200) chunks.push(arr.slice(i, i + 200));
+      const merged: Record<string, string> = {};
+      for (const c of chunks) {
+        const map = await photoStorageService.signPhotoUrls(c);
+        Object.assign(merged, map);
+      }
+      if (!cancelled) setPhotoSignedUrls(merged);
+    };
+    refresh();
+    const id = setInterval(refresh, 50 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [tasks]);
+
   // --- XLS Import handler ---
   const handleImportXls = async (file: File, clientId: string) => {
     try {

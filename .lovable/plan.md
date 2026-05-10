@@ -1,35 +1,41 @@
-## Goal
+## Problem
 
-Today the per-vehicle discount only applies to un-billed tasks, because once a task is billed its `billedAmount` is treated as a locked, post-everything number. You want the discount to keep working on **Billed** and **Paid** tasks too, and to be visible on all tabs of the portal, on the bill PDF, and on the desktop dashboard.
+In the client portal, billed/paid tasks show the full task labor on **session 1** and **$0** on every following session of the same task. Example from your screenshot: a Mercedes task with 3 sessions shows `$5,191` on Jan 9 and `$0` on Jan 12 / Jan 13.
 
-## Approach
+## Cause
 
-Treat `task.billedAmount` (and `task.importedSalary`) as the **gross labor** for that task — the discount is then re-applied on top, the same way it is for un-billed tasks. Nothing about how the bill is created changes; the discount just stops being skipped when status flips to billed/paid.
+`task.billedAmount` (and `task.importedSalary`) are stored **per task**, not per session. In `src/lib/clientPortalUtils.ts` (`calculateClientCosts`), the code dumps the whole amount on the first session it processes and assigns `0` to every other session of the same task:
 
-## Changes
+```ts
+if (task.billedAmount != null) {
+  laborCost = importedSalaryApplied ? 0 : task.billedAmount;
+  importedSalaryApplied = true;
+}
+```
 
-### 1. `src/pages/DesktopDashboard.tsx`
-- `getTaskCost(task)` (~line 794): remove the `if (task.billedAmount != null) return task.billedAmount;` short-circuit. Pass `task.billedAmount` (or `importedSalary`) into `applyLaborDiscount(labor, vehicle)` and add `partsCost` after, just like the un-billed branch.
-- `generateBillPdf` (~line 319): remove the `task.billedAmount != null ? { discount: 0 } : applyLaborDiscount(...)` branch — always call `applyLaborDiscount`. Render a "Discount" line on the PDF whenever `discount > 0` (mirrors the un-billed layout).
-- `getVehicleDiscount` / `getTaskCostGross` (~lines 821, 857-871): drop the `t.billedAmount == null && t.importedSalary == null` filter so billed/paid labor is included in `unbilledLabor` (rename it `discountableLabor`). Vehicle/client header chips will then show Discount on Billed/Paid views too.
+Vehicle/total math is correct (the amount is counted once), but the **per-session display** is wrong: clients see $0 lines that look like errors.
 
-### 2. `src/lib/clientPortalUtils.ts` (`calculateClientCosts`, ~line 189-264)
-- Keep the `billedAmount`/`importedSalary` branch that sets `laborCost`, but **remove** the `if (task.billedAmount == null)` guard around `unbilledLabor += laborCost;`. Rename to `discountableLabor` for clarity.
-- The single `applyLaborDiscount(discountableLabor, vehicle)` call at the bottom now covers all sessions.
+## Fix
 
-### 3. `src/components/ClientCostBreakdown.tsx` (~line 156-160)
-- Remove the `s.status !== 'billed' && s.status !== 'paid'` filter. Sum labor from **all** filtered sessions and apply the per-vehicle discount, so the Discount line and adjusted total show on Billed and Paid tabs too.
+Distribute the task's billed/imported labor across that task's sessions, **proportional to each session's duration**. Totals stay identical; only the per-session breakdown changes.
 
-### 4. `src/components/TaskCard.tsx` (~line 1398 + `generateBillingPDF` ~line 318)
-- Drop the `task.billedAmount != null` short-circuit before `applyLaborDiscount` so the per-task chip and the bill PDF generated from the mobile card both reflect the discount on billed/paid tasks.
+### Change in `src/lib/clientPortalUtils.ts` (`calculateClientCosts`)
 
-### 5. `src/components/DesktopReportsView.tsx` (~line 143-177)
-- Same treatment in the reports cost helper: pass billed/imported labor through `applyLaborDiscount` instead of returning it as-is, so analytics labor cost stays consistent with what the client sees.
+1. Before iterating `task.sessions.forEach(...)`, compute `taskTotalDuration` for the task.
+2. For each session, compute `sessionShare = taskTotalDuration > 0 ? duration / taskTotalDuration : 1 / task.sessions.length`.
+3. Replace the `importedSalaryApplied` short-circuit with proportional allocation:
+   - `if (task.billedAmount != null)` → `laborCost = round(task.billedAmount * sessionShare)`
+   - `else if (task.importedSalary != null)` → `laborCost = round(task.importedSalary * sessionShare)`
+4. To avoid rounding drift, give the **last session** the remainder (`taskTotal - sum of previous sessions`) so the per-session pieces always sum back to the locked task total.
+5. Remove the `importedSalaryApplied` flag — no longer needed.
 
-## Out of scope
-- The "lock" of `task.billedAmount` itself stays as the source of truth for the labor amount (so editing periods after billing doesn't change the bill). Only the discount is unlocked, per your request.
-- No schema or storage changes. No portal sync changes (slim payload already carries `dt`/`dv` and per-session labor).
+### Out of scope
+
+- No changes to vehicle/client totals, discount math, bill PDF, or desktop dashboard — they already use the per-task locked amount and remain correct.
+- No schema changes. No portal sync changes (the slim payload already carries `lc` per session).
 
 ## Verification
-- Apply a 10% / fixed discount on a vehicle that has at least one Pending, one Billed, and one Paid task.
-- Check on **Desktop dashboard** vehicle/client headers, **Bill PDF**, and **Client Portal** Pending / Billed / Paid tabs that the Discount line is shown and the total is reduced consistently.
+
+- Open the same client portal: each session under a billed/paid task now shows a sensible dollar amount, and the sum across sessions equals the locked task total shown on the vehicle header.
+- Pending tasks unchanged.
+- `Hours × rate` still matches roughly because allocation is duration-weighted.

@@ -170,6 +170,7 @@ export function calculateClientCosts(
     let totalAllKeysLost = 0;
     let totalMinHourAdj = 0;
     let totalDiscount = 0;
+    let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
 
@@ -209,12 +210,12 @@ export function calculateClientCosts(
           sessionPartsCost = (session.parts || []).reduce((sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity), 0);
         }
 
-        // Apply per-vehicle labor discount on un-billed tasks only
+        // Per-vehicle labor discount: track un-billed labor; the actual
+        // discount is computed ONCE per vehicle below (so a fixed-dollar
+        // discount isn't multiplied across multiple tasks).
         let sessionDiscount = 0;
         if (task.billedAmount == null) {
-          const { discount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
-          sessionDiscount = discount;
-          laborCost = laborAfter;
+          unbilledLabor += laborCost;
         }
 
         totalLabor += laborCost;
@@ -224,7 +225,6 @@ export function calculateClientCosts(
         totalAddKey += sessionAddKeyCost;
         totalAllKeysLost += sessionAllKeysLostCost;
         totalMinHourAdj += minHourAdj;
-        totalDiscount += sessionDiscount;
 
         // Only attach diagnostic PDF to the first session of each task
         const showDiagnostic = !diagnosticShown && !!task.diagnosticPdfUrl;
@@ -260,6 +260,10 @@ export function calculateClientCosts(
       });
     });
 
+    // Compute the per-vehicle discount once, against total un-billed labor.
+    const { discount: vehicleDiscount } = applyLaborDiscount(unbilledLabor, vehicle);
+    totalDiscount = vehicleDiscount;
+
     grandTotalLabor += totalLabor;
     grandTotalParts += totalParts;
     grandTotalCloning += totalCloning;
@@ -282,7 +286,7 @@ export function calculateClientCosts(
       totalDiscount,
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
-      vehicleTotal: totalLabor + totalParts,
+      vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
     };
   });
 
@@ -297,7 +301,7 @@ export function calculateClientCosts(
     grandTotalAllKeysLost,
     grandTotalMinHourAdj,
     grandTotalDiscount,
-    grandTotal: grandTotalLabor + grandTotalParts,
+    grandTotal: Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts,
   };
 }
 

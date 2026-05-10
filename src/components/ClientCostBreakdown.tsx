@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { createPortal } from 'react-dom';
 import { ClientCostSummary } from '@/lib/clientPortalUtils';
+import { applyLaborDiscount } from '@/lib/discount';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -152,8 +153,12 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       const totalMinHourAdj = sessions.reduce((sum, s) => sum + (s.minHourAdj || 0), 0);
       const totalAddKey = sessions.reduce((sum, s) => sum + (s.addKeyCost || 0), 0);
       const totalAllKeysLost = sessions.reduce((sum, s) => sum + (s.allKeysLostCost || 0), 0);
-      const totalDiscount = sessions.reduce((sum, s) => sum + (s.laborDiscount || 0), 0);
-      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, totalDiscount, vehicleTotal: totalLabor + totalParts };
+      // Per-vehicle discount (computed once on un-billed labor in this filter)
+      const unbilledFilteredLabor = sessions
+        .filter(s => s.status !== 'billed' && s.status !== 'paid')
+        .reduce((sum, s) => sum + s.laborCost, 0);
+      const totalDiscount = applyLaborDiscount(unbilledFilteredLabor, vehicleSummary.vehicle).discount;
+      return { ...vehicleSummary, sessions, totalLabor, totalParts, totalCloning, totalProgramming, totalMinHourAdj, totalAddKey, totalAllKeysLost, totalDiscount, vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts };
     })
     .filter(v => v.sessions.length > 0);
 
@@ -165,7 +170,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
   const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
   const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
-  const grandTotal = grandTotalLabor + grandTotalParts;
+  const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts;
 
   const monthlyData = useMemo(() => {
     if (filter !== 'paid') return [];

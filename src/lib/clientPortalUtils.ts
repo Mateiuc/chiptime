@@ -170,6 +170,7 @@ export function calculateClientCosts(
     let totalAllKeysLost = 0;
     let totalMinHourAdj = 0;
     let totalDiscount = 0;
+    let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
 

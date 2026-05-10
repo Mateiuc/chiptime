@@ -747,7 +747,7 @@ export const ManageClientsDialog = ({
                                     await navigator.clipboard.writeText(url);
                                     toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
                                   } else {
-                                    const htmlBlob = generatePortalHtmlFile(summary, code);
+                                    const htmlBlob = await generatePortalHtmlFile(summary, code);
                                     const file = new File([htmlBlob], `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`, { type: 'text/html' });
                                     
                                     if (navigator.share && navigator.canShare?.({ files: [file] })) {

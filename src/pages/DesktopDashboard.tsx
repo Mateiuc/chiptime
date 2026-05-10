@@ -1506,7 +1506,7 @@ const DesktopDashboard = () => {
                                 await navigator.clipboard.writeText(url);
                                 toast({ title: 'Link Copied!', description: `Share this link with PIN: ${code}` });
                               } else {
-                                const htmlBlob = generatePortalHtmlFile(summary, code);
+                                const htmlBlob = await generatePortalHtmlFile(summary, code);
                                 const a = document.createElement('a');
                                 a.href = URL.createObjectURL(htmlBlob);
                                 a.download = `${client.name.replace(/[^a-zA-Z0-9]/g, '_')}_portal.html`;

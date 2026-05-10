@@ -887,27 +887,42 @@ export const TaskCard = ({
 
       yPos = 261;
       const previewDeposit = vehicle?.prepaidAmount || 0;
-      if (previewDeposit > 0) {
+      const showDiscountP = laborDiscount > 0;
+      const showDepositP = previewDeposit > 0;
+      const extraLinesP = (showDiscountP ? 1 : 0) + (showDepositP ? 1 : 0);
+      yPos = 261 - 7 * extraLinesP;
+      const totalXP = col3X - 45;
+      if (extraLinesP > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
-        doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
+        doc.text('Subtotal:', totalXP, yPos);
+        doc.text(formatCurrency(Math.ceil(rawLabor + partsCost)), col3X + 2, yPos, { align: 'right' });
         yPos += 7;
-        doc.setFontSize(11);
-        doc.setTextColor(220, 38, 38);
-        doc.text('Deposit:', totalX, yPos);
-        doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
-        doc.setTextColor(0, 0, 0);
-        yPos += 8;
+        if (showDiscountP) {
+          doc.setFontSize(11);
+          doc.setTextColor(22, 163, 74);
+          const dLabel = vehicle?.discountType === 'percent' ? `Discount (${vehicle?.discountValue}%):` : 'Discount:';
+          doc.text(dLabel, totalXP, yPos);
+          doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 7;
+        }
+        if (showDepositP) {
+          doc.setFontSize(11);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Deposit:', totalXP, yPos);
+          doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 8;
+        }
         doc.setFontSize(16);
-        doc.text('TOTAL:', totalX, yPos);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL:', totalXP, yPos);
         doc.text(formatCurrency(Math.max(0, totalCost - previewDeposit)), col3X + 2, yPos, { align: 'right' });
       } else {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        const totalX = col3X - 45;
-        doc.text('TOTAL:', totalX, yPos);
+        doc.text('TOTAL:', totalXP, yPos);
         doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
       }
 

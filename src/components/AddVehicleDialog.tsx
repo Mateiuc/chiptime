@@ -167,8 +167,6 @@ export const AddVehicleDialog = ({
     setYear('');
     setColor('');
     setPrepaidAmount('');
-    setDiscountValue('');
-    setDiscountType('fixed');
     onOpenChange(false);
   };
   return <>

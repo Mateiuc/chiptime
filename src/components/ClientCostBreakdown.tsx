@@ -170,7 +170,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
   const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
   const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
-  const grandTotal = grandTotalLabor + grandTotalParts;
+  const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts;
 
   const monthlyData = useMemo(() => {
     if (filter !== 'paid') return [];

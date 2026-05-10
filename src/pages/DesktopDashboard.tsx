@@ -1874,7 +1874,7 @@ const DesktopDashboard = () => {
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
-                                        {task.billedAmount == null && vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
+                                        {vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
                                           <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/40 bg-emerald-500/10">
                                             🏷 {vehicle.discountType === 'percent' ? `-${vehicle.discountValue}%` : `-${formatCurrency(vehicle.discountValue || 0)}`}
                                           </Badge>

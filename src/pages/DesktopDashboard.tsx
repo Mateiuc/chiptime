@@ -1715,6 +1715,13 @@ const DesktopDashboard = () => {
                               <Input className="w-20 h-8 text-sm" placeholder="Year" type="number" value={vehicleEditData.year} onChange={e => setVehicleEditData(p => ({ ...p, year: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Color" value={vehicleEditData.color} onChange={e => setVehicleEditData(p => ({ ...p, color: e.target.value }))} />
                               <Input className="w-28 h-8 text-sm" placeholder="Deposit $" type="number" step="0.01" value={vehicleEditData.prepaidAmount} onChange={e => setVehicleEditData(p => ({ ...p, prepaidAmount: e.target.value }))} />
+                              <div className="flex items-center gap-1">
+                                <div className="flex rounded-md border-2 border-input overflow-hidden shrink-0 h-8">
+                                  <button type="button" onClick={() => setVehicleEditData(p => ({ ...p, discountType: 'fixed' }))} className={`px-2 h-full text-xs font-bold ${vehicleEditData.discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>$</button>
+                                  <button type="button" onClick={() => setVehicleEditData(p => ({ ...p, discountType: 'percent' }))} className={`px-2 h-full text-xs font-bold border-l-2 border-input ${vehicleEditData.discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>%</button>
+                                </div>
+                                <Input className="w-24 h-8 text-sm" placeholder="Discount" type="number" step="0.01" min="0" max={vehicleEditData.discountType === 'percent' ? 100 : undefined} value={vehicleEditData.discountValue} onChange={e => setVehicleEditData(p => ({ ...p, discountValue: e.target.value }))} />
+                              </div>
                               <Button size="sm" className="h-8" onClick={() => {
                                 const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
                                 if (!trimmedVin || trimmedVin.length !== 17) {

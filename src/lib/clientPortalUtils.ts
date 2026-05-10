@@ -548,8 +548,17 @@ td{padding:4px 8px}
 <div id="content" class="hidden"></div>
 </div>
 <script>
-var D=${jsonData};
+var E=${jsonData};
+var D=null;
 var pin='';
+function b64d(s){var b=atob(s);var u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+async function tryDecrypt(p){
+var enc=new TextEncoder();
+var bk=await crypto.subtle.importKey('raw',enc.encode(p),'PBKDF2',false,['deriveKey']);
+var k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(E.salt),iterations:E.it,hash:'SHA-256'},bk,{name:'AES-GCM',length:256},false,['decrypt']);
+var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(E.iv)},k,b64d(E.ct));
+return JSON.parse(new TextDecoder().decode(pt));
+}
 function init(){
 var pi=document.getElementById('pin-inputs');
 for(var i=0;i<4;i++){
@@ -579,18 +588,19 @@ for(var i=0;i<4;i++)pin+=pi.children[i].value;
 document.getElementById('pin-btn').disabled=pin.length<4;
 }
 function verifyPin(){
-if(pin===D.c){
+document.getElementById('pin-btn').disabled=true;
+tryDecrypt(pin).then(function(s){
+D={s:s};
 document.getElementById('pin-screen').classList.add('hidden');
 renderContent();
-}else{
+}).catch(function(){
 document.getElementById('pin-error').textContent='Incorrect code. Please try again.';
 document.getElementById('pin-error').classList.remove('hidden');
 var pi=document.getElementById('pin-inputs');
 for(var i=0;i<4;i++)pi.children[i].value='';
 pi.children[0].focus();
 pin='';
-document.getElementById('pin-btn').disabled=true;
-}
+});
 }
 function fmt(n){return'$'+n.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')}
 function fmtDur(s){var tm=Math.round(s/60);var h=Math.floor(tm/60);var m=tm%60;return h+'h '+m+'m'}

@@ -1645,6 +1645,9 @@ export const TaskCard = ({
               {totalAddKey > 0 && <div className="flex justify-between"><span>Add Key (×{addKeyCount}):</span><span>{formatCurrency(totalAddKey)}</span></div>}
               {totalAllKeysLost > 0 && <div className="flex justify-between"><span>All Keys Lost (×{allKeysLostCount}):</span><span>{formatCurrency(totalAllKeysLost)}</span></div>}
               <div className="flex justify-between"><span>Parts:</span><span>{formatCurrency(partsCost)}</span></div>
+              {laborDiscount > 0 && (
+                <div className="flex justify-between text-emerald-700 dark:text-emerald-400"><span>Discount{vehicle?.discountType === 'percent' ? ` (${vehicle?.discountValue}%)` : ''}:</span><span>-{formatCurrency(laborDiscount)}</span></div>
+              )}
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
               {(vehicle?.prepaidAmount || 0) > 0 && (
                 task.status === 'paid' ? (

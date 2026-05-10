@@ -147,10 +147,6 @@ export const AddVehicleDialog = ({
 
     // Determine final clientId (will be generated in parent if creating new client)
     const finalClientId = clientId || 'pending';
-    const parsedDiscount = discountValue ? parseFloat(discountValue) : 0;
-    const validDiscount = !isNaN(parsedDiscount) && parsedDiscount > 0
-      ? (discountType === 'percent' ? Math.min(100, Math.max(0, parsedDiscount)) : Math.max(0, parsedDiscount))
-      : 0;
     onSave({
       clientId: finalClientId,
       vin: vinTrimmed,
@@ -159,8 +155,6 @@ export const AddVehicleDialog = ({
       year: year ? parseInt(year) : undefined,
       color: color || undefined,
       prepaidAmount: prepaidAmount ? parseFloat(prepaidAmount) : undefined,
-      discountType: validDiscount > 0 ? discountType : undefined,
-      discountValue: validDiscount > 0 ? validDiscount : undefined,
     }, clientId ? undefined : clientNameTrimmed, pendingContactData || undefined);
 
     // Reset form

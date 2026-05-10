@@ -165,7 +165,7 @@ export const AddVehicleDialog = ({
     setModel('');
     setYear('');
     setColor('');
-    setPrepaidAmount('');
+    
     onOpenChange(false);
   };
   return <>

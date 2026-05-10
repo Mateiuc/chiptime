@@ -216,6 +216,35 @@ export const EditVehicleDialog = ({
                 className="h-10"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>Labor Discount</Label>
+              <div className="flex gap-2">
+                <div className="flex rounded-md border-2 border-input overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('fixed')}
+                    className={`px-3 h-10 text-sm font-bold ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
+                  >$</button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('percent')}
+                    className={`px-3 h-10 text-sm font-bold border-l-2 border-input ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}
+                  >%</button>
+                </div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={discountType === 'percent' ? 100 : undefined}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder={discountType === 'percent' ? '0–100' : '0.00'}
+                  className="h-10 flex-1"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Applied to each task's labor for this vehicle. Parts and deposit are unaffected.</p>
+            </div>
           </div>
 
           <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm flex gap-2">

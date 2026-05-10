@@ -176,9 +176,20 @@ export function calculateClientCosts(
 
     vehicleTasks.forEach(task => {
       let diagnosticShown = false;
-      let importedSalaryApplied = false; // ensure importedSalary counted exactly once
-      task.sessions.forEach(session => {
-        const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      // Pre-compute per-task totals so locked task amounts (billedAmount /
+      // importedSalary) can be distributed across sessions proportionally to
+      // duration. Without this, the entire amount lands on session 1 and the
+      // rest show $0 in the portal.
+      const sessionDurations = task.sessions.map(s =>
+        s.periods.reduce((sum, p) => sum + p.duration, 0)
+      );
+      const taskTotalDuration = sessionDurations.reduce((a, b) => a + b, 0);
+      const lockedTaskTotal = task.billedAmount != null
+        ? task.billedAmount
+        : task.importedSalary != null ? task.importedSalary : null;
+      let lockedAllocated = 0;
+      task.sessions.forEach((session, sIdx) => {
+        const duration = sessionDurations[sIdx];
         let laborCost: number;
         let minHourAdj = 0;
         let sessionCloningCost = 0;
@@ -186,12 +197,19 @@ export function calculateClientCosts(
         let sessionAddKeyCost = 0;
         let sessionAllKeysLostCost = 0;
         let sessionPartsCost = 0;
-        if (task.billedAmount != null) {
-          laborCost = importedSalaryApplied ? 0 : task.billedAmount;
-          importedSalaryApplied = true;
-        } else if (task.importedSalary != null) {
-          laborCost = importedSalaryApplied ? 0 : task.importedSalary;
-          importedSalaryApplied = true;
+        if (lockedTaskTotal != null) {
+          const isLast = sIdx === task.sessions.length - 1;
+          if (isLast) {
+            // Give the last session the remainder so per-session pieces
+            // always sum exactly to the locked task total.
+            laborCost = Math.max(0, lockedTaskTotal - lockedAllocated);
+          } else {
+            const share = taskTotalDuration > 0
+              ? duration / taskTotalDuration
+              : 1 / task.sessions.length;
+            laborCost = Math.round(lockedTaskTotal * share);
+            lockedAllocated += laborCost;
+          }
         } else {
           const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
           const baseLaborCost = session.periods.reduce((sum, period) => {

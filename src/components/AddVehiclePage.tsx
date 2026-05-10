@@ -191,15 +191,6 @@ export const AddVehiclePage = ({ clients, tasks, settings, onSave, onCancel }: A
               <F label="Year"><input type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="e.g. 2023" min={1900} max={new Date().getFullYear() + 2} className={inp} /></F>
               <F label="Color"><input value={color} onChange={e => setColor(e.target.value)} placeholder="e.g. Black" className={inp} /></F>
               <F label="Deposit ($)"><input type="number" step="0.01" value={prepaidAmount} onChange={e => setPrepaidAmount(e.target.value)} placeholder="0.00" className={inp} /></F>
-              <F label="Labor Discount">
-                <div className="flex gap-2">
-                  <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
-                    <button type="button" onClick={() => setDiscountType('fixed')} className={`px-3 h-9 text-xs font-bold ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>$</button>
-                    <button type="button" onClick={() => setDiscountType('percent')} className={`px-3 h-9 text-xs font-bold border-l border-border ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground'}`}>%</button>
-                  </div>
-                  <input type="number" step="0.01" min="0" max={discountType === 'percent' ? 100 : undefined} value={discountValue} onChange={e => setDiscountValue(e.target.value)} placeholder={discountType === 'percent' ? '0–100' : '0.00'} className={inp} />
-                </div>
-              </F>
             </div>
           </div>
 

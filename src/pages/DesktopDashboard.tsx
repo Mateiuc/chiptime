@@ -315,7 +315,9 @@ const DesktopDashboard = () => {
     const laborCost = task.importedSalary != null ? task.importedSalary : (baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot);
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
-    const total = laborCost + partsCost;
+    const { discount: laborDiscount, laborAfter } =
+      task.billedAmount != null ? { discount: 0, laborAfter: laborCost } : applyLaborDiscount(laborCost, vehicle);
+    const total = laborAfter + partsCost;
 
     const doc = new jsPDF({ format: 'letter' });
     doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);

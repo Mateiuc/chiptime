@@ -10,6 +10,7 @@ export interface SessionCostDetail {
   date: Date;
   duration: number;
   laborCost: number;
+  laborDiscount: number;
   cloningCost: number;
   programmingCost: number;
   addKeyCost: number;
@@ -33,6 +34,9 @@ export interface VehicleCostSummary {
   totalAddKey: number;
   totalAllKeysLost: number;
   totalMinHourAdj: number;
+  totalDiscount: number;
+  discountType?: 'fixed' | 'percent';
+  discountValue?: number;
   vehicleTotal: number;
 }
 
@@ -46,6 +50,7 @@ export interface ClientCostSummary {
   grandTotalAddKey: number;
   grandTotalAllKeysLost: number;
   grandTotalMinHourAdj: number;
+  grandTotalDiscount: number;
   grandTotal: number;
   paymentLink?: string;
   paymentLabel?: string;

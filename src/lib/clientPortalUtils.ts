@@ -175,18 +175,47 @@ export function calculateClientCosts(
     let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
-    let legacyLockedTotal = 0;
 
     vehicleTasks.forEach(task => {
-      let diagnosticShown = false;
-      // Phase 1: ignore task.billedAmount / task.importedSalary entirely.
-      // Per-session labor is computed live; legacyLockedTotal is still
-      // surfaced so the portal warning badge can flag drift in Phase 3.
-      const legacy = task.billedAmount != null
-        ? task.billedAmount
-        : task.importedSalary != null ? task.importedSalary : null;
-      if (legacy != null) legacyLockedTotal += legacy;
+      // Phase 2: imported tasks short-circuit. They contribute their
+      // importedSalary as a single synthetic session row with no parts and
+      // no services. The vehicle-level discount still applies (added into
+      // unbilledLabor pool below). Adding parts to an imported task does
+      // not change its total.
+      if (task.importedSalary != null && task.importedSalary > 0) {
+        const v = task.importedSalary;
+        unbilledLabor += v;
+        totalLabor += v;
+        const lastSession = task.sessions && task.sessions.length > 0
+          ? task.sessions[task.sessions.length - 1]
+          : null;
+        const date = lastSession?.completedAt
+          || (lastSession && lastSession.periods.length > 0
+              ? lastSession.periods[lastSession.periods.length - 1].endTime
+              : (lastSession?.createdAt || task.createdAt));
+        sessions.push({
+          description: lastSession?.description || 'Imported task',
+          date,
+          duration: (task.sessions || []).reduce((s, ss) => s + ss.periods.reduce((p, pp) => p + pp.duration, 0), 0),
+          laborCost: v,
+          laborDiscount: 0,
+          cloningCost: 0,
+          programmingCost: 0,
+          addKeyCost: 0,
+          allKeysLostCost: 0,
+          minHourAdj: 0,
+          parts: [],
+          partsCost: 0,
+          status: task.status,
+          photoUrls: [],
+          diagnosticPdfUrl: task.diagnosticPdfPath || task.diagnosticPdfUrl,
+          periods: [],
+          imported: true,
+        });
+        return;
+      }
 
+      let diagnosticShown = false;
       task.sessions.forEach((session) => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
@@ -276,7 +305,6 @@ export function calculateClientCosts(
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
       vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
-      legacyLockedTotal,
     };
   });
 

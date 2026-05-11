@@ -178,6 +178,7 @@ export function calculateClientCosts(
     let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
+    let legacyLockedTotal = 0;
 
     vehicleTasks.forEach(task => {
       let diagnosticShown = false;

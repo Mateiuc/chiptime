@@ -313,7 +313,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                                 <p className="text-xs text-muted-foreground italic mt-0.5 ml-7">"{session.description}"</p>
                               )}
                             </div>
-                            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColors[session.status] || ''}`}>{session.status}</Badge>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <Badge variant="outline" className={`text-[10px] ${statusColors[session.status] || ''}`}>{session.status}</Badge>
+                              {session.imported && (
+                                <span className="inline-flex items-center rounded-md border-2 border-amber-600 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-200 dark:text-amber-950" title="Imported from XLS — parts not billed.">
+                                  Imported · parts not billed
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="ml-7 flex flex-wrap gap-x-4 gap-y-1 text-xs">

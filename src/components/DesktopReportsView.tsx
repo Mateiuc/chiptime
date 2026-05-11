@@ -141,44 +141,10 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
-    if (task.billedAmount != null) {
-      const { laborAfter } = applyLaborDiscount(task.billedAmount, vehicle);
-      return laborAfter;
-    }
-    if (task.importedSalary != null) {
-      const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
-      return laborAfter;
-    }
-    const client = clients.find(c => c.id === task.clientId);
-    const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || (settings as any).defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || (settings as any).defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
-    let labor = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
-    (task.sessions || []).forEach(session => {
-      session.periods.forEach(period => {
-        if (period.chargeMinimumHour && period.duration < 3600) {
-          labor += Math.ceil(hourlyRate);
-        } else {
-          labor += calcPeriodCost(period.duration, hourlyRate);
-        }
-      });
-      const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-      if (!hasPeriodFlags && session.chargeMinimumHour) {
-        const dur = session.periods.reduce((s, p) => s + p.duration, 0);
-        if (dur < 3600) labor += Math.ceil(((3600 - dur) / 3600) * hourlyRate);
-      }
-      if (session.isCloning && cloningRate > 0) totalCloning += cloningRate;
-      if (session.isProgramming && programmingRate > 0) totalProgramming += programmingRate;
-      if (session.isAddKey && addKeyRate > 0) totalAddKey += addKeyRate;
-      if (session.isAllKeysLost && allKeysLostRate > 0) totalAllKeysLost += allKeysLostRate;
-    });
-    const partsCost = (task.sessions || []).reduce((total, session) =>
-      total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0), 0);
-    const totalLabor = labor + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
-    const { laborAfter } = applyLaborDiscount(totalLabor, vehicle);
-    return Math.ceil(laborAfter + partsCost);
+    const client = clients.find(c => c.id === task.clientId) || null;
+    const t = computeTaskTotal(task, client, settings);
+    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
+    return Math.ceil(laborAfter + t.parts);
   };
 
   const getTaskSeconds = (task: Task) =>

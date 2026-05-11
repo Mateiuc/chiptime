@@ -399,7 +399,7 @@ export const TaskCard = ({
         }, 0);
         
         // Calculate cost for this session
-        const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
+        const sessionCost = (sessionDuration / 3600) * hourlyRate;
         
         // Get description or use default
         const description = stripDiacritics(session.description || 'Work session');
@@ -807,7 +807,7 @@ export const TaskCard = ({
           return total + period.duration;
         }, 0);
         
-        const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * hourlyRate;
+        const sessionCost = (sessionDuration / 3600) * hourlyRate;
         const description = session.description || 'Work session';
         
         const col1Width = col2X - col1X - 4;
@@ -1390,14 +1390,12 @@ export const TaskCard = ({
     if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
   });
   const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
-  // importedSalary = final revenue already, no parts added
-  const partsCost = task.importedSalary != null ? 0 : (task.sessions || []).reduce((total, session) => {
+  // Phase 1: ignore task.billedAmount / task.importedSalary entirely.
+  // Total = live labor + services + parts, with per-vehicle discount on labor.
+  const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
   }, 0);
-  // billedAmount/importedSalary act as the gross labor; discount is always applied on top
-  const rawLabor = task.billedAmount != null
-    ? task.billedAmount
-    : (task.importedSalary != null ? task.importedSalary : calculatedLabor);
+  const rawLabor = calculatedLabor;
   const { discount: laborDiscount, laborAfter: laborCost } = applyLaborDiscount(rawLabor, vehicle);
   const totalCost = Math.ceil(laborCost + partsCost);
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>

@@ -324,6 +324,7 @@ export function calculateClientCosts(
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
       vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
+      legacyLockedTotal,
     };
   });
 

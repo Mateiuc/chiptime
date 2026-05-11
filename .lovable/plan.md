@@ -1,41 +1,73 @@
-## Problem
+# Phase 1 — Unify Billing Math
 
-In the client portal, billed/paid tasks show the full task labor on **session 1** and **$0** on every following session of the same task. Example from your screenshot: a Mercedes task with 3 sessions shows `$5,191` on Jan 9 and `$0` on Jan 12 / Jan 13.
+## Goal
 
-## Cause
+Eliminate the $850 / $500 / $350 trilemma. Today the desktop task header, desktop vehicle rollup, and the client portal each compute totals differently because they handle legacy `billedAmount` / `importedSalary` inconsistently. After Phase 1, every surface routes through one shared utility and ignores those legacy fields entirely.
 
-`task.billedAmount` (and `task.importedSalary`) are stored **per task**, not per session. In `src/lib/clientPortalUtils.ts` (`calculateClientCosts`), the code dumps the whole amount on the first session it processes and assigns `0` to every other session of the same task:
+## New file
 
-```ts
-if (task.billedAmount != null) {
-  laborCost = importedSalaryApplied ? 0 : task.billedAmount;
-  importedSalaryApplied = true;
-}
-```
+**`src/lib/billing.ts`** — pure functions, no React, no storage:
 
-Vehicle/total math is correct (the amount is counted once), but the **per-session display** is wrong: clients see $0 lines that look like errors.
+- `computeSessionLabor(session, client, settings)` → `{ labor, services, total }`
+  - Hourly rate: `client.hourlyRate ?? settings.defaultHourlyRate ?? 0`
+  - Per-period min-hour rule (existing `WorkPeriod.chargeMinimumHour`) and per-session min-hour (`WorkSession.chargeMinimumHour`) preserved exactly as `calcPeriodCost` + current portal math
+  - Service fees from boolean flags (`isCloning`, `isProgramming`, `isAddKey`, `isAllKeysLost`) × matching client/settings rate fallback
 
-## Fix
+- `computeTaskTotal(task, client, settings)` → `{ labor, services, parts, total }`
+  - Sums `computeSessionLabor` across `task.sessions`
+  - Parts: `price × quantity`, with `providedByClient` counted as $0
+  - **Never reads `task.billedAmount` or `task.importedSalary`.** Status does not branch the math.
 
-Distribute the task's billed/imported labor across that task's sessions, **proportional to each session's duration**. Totals stay identical; only the per-session breakdown changes.
+- `computeVehicleTotal(vehicle, tasksForVehicle, client, settings)` → `{ labor, services, parts, discount, total }`
+  - Sums `computeTaskTotal` across the vehicle's tasks
+  - Applies `applyLaborDiscount` once at the vehicle level on `(labor + services)`; parts are not discounted
+  - `total = max(0, labor + services − discount) + parts`
 
-### Change in `src/lib/clientPortalUtils.ts` (`calculateClientCosts`)
+## Call sites to replace
 
-1. Before iterating `task.sessions.forEach(...)`, compute `taskTotalDuration` for the task.
-2. For each session, compute `sessionShare = taskTotalDuration > 0 ? duration / taskTotalDuration : 1 / task.sessions.length`.
-3. Replace the `importedSalaryApplied` short-circuit with proportional allocation:
-   - `if (task.billedAmount != null)` → `laborCost = round(task.billedAmount * sessionShare)`
-   - `else if (task.importedSalary != null)` → `laborCost = round(task.importedSalary * sessionShare)`
-4. To avoid rounding drift, give the **last session** the remainder (`taskTotal - sum of previous sessions`) so the per-session pieces always sum back to the locked task total.
-5. Remove the `importedSalaryApplied` flag — no longer needed.
+All three of these currently disagree on the same data — they will all return identical numbers after this change.
 
-### Out of scope
+| File | Current | After |
+|---|---|---|
+| `src/pages/DesktopDashboard.tsx` `getTaskCost` (~L788) | reads `billedAmount`, applies discount, adds parts | `computeTaskTotal(task, client, settings).total` (vehicle-level discount applied where the rollup is computed) |
+| `src/pages/DesktopDashboard.tsx` `getTaskCostGross` (~L823) | returns `billedAmount` directly | `computeTaskTotal(...).total` |
+| `src/pages/DesktopDashboard.tsx` vehicle rollup / Grand Total / client revenue (L859, L945, L994) | sums `billedAmount` / `importedSalary` | `computeVehicleTotal(...).total` |
+| `src/lib/clientPortalUtils.ts` `calculateClientCosts` (L186–L290, including the locked-pool branch) | proportional split of `billedAmount` across sessions | per-session labor from `computeSessionLabor`; per-task total from `computeTaskTotal`; vehicle total from `computeVehicleTotal` |
+| `src/components/TaskCard.tsx` (~L1393–L1400 and the per-session helpers at L402, L810) | branches on `importedSalary` / `billedAmount` | `computeTaskTotal(...).total` for the header; `computeSessionLabor` for per-session lines |
+| `src/components/DesktopReportsView.tsx` (L144–L150) | reads `billedAmount` / `importedSalary` | `computeTaskTotal(...).labor + .services` for labor analytics |
+| `src/components/ManageClientsDialog.tsx` (L131, L177) | sums `importedSalary` | `computeTaskTotal(...)` aggregation |
+| `src/pages/DesktopDashboard.tsx` charts at L315, L382 | per-task / per-session labor branches | `computeTaskTotal` / `computeSessionLabor` |
 
-- No changes to vehicle/client totals, discount math, bill PDF, or desktop dashboard — they already use the per-task locked amount and remain correct.
-- No schema changes. No portal sync changes (the slim payload already carries `lc` per session).
+## Out of scope (Phase 2+)
+
+- Do **not** delete `task.billedAmount` or `task.importedSalary` from `Task` type, XML import/export (`xmlConverter.ts`), or `xlsImporter.ts`.
+- Do **not** change the writes in `handleMarkBilled` (Index.tsx L469, DesktopDashboard.tsx L700). The field is still written; it is just no longer read by the calculation path.
+- Do **not** touch the legacy reconcile/warning badge in `ClientCostBreakdown.tsx` (~L393–396).
+- Do **not** change the Cost/Due label in `TaskCard.tsx` (~L1534).
+- Do **not** change rounding behavior — reuse `calcPeriodCost`'s `Math.ceil(minutes/60 * rate)` exactly.
 
 ## Verification
 
-- Open the same client portal: each session under a billed/paid task now shows a sensible dollar amount, and the sum across sessions equals the locked task total shown on the vehicle header.
-- Pending tasks unchanged.
-- `Hours × rate` still matches roughly because allocation is duration-weighted.
+For the Lamborghini "Ali's" task (`status=billed`, `billedAmount=500`, 1 session of 1 second, 1 part Battery $350) the total must read **$350** at all six surfaces:
+
+1. Desktop task header (TaskCard)
+2. Desktop vehicle rollup
+3. Desktop Grand Total / client revenue card
+4. Client portal Billed-tab vehicle card
+5. Client portal Grand Total
+6. Mobile task card
+
+For the Mercedes GLS (Lance Naidoo) the total computes live from sessions + parts + vehicle discount, with no reference to `billedAmount`.
+
+After the change, `rg "billedAmount|importedSalary" src` should show reads only in:
+- `xmlConverter.ts` (backup import/export)
+- `xlsImporter.ts` (write only)
+- `Index.tsx` / `DesktopDashboard.tsx` `handleMarkBilled` (write only)
+- `ClientCostBreakdown.tsx` legacy badge (Phase 3 will remove)
+- `clientPortalUtils.ts` portal-payload serialization (kept so legacy badge can still detect mismatch — flagged for Phase 3)
+
+## Deliverable in the build phase
+
+- Files changed list with a one-line description of each replacement
+- Side-by-side before/after totals for the Lamborghini at all six surfaces
+- Confirmation that no calculation path reads `billedAmount` or `importedSalary` (search output included)

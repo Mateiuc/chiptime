@@ -487,9 +487,9 @@ const Index = () => {
         if (session.isAddKey) labor += addKeyRate;
         if (session.isAllKeysLost) labor += allKeysLostRate;
       });
-      const parts = (task.sessions || []).reduce((s, sess) =>
-        s + (sess.parts || []).reduce((p2, p) => p2 + (p.providedByClient ? 0 : p.price * p.quantity), 0), 0);
-      billedAmount = Math.ceil(labor + parts);
+      // Model B: freeze ONLY labor into billedAmount. Parts always render
+      // live from session.parts[] in the portal.
+      billedAmount = Math.ceil(labor);
     }
     updateTask(taskId, { status: 'billed', ...(billedAmount != null ? { billedAmount } : {}) });
     toast({ title: 'Task Marked as Billed' });

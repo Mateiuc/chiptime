@@ -38,6 +38,11 @@ export interface VehicleCostSummary {
   discountType?: 'fixed' | 'percent';
   discountValue?: number;
   vehicleTotal: number;
+  /** Sum of legacy locked task amounts (billedAmount/importedSalary) for this
+   *  vehicle. Used to surface a reconciliation warning when the recomputed
+   *  vehicle total (labor + parts − discount) differs from the originally
+   *  billed amount. May be 0 if no tasks on this vehicle are locked. */
+  legacyLockedTotal: number;
 }
 
 export interface ClientCostSummary {
@@ -98,6 +103,7 @@ interface SlimVehicle {
   tl: number;
   tp: number;
   vt: number;
+  llt?: number; // legacy locked total (sum of task.billedAmount/importedSalary)
   tcl?: number;
   tpr?: number;
   tmh?: number;
@@ -173,6 +179,7 @@ export function calculateClientCosts(
     let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
+    let legacyLockedTotal = 0;
 
     vehicleTasks.forEach(task => {
       let diagnosticShown = false;
@@ -196,12 +203,12 @@ export function calculateClientCosts(
       const lockedTaskTotal = task.billedAmount != null
         ? task.billedAmount
         : task.importedSalary != null ? task.importedSalary : null;
-      // For locked tasks, split the total into a labor pool (= total - parts)
-      // distributed across sessions, plus the real per-session parts on top.
-      // Sum still equals lockedTaskTotal so vehicleTotal stays unchanged.
-      const lockedLaborPool = lockedTaskTotal != null
-        ? Math.max(0, lockedTaskTotal - taskTotalParts)
-        : null;
+      if (lockedTaskTotal != null) legacyLockedTotal += lockedTaskTotal;
+      // Model B: treat lockedTaskTotal as labor-only. Parts always render
+      // live from session.parts[]. Vehicle total recomputes as
+      // labor + parts − discount; any divergence from the legacy locked
+      // value surfaces as a reconciliation warning in the portal UI.
+      const lockedLaborPool = lockedTaskTotal;
       let lockedAllocated = 0;
       task.sessions.forEach((session, sIdx) => {
         const duration = sessionDurations[sIdx];
@@ -318,6 +325,7 @@ export function calculateClientCosts(
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
       vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
+      legacyLockedTotal,
     };
   });
 
@@ -369,6 +377,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
       vt: Math.round(vs.vehicleTotal * 100) / 100,
+      llt: vs.legacyLockedTotal > 0 ? Math.round(vs.legacyLockedTotal * 100) / 100 : undefined,
       tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
       tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
       tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,
@@ -445,6 +454,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
       discountType: sv.dt,
       discountValue: sv.dv,
       vehicleTotal: sv.vt,
+      legacyLockedTotal: sv.llt || 0,
     })),
     grandTotalLabor: slim.tl,
     grandTotalParts: slim.tp,

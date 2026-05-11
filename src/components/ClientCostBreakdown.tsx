@@ -170,26 +170,6 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
   const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts;
 
-  // [DEBUG: reconciliation] — remove once verified
-  useEffect(() => {
-    if (filter !== 'paid') return;
-    filteredVehicles.forEach(v => {
-      const name = [v.vehicle.year, v.vehicle.make, v.vehicle.model].filter(Boolean).join(' ') || v.vehicle.vin;
-      const sessionsSum = v.sessions.reduce((s, x) => s + x.laborCost, 0);
-      const partsSum = v.sessions.reduce((s, x) => s + x.partsCost, 0);
-      const discount = v.totalDiscount || 0;
-      const expected = Math.max(0, sessionsSum - discount) + partsSum;
-      // eslint-disable-next-line no-console
-      console.log('[portal-reconcile]', name, {
-        sessionsSum,
-        partsSum,
-        discount,
-        vehicleTotal: v.vehicleTotal,
-        reconciles: v.vehicleTotal === expected,
-        expected,
-      });
-    });
-  }, [filteredVehicles, filter]);
 
   const monthlyData = useMemo(() => {
     if (filter !== 'paid') return [];
@@ -410,6 +390,11 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         {(vehicleSummary.totalDiscount || 0) > 0 && <div className="flex justify-between text-emerald-600 dark:text-emerald-400"><span>Discount{vehicleSummary.discountType === 'percent' ? ` (${vehicleSummary.discountValue}%)` : ''}:</span><span className="font-semibold">-{formatCurrency(vehicleSummary.totalDiscount)}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Parts:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span></div>
                         <div className="flex justify-between font-bold text-sm border-t border-border/30 pt-1 mt-1"><span>Vehicle total:</span><span>{formatCurrency(vehicleSummary.vehicleTotal)}</span></div>
+                        {filter !== 'pending' && vehicleSummary.legacyLockedTotal > 0 && Math.abs(vehicleSummary.legacyLockedTotal - vehicleSummary.totalLabor) >= 0.5 && (
+                          <div className="mt-1 px-2 py-1 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 text-[10px] text-amber-800 dark:text-amber-300">
+                            ⚠️ Total mismatch — billed {formatCurrency(vehicleSummary.legacyLockedTotal)}, current labor {formatCurrency(vehicleSummary.totalLabor)}. Adjust the discount on this vehicle to reconcile.
+                          </div>
+                        )}
                         {deposit > 0 && (
                           <>
                             <div className={`flex justify-between ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}><span>Deposit:</span><span className="font-semibold">-{formatCurrency(deposit)}</span></div>

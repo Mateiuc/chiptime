@@ -714,9 +714,8 @@ if(v.pa&&v.pa>0){h+='<div class="row" style="color:#ef4444"><span>Deposit:</span
 h+='</div></div>';
 });
 if(s.v.length>0){
-var gBaseLab=(s.tl+(s.gtd||0))-(s.tmh||0)-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
+var gBaseLab=(s.tl+(s.gtd||0))-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
 h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(gBaseLab)+'</b></span></div>';
-if(s.tmh&&s.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(s.tmh)+'</b></span></div>';
 if(s.tcl&&s.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(s.tcl)+'</b></span></div>';
 if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s.tpr)+'</b></span></div>';
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';

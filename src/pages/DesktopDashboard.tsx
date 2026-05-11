@@ -313,7 +313,7 @@ const DesktopDashboard = () => {
       if (session.isAddKey && addKeyRate > 0) { addKeyTot += addKeyRate; addKeyCnt++; }
       if (session.isAllKeysLost && allKeysLostRate > 0) { allKeysLostTot += allKeysLostRate; allKeysLostCnt++; }
     });
-    const laborCost = task.importedSalary != null ? task.importedSalary : (baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot);
+    const laborCost = baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot;
     const partsCost = (task.sessions || []).reduce((sum, s) =>
       sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
     const { discount: laborDiscount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
@@ -380,7 +380,7 @@ const DesktopDashboard = () => {
 
     (task.sessions || []).forEach(session => {
       const sessionDuration = (session.periods || []).reduce((t, p) => t + p.duration, 0);
-      const sessionCost = task.importedSalary != null ? task.importedSalary : (sessionDuration / 3600) * rate;
+      const sessionCost = (sessionDuration / 3600) * rate;
       const description = stripDiacritics(session.description || 'Work session');
       const col1Width = col2X - col1X - 4;
       const wrapped = doc.splitTextToSize(description, col1Width);
@@ -880,26 +880,22 @@ const DesktopDashboard = () => {
     let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     clientTasks.forEach(task => {
       totalTime += task.totalTime;
-      if (task.importedSalary != null) {
-        totalLaborCost += task.importedSalary;
-      } else {
-        task.sessions.forEach(session => {
-          const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-          const baseCost = (sessionDuration / 3600) * hourlyRate;
-          let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-          if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
-          if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
-          if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-          if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
-          if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
-          totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
-          totalMinHourAdj += minAdj;
-          totalCloning += cloneCost;
-          totalProgramming += progCost;
-          totalAddKey += addKeyCost;
-          totalAllKeysLost += allKeysLostCost;
-        });
-      }
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
+        let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
+        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
+        if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
+        totalMinHourAdj += minAdj;
+        totalCloning += cloneCost;
+        totalProgramming += progCost;
+        totalAddKey += addKeyCost;
+        totalAllKeysLost += allKeysLostCost;
+      });
       task.sessions.forEach(session => {
         session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
       });
@@ -929,26 +925,22 @@ const DesktopDashboard = () => {
     let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
     let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
     vehicleTasks.forEach(task => {
-      if (task.importedSalary != null) {
-        totalLaborCost += task.importedSalary;
-      } else {
-        task.sessions.forEach(session => {
-          const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-          const baseCost = (sessionDuration / 3600) * hourlyRate;
-          let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-          if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
-          if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
-          if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-          if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
-          if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
-          totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
-          totalMinHourAdj += minAdj;
-          totalCloning += cloneCost;
-          totalProgramming += progCost;
-          totalAddKey += addKeyCost;
-          totalAllKeysLost += allKeysLostCost;
-        });
-      }
+      task.sessions.forEach(session => {
+        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
+        let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
+        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
+        if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
+        if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
+        totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
+        totalMinHourAdj += minAdj;
+        totalCloning += cloneCost;
+        totalProgramming += progCost;
+        totalAddKey += addKeyCost;
+        totalAllKeysLost += allKeysLostCost;
+      });
       totalTime += task.totalTime;
       task.sessions.forEach(session => {
         session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });

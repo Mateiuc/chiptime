@@ -38,6 +38,11 @@ export interface VehicleCostSummary {
   discountType?: 'fixed' | 'percent';
   discountValue?: number;
   vehicleTotal: number;
+  /** Sum of legacy locked task amounts (billedAmount/importedSalary) for this
+   *  vehicle. Used to surface a reconciliation warning when the recomputed
+   *  vehicle total (labor + parts − discount) differs from the originally
+   *  billed amount. May be 0 if no tasks on this vehicle are locked. */
+  legacyLockedTotal: number;
 }
 
 export interface ClientCostSummary {

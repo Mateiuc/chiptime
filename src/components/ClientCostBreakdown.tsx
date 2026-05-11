@@ -416,8 +416,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           {/* Grand total */}
           <Card className="border-2 border-primary/30 md:max-w-lg md:mx-auto shadow-md" style={{ background: 'var(--color-background-primary, white)' }}>
             <CardContent className="p-4 space-y-1">
-              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
-              {grandTotalMinHourAdj > 0 && <div className="flex justify-between text-sm"><span>Min 1 Hour:</span><span className="font-semibold">{formatCurrency(grandTotalMinHourAdj)}</span></div>}
+              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
               {grandTotalCloning > 0 && <div className="flex justify-between text-sm"><span>Cloning:</span><span className="font-semibold">{formatCurrency(grandTotalCloning)}</span></div>}
               {grandTotalProgramming > 0 && <div className="flex justify-between text-sm"><span>Programming:</span><span className="font-semibold">{formatCurrency(grandTotalProgramming)}</span></div>}
               {grandTotalAddKey > 0 && <div className="flex justify-between text-sm"><span>Add Key:</span><span className="font-semibold">{formatCurrency(grandTotalAddKey)}</span></div>}

@@ -329,7 +329,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </span>
                             <span className="flex items-center gap-1 font-semibold text-foreground">
                               <DollarSign className="h-3 w-3" />
-                              {formatCurrency(session.laborCost + (session.laborDiscount || 0) - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
+                              {formatCurrency(session.laborCost + (session.laborDiscount || 0) - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                             </span>
                           </div>
 
@@ -341,9 +341,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </div>
                           )}
 
-                          {((session.minHourAdj || 0) > 0 || (session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0 || (session.laborDiscount || 0) > 0) && (
+                          {((session.cloningCost || 0) > 0 || (session.programmingCost || 0) > 0 || (session.addKeyCost || 0) > 0 || (session.allKeysLostCost || 0) > 0 || (session.laborDiscount || 0) > 0) && (
                             <div className="ml-7 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                              {(session.minHourAdj || 0) > 0 && <span>🚩 Min 1hr: {formatCurrency(session.minHourAdj)}</span>}
                               {(session.cloningCost || 0) > 0 && <span>📋 Cloning: {formatCurrency(session.cloningCost)}</span>}
                               {(session.programmingCost || 0) > 0 && <span>💻 Programming: {formatCurrency(session.programmingCost)}</span>}
                               {(session.addKeyCost || 0) > 0 && <span>🔑 Add Key: {formatCurrency(session.addKeyCost)}</span>}
@@ -388,8 +387,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
                       {/* Vehicle subtotal */}
                       <div className={`mx-3 mb-3 px-3 py-2 rounded-lg text-xs space-y-0.5 ${color.card}`}>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
-                        {vehicleSummary.totalMinHourAdj > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Min 1 Hour:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalMinHourAdj)}</span></div>}
+                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
                         {vehicleSummary.totalCloning > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Cloning:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalCloning)}</span></div>}
                         {vehicleSummary.totalProgramming > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Programming:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalProgramming)}</span></div>}
                         {(vehicleSummary.totalAddKey || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Add Key:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAddKey)}</span></div>}
@@ -418,8 +416,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
           {/* Grand total */}
           <Card className="border-2 border-primary/30 md:max-w-lg md:mx-auto shadow-md" style={{ background: 'var(--color-background-primary, white)' }}>
             <CardContent className="p-4 space-y-1">
-              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalMinHourAdj - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
-              {grandTotalMinHourAdj > 0 && <div className="flex justify-between text-sm"><span>Min 1 Hour:</span><span className="font-semibold">{formatCurrency(grandTotalMinHourAdj)}</span></div>}
+              <div className="flex justify-between text-sm"><span>Total Labor:</span><span className="font-semibold">{formatCurrency(grandTotalLabor - grandTotalCloning - grandTotalProgramming - grandTotalAddKey - grandTotalAllKeysLost)}</span></div>
               {grandTotalCloning > 0 && <div className="flex justify-between text-sm"><span>Cloning:</span><span className="font-semibold">{formatCurrency(grandTotalCloning)}</span></div>}
               {grandTotalProgramming > 0 && <div className="flex justify-between text-sm"><span>Programming:</span><span className="font-semibold">{formatCurrency(grandTotalProgramming)}</span></div>}
               {grandTotalAddKey > 0 && <div className="flex justify-between text-sm"><span>Add Key:</span><span className="font-semibold">{formatCurrency(grandTotalAddKey)}</span></div>}

@@ -681,10 +681,9 @@ if(v.vin)h+='<div class="vin">VIN: '+esc(v.vin)+'</div>';
 h+='</div>';
 v.s.forEach(function(ss,i){
 h+='<div class="session"><div class="session-header"><div><div class="session-title">Session '+(i+1)+' — '+fmtDate(ss.dt)+'</div><div class="session-desc">"'+esc(ss.d)+'"</div></div><span class="badge">'+esc(ss.st)+'</span></div>';
-var baseLab=(ss.lc+(ss.ld||0))-(ss.mha||0)-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
+var baseLab=(ss.lc+(ss.ld||0))-(ss.clc||0)-(ss.prc||0)-(ss.akc||0)-(ss.aklc||0);
 h+='<div class="meta"><span>⏱ '+fmtDur(ss.dur)+'</span><span><b>💰 Labor: '+fmt(baseLab)+'</b></span></div>';
 if(ss.pds&&ss.pds.length>0){ss.pds.forEach(function(pd){h+='<div class="extra-line">🕐 <span style="color:#22c55e;font-weight:600">'+fmtTime(pd[0])+'</span> → <span style="color:#ef4444;font-weight:600">'+fmtTime(pd[1])+'</span></div>'})}
-if(ss.mha&&ss.mha>0)h+='<div class="extra-line">🚩 Min 1 Hour: <b>'+fmt(ss.mha)+'</b></div>';
 if(ss.clc&&ss.clc>0)h+='<div class="extra-line">📋 Cloning: <b>'+fmt(ss.clc)+'</b></div>';
 if(ss.prc&&ss.prc>0)h+='<div class="extra-line">💻 Programming: <b>'+fmt(ss.prc)+'</b></div>';
 if(ss.akc&&ss.akc>0)h+='<div class="extra-line">🔑 Add Key: <b>'+fmt(ss.akc)+'</b></div>';
@@ -703,9 +702,8 @@ h+='</table><div style="text-align:right;font-size:11px;font-weight:600;margin-t
 }
 h+='<div style="text-align:right;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:4px;margin-top:8px">Session Total: '+fmt(ss.lc+ss.pc)+'</div></div>';
 });
-var vBaseLab=(v.tl+(v.td||0))-(v.tmh||0)-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
+var vBaseLab=(v.tl+(v.td||0))-(v.tcl||0)-(v.tpr||0)-(v.tak||0)-(v.takl||0);
 h+='<div class="subtotal"><div class="row"><span>Vehicle Labor:</span><span><b>'+fmt(vBaseLab)+'</b></span></div>';
-if(v.tmh&&v.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(v.tmh)+'</b></span></div>';
 if(v.tcl&&v.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(v.tcl)+'</b></span></div>';
 if(v.tpr&&v.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(v.tpr)+'</b></span></div>';
 if(v.tak&&v.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(v.tak)+'</b></span></div>';
@@ -716,9 +714,8 @@ if(v.pa&&v.pa>0){h+='<div class="row" style="color:#ef4444"><span>Deposit:</span
 h+='</div></div>';
 });
 if(s.v.length>0){
-var gBaseLab=(s.tl+(s.gtd||0))-(s.tmh||0)-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
+var gBaseLab=(s.tl+(s.gtd||0))-(s.tcl||0)-(s.tpr||0)-(s.tak||0)-(s.takl||0);
 h+='<div class="grand"><div class="row"><span>Total Labor:</span><span><b>'+fmt(gBaseLab)+'</b></span></div>';
-if(s.tmh&&s.tmh>0)h+='<div class="row"><span>Min 1 Hour:</span><span><b>'+fmt(s.tmh)+'</b></span></div>';
 if(s.tcl&&s.tcl>0)h+='<div class="row"><span>Cloning:</span><span><b>'+fmt(s.tcl)+'</b></span></div>';
 if(s.tpr&&s.tpr>0)h+='<div class="row"><span>Programming:</span><span><b>'+fmt(s.tpr)+'</b></span></div>';
 if(s.tak&&s.tak>0)h+='<div class="row"><span>Add Key:</span><span><b>'+fmt(s.tak)+'</b></span></div>';

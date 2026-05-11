@@ -1667,8 +1667,7 @@ export const TaskCard = ({
             </div>
             {/* Cost Summary */}
             <div className="mt-2 pt-2 border-t space-y-0.5 text-xs">
-              <div className="flex justify-between"><span>Base Labor:</span><span>{formatCurrency(baseLabor)}</span></div>
-              {totalMinHourAdj > 0 && <div className="flex justify-between"><span>Min 1 Hour (×{minHourCount}):</span><span>{formatCurrency(totalMinHourAdj)}</span></div>}
+              <div className="flex justify-between"><span>Labor:</span><span>{formatCurrency(baseLabor + totalMinHourAdj)}</span></div>
               {totalCloning > 0 && <div className="flex justify-between"><span>Cloning (×{cloningCount}):</span><span>{formatCurrency(totalCloning)}</span></div>}
               {totalProgramming > 0 && <div className="flex justify-between"><span>Programming (×{programmingCount}):</span><span>{formatCurrency(totalProgramming)}</span></div>}
               {totalAddKey > 0 && <div className="flex justify-between"><span>Add Key (×{addKeyCount}):</span><span>{formatCurrency(totalAddKey)}</span></div>}

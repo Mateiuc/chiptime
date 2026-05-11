@@ -92,6 +92,14 @@ export function computeTaskTotal(
   client: Client | null | undefined,
   settings: Settings
 ): TaskTotal {
+  // Phase 2: imported (XLS) tasks lock to importedSalary. Parts/services
+  // added afterwards are NOT billed. The vehicle-level discount still
+  // applies — the imported value contributes to the labor pool downstream
+  // in computeVehicleTotal.
+  if (task.importedSalary != null && task.importedSalary > 0) {
+    const v = task.importedSalary;
+    return { labor: v, services: 0, parts: 0, total: v };
+  }
   let labor = 0;
   let services = 0;
   let parts = 0;

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { TaskInlineEditor } from '@/components/TaskInlineEditor';
+import { ImportedBadge } from '@/components/ImportedBadge';
 import { DesktopSettingsView } from '@/components/DesktopSettingsView';
 import { DesktopReportsView } from '@/components/DesktopReportsView';
 import { DesktopInvoiceView } from '@/components/DesktopInvoiceView';
@@ -1784,6 +1785,7 @@ const DesktopDashboard = () => {
                                             🏷 {vehicle.discountType === 'percent' ? `-${vehicle.discountValue}%` : `-${formatCurrency(vehicle.discountValue || 0)}`}
                                           </Badge>
                                         )}
+                                        {(task.importedSalary != null && task.importedSalary > 0) && <ImportedBadge />}
                                         {task.needsFollowUp && (
                                           <Badge variant="outline" className="text-xs text-orange-600 border-orange-400/50 bg-orange-500/10">
                                             ⚑ Follow-up

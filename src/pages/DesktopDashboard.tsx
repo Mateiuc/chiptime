@@ -785,93 +785,30 @@ const DesktopDashboard = () => {
     toast({ title: 'Vehicle Moved' });
   };
 
-  // --- Helpers ---
+  // --- Helpers (Phase 1: route through shared billing utility) ---
   const getTaskCost = (task: Task) => {
-    const partsCost = (task.sessions || []).reduce((sum, s) =>
-      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
-    );
+    const client = clients.find(c => c.id === task.clientId) || null;
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
-    if (task.billedAmount != null) {
-      const { laborAfter } = applyLaborDiscount(task.billedAmount, vehicle);
-      return laborAfter + partsCost;
-    }
-    if (task.importedSalary != null) {
-      const { laborAfter } = applyLaborDiscount(task.importedSalary, vehicle);
-      return laborAfter + partsCost;
-    }
-    const client = clients.find(c => c.id === task.clientId);
-    const rate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    const laborCost = (task.sessions || []).reduce((total, session) => {
-      const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-      const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-      let sessionCost = (effectiveTime / 3600) * rate;
-      if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
-      if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
-      if (session.isAddKey && addKeyRate > 0) sessionCost += addKeyRate;
-      if (session.isAllKeysLost && allKeysLostRate > 0) sessionCost += allKeysLostRate;
-      return total + sessionCost;
-    }, 0);
-    const { laborAfter } = applyLaborDiscount(laborCost, vehicle);
-    return laborAfter + partsCost;
+    const t = computeTaskTotal(task, client, settings);
+    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
+    return laborAfter + t.parts;
   };
 
   // Pre-discount cost (for headline display alongside Discount/Deposit chips).
-  // Billed/imported tasks lock their amount, so they're returned unchanged.
   const getTaskCostGross = (task: Task) => {
-    const partsCost = (task.sessions || []).reduce((sum, s) =>
-      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0
-    );
-    if (task.billedAmount != null) return task.billedAmount;
-    if (task.importedSalary != null) return task.importedSalary + partsCost;
-    const client = clients.find(c => c.id === task.clientId);
-    const rate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    const laborCost = (task.sessions || []).reduce((total, session) => {
-      const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-      const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-      let sessionCost = (effectiveTime / 3600) * rate;
-      if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
-      if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
-      if (session.isAddKey && addKeyRate > 0) sessionCost += addKeyRate;
-      if (session.isAllKeysLost && allKeysLostRate > 0) sessionCost += allKeysLostRate;
-      return total + sessionCost;
-    }, 0);
-    return laborCost + partsCost;
+    const client = clients.find(c => c.id === task.clientId) || null;
+    return computeTaskTotal(task, client, settings).total;
   };
 
   // Per-vehicle discount applied ONCE to the sum of un-billed task labor.
-  // Optionally restrict to a subset of tasks (e.g. only un-paid for Balance Due).
   const getVehicleDiscount = (vehicle: Vehicle | undefined, vehicleTasks: Task[]) => {
-    if (!vehicle?.discountType || !vehicle.discountValue) return 0;
-    const client = clients.find(c => c.id === vehicleTasks[0]?.clientId);
-    const rate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    const discountableLabor = vehicleTasks.reduce((sum, task) => {
-      if (task.billedAmount != null) return sum + task.billedAmount;
-      if (task.importedSalary != null) return sum + task.importedSalary;
-      const labor = (task.sessions || []).reduce((total, session) => {
-        const sessionDuration = session.periods.reduce((s, p) => s + p.duration, 0);
-        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        let sc = (effectiveTime / 3600) * rate;
-        if (session.isCloning && cloningRate > 0) sc += cloningRate;
-        if (session.isProgramming && programmingRate > 0) sc += programmingRate;
-        if (session.isAddKey && addKeyRate > 0) sc += addKeyRate;
-        if (session.isAllKeysLost && allKeysLostRate > 0) sc += allKeysLostRate;
-        return total + sc;
-      }, 0);
-      return sum + labor;
+    if (!vehicle?.discountType || !vehicle.discountValue || vehicleTasks.length === 0) return 0;
+    const client = clients.find(c => c.id === vehicleTasks[0].clientId) || null;
+    const labor = vehicleTasks.reduce((sum, task) => {
+      const t = computeTaskTotal(task, client, settings);
+      return sum + t.labor + t.services;
     }, 0);
-    return applyLaborDiscount(discountableLabor, vehicle).discount;
+    return applyLaborDiscount(labor, vehicle).discount;
   };
 
   // --- Money Over Time chart data ---

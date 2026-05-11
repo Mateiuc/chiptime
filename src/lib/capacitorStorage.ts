@@ -97,9 +97,15 @@ class CapacitorStorage {
 
   async setTasks(tasks: Task[]): Promise<void> {
     try {
+      // Phase 2: strip the legacy `billedAmount` field on every save so old
+      // records don't drag the field forward in IndexedDB indefinitely.
+      const sanitized = tasks.map(t => {
+        const { billedAmount: _drop, ...rest } = t as any;
+        return rest as Task;
+      });
       await Preferences.set({
         key: STORAGE_KEYS.TASKS,
-        value: JSON.stringify(tasks),
+        value: JSON.stringify(sanitized),
       });
     } catch (error) {
       console.error('Failed to set tasks in Preferences:', error);

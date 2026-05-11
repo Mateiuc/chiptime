@@ -202,12 +202,12 @@ export function calculateClientCosts(
       const lockedTaskTotal = task.billedAmount != null
         ? task.billedAmount
         : task.importedSalary != null ? task.importedSalary : null;
-      // For locked tasks, split the total into a labor pool (= total - parts)
-      // distributed across sessions, plus the real per-session parts on top.
-      // Sum still equals lockedTaskTotal so vehicleTotal stays unchanged.
-      const lockedLaborPool = lockedTaskTotal != null
-        ? Math.max(0, lockedTaskTotal - taskTotalParts)
-        : null;
+      if (lockedTaskTotal != null) legacyLockedTotal += lockedTaskTotal;
+      // Model B: treat lockedTaskTotal as labor-only. Parts always render
+      // live from session.parts[]. Vehicle total recomputes as
+      // labor + parts − discount; any divergence from the legacy locked
+      // value surfaces as a reconciliation warning in the portal UI.
+      const lockedLaborPool = lockedTaskTotal;
       let lockedAllocated = 0;
       task.sessions.forEach((session, sIdx) => {
         const duration = sessionDurations[sIdx];

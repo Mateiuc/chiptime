@@ -103,6 +103,7 @@ interface SlimVehicle {
   tl: number;
   tp: number;
   vt: number;
+  llt?: number; // legacy locked total (sum of task.billedAmount/importedSalary)
   tcl?: number;
   tpr?: number;
   tmh?: number;

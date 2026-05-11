@@ -387,8 +387,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
                       {/* Vehicle subtotal */}
                       <div className={`mx-3 mb-3 px-3 py-2 rounded-lg text-xs space-y-0.5 ${color.card}`}>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - vehicleSummary.totalMinHourAdj - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
-                        {vehicleSummary.totalMinHourAdj > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Min 1 Hour:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalMinHourAdj)}</span></div>}
+                        <div className="flex justify-between"><span className="text-muted-foreground">Labor:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalLabor - vehicleSummary.totalCloning - vehicleSummary.totalProgramming - (vehicleSummary.totalAddKey || 0) - (vehicleSummary.totalAllKeysLost || 0))}</span></div>
                         {vehicleSummary.totalCloning > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Cloning:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalCloning)}</span></div>}
                         {vehicleSummary.totalProgramming > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Programming:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalProgramming)}</span></div>}
                         {(vehicleSummary.totalAddKey || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Add Key:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalAddKey)}</span></div>}

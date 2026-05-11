@@ -22,6 +22,7 @@ export interface SessionCostDetail {
   photoUrls: string[];
   diagnosticPdfUrl?: string;
   periods: { start: Date; end: Date }[];
+  imported?: boolean; // synthetic row representing an XLS-imported task total
 }
 
 export interface VehicleCostSummary {
@@ -38,11 +39,6 @@ export interface VehicleCostSummary {
   discountType?: 'fixed' | 'percent';
   discountValue?: number;
   vehicleTotal: number;
-  /** Sum of legacy locked task amounts (billedAmount/importedSalary) for this
-   *  vehicle. Used to surface a reconciliation warning when the recomputed
-   *  vehicle total (labor + parts − discount) differs from the originally
-   *  billed amount. May be 0 if no tasks on this vehicle are locked. */
-  legacyLockedTotal: number;
 }
 
 export interface ClientCostSummary {
@@ -90,6 +86,7 @@ interface SlimSession {
   dpdf?: string;
   pds?: [number, number][];
   ld?: number; // labor discount applied to this session
+  imp?: 1; // imported (XLS) — flag for the portal badge
 }
 
 interface SlimVehicle {
@@ -103,7 +100,6 @@ interface SlimVehicle {
   tl: number;
   tp: number;
   vt: number;
-  llt?: number; // legacy locked total (sum of task.billedAmount/importedSalary)
   tcl?: number;
   tpr?: number;
   tmh?: number;

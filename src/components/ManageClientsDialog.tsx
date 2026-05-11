@@ -338,10 +338,9 @@ export const ManageClientsDialog = ({
         yPos += 5;
         doc.text(`Total Time: ${formatDuration(vehicleFinancials.totalTime)}`, 30, yPos);
         yPos += 5;
-        const vBaseLab = vehicleFinancials.totalLaborCost - (vehicleFinancials.totalMinHourAdj || 0) - (vehicleFinancials.totalCloning || 0) - (vehicleFinancials.totalProgramming || 0);
+        const vBaseLab = vehicleFinancials.totalLaborCost - (vehicleFinancials.totalCloning || 0) - (vehicleFinancials.totalProgramming || 0);
         doc.text(`Labor Cost: ${formatCurrency(vBaseLab)}`, 30, yPos);
         yPos += 5;
-        if (vehicleFinancials.totalMinHourAdj > 0) { doc.text(`Min 1 Hour: ${formatCurrency(vehicleFinancials.totalMinHourAdj)}`, 30, yPos); yPos += 5; }
         if (vehicleFinancials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(vehicleFinancials.totalCloning)}`, 30, yPos); yPos += 5; }
         if (vehicleFinancials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(vehicleFinancials.totalProgramming)}`, 30, yPos); yPos += 5; }
         doc.text(`Parts Cost: ${formatCurrency(vehicleFinancials.totalPartsCost)}`, 30, yPos);

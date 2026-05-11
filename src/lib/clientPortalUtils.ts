@@ -453,6 +453,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
       discountType: sv.dt,
       discountValue: sv.dv,
       vehicleTotal: sv.vt,
+      legacyLockedTotal: sv.llt || 0,
     })),
     grandTotalLabor: slim.tl,
     grandTotalParts: slim.tp,

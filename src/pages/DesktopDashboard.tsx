@@ -950,9 +950,8 @@ const DesktopDashboard = () => {
     doc.text(`Total Tasks: ${financials.totalTasks} (${financials.activeTasks} active, ${financials.completedTasks} completed)`, 25, yPos); yPos += 6;
     doc.text(`Total Vehicles: ${clientVehicles.length}`, 25, yPos); yPos += 6;
     doc.text(`Total Labor Time: ${formatDuration(financials.totalTime)}`, 25, yPos); yPos += 6;
-    const baseLab = financials.totalLaborCost - (financials.totalMinHourAdj || 0) - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
-    doc.text(`Base Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos); yPos += 6;
-    if (financials.totalMinHourAdj > 0) { doc.text(`Min 1 Hour adjustments: ${formatCurrency(financials.totalMinHourAdj)}`, 25, yPos); yPos += 6; }
+    const baseLab = financials.totalLaborCost - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos); yPos += 6;
     if (financials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, yPos); yPos += 6; }
     if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos); yPos += 6; }
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;

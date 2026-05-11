@@ -376,6 +376,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
       vt: Math.round(vs.vehicleTotal * 100) / 100,
+      llt: vs.legacyLockedTotal > 0 ? Math.round(vs.legacyLockedTotal * 100) / 100 : undefined,
       tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
       tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
       tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,

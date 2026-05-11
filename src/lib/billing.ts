@@ -3,16 +3,15 @@ import { calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 
 /**
- * Phase 1 — Single source of truth for billing math.
+ * Phase 2 — Single source of truth for billing math.
  *
- * These pure functions intentionally IGNORE `task.billedAmount` and
- * `task.importedSalary`. Status (pending / billed / paid) does not branch the
- * calculation. Every surface (desktop dashboard, mobile task card, client
- * portal) routes through these helpers so totals are always consistent.
- *
- * Phase 2 will decide the fate of the legacy locked fields. Until then they
- * are still written by `handleMarkBilled` and serialized by xmlConverter, but
- * no calculation reads them.
+ * - `task.importedSalary` (XLS-imported tasks) short-circuits `computeTaskTotal`:
+ *   the task's labor equals the imported value, parts/services on the task
+ *   are not billed. The amber "Imported" badge surfaces this in the UI.
+ * - `task.billedAmount` no longer exists (Phase 2 removed it).
+ * - Status (pending / billed / paid) does not branch the calculation. Every
+ *   surface (desktop dashboard, mobile task card, client portal) routes
+ *   through these helpers so totals are always consistent.
  */
 
 export interface SessionLabor {
@@ -93,6 +92,14 @@ export function computeTaskTotal(
   client: Client | null | undefined,
   settings: Settings
 ): TaskTotal {
+  // Phase 2: imported (XLS) tasks lock to importedSalary. Parts/services
+  // added afterwards are NOT billed. The vehicle-level discount still
+  // applies — the imported value contributes to the labor pool downstream
+  // in computeVehicleTotal.
+  if (task.importedSalary != null && task.importedSalary > 0) {
+    const v = task.importedSalary;
+    return { labor: v, services: 0, parts: 0, total: v };
+  }
   let labor = 0;
   let services = 0;
   let parts = 0;

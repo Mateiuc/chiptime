@@ -18,6 +18,7 @@ import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 import { PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { ImportedBadge } from '@/components/ImportedBadge';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { photoStorageService } from '@/services/photoStorageService';
@@ -1419,6 +1420,7 @@ export const TaskCard = ({
                 </span>
               )}
               <span className="capitalize">{task.status.replace('-', ' ')}</span>
+              {(task.importedSalary != null && task.importedSalary > 0) && <ImportedBadge />}
 
             </div>
             {task.status === 'in-progress' && task.startTime && (

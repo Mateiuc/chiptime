@@ -313,7 +313,14 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                                 <p className="text-xs text-muted-foreground italic mt-0.5 ml-7">"{session.description}"</p>
                               )}
                             </div>
-                            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColors[session.status] || ''}`}>{session.status}</Badge>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <Badge variant="outline" className={`text-[10px] ${statusColors[session.status] || ''}`}>{session.status}</Badge>
+                              {session.imported && (
+                                <span className="inline-flex items-center rounded-md border-2 border-amber-600 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-200 dark:text-amber-950" title="Imported from XLS — parts not billed.">
+                                  Imported · parts not billed
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="ml-7 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -390,11 +397,6 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         {(vehicleSummary.totalDiscount || 0) > 0 && <div className="flex justify-between text-emerald-600 dark:text-emerald-400"><span>Discount{vehicleSummary.discountType === 'percent' ? ` (${vehicleSummary.discountValue}%)` : ''}:</span><span className="font-semibold">-{formatCurrency(vehicleSummary.totalDiscount)}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Parts:</span><span className="font-semibold">{formatCurrency(vehicleSummary.totalParts)}</span></div>
                         <div className="flex justify-between font-bold text-sm border-t border-border/30 pt-1 mt-1"><span>Vehicle total:</span><span>{formatCurrency(vehicleSummary.vehicleTotal)}</span></div>
-                        {filter !== 'pending' && vehicleSummary.legacyLockedTotal > 0 && Math.abs(vehicleSummary.legacyLockedTotal - vehicleSummary.totalLabor) >= 0.5 && (
-                          <div className="mt-1 px-2 py-1 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 text-[10px] text-amber-800 dark:text-amber-300">
-                            ⚠️ Total mismatch — billed {formatCurrency(vehicleSummary.legacyLockedTotal)}, current labor {formatCurrency(vehicleSummary.totalLabor)}. Adjust the discount on this vehicle to reconcile.
-                          </div>
-                        )}
                         {deposit > 0 && (
                           <>
                             <div className={`flex justify-between ${filter === 'paid' ? 'text-muted-foreground' : 'text-destructive'}`}><span>Deposit:</span><span className="font-semibold">-{formatCurrency(deposit)}</span></div>

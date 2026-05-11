@@ -79,7 +79,6 @@ export const exportToXML = (data: DatabaseExport): string => {
     xml += `needsFollowUp="${escapeXML(task.needsFollowUp)}" `;
     xml += `createdAt="${formatDate(task.createdAt)}" `;
     if (task.importedSalary != null) xml += `importedSalary="${escapeXML(task.importedSalary)}" `;
-    if (task.billedAmount != null) xml += `billedAmount="${escapeXML(task.billedAmount)}" `;
     if (task.startTime) xml += `startTime="${formatDate(task.startTime)}" `;
     if (task.activeSessionId) xml += `activeSessionId="${escapeXML(task.activeSessionId)}" `;
     xml += `>\n`;
@@ -283,9 +282,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
       if (taskNode.getAttribute('importedSalary')) {
         task.importedSalary = parseFloat(taskNode.getAttribute('importedSalary')!);
       }
-      if (taskNode.getAttribute('billedAmount')) {
-        task.billedAmount = parseFloat(taskNode.getAttribute('billedAmount')!);
-      }
+      // Phase 2: legacy `billedAmount` attribute on backups is silently dropped.
 
       // Parse Sessions
       const sessionsNode = taskNode.querySelector('Sessions');

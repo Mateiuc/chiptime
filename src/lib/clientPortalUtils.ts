@@ -22,6 +22,7 @@ export interface SessionCostDetail {
   photoUrls: string[];
   diagnosticPdfUrl?: string;
   periods: { start: Date; end: Date }[];
+  imported?: boolean; // synthetic row representing an XLS-imported task total
 }
 
 export interface VehicleCostSummary {
@@ -38,11 +39,6 @@ export interface VehicleCostSummary {
   discountType?: 'fixed' | 'percent';
   discountValue?: number;
   vehicleTotal: number;
-  /** Sum of legacy locked task amounts (billedAmount/importedSalary) for this
-   *  vehicle. Used to surface a reconciliation warning when the recomputed
-   *  vehicle total (labor + parts − discount) differs from the originally
-   *  billed amount. May be 0 if no tasks on this vehicle are locked. */
-  legacyLockedTotal: number;
 }
 
 export interface ClientCostSummary {
@@ -90,6 +86,7 @@ interface SlimSession {
   dpdf?: string;
   pds?: [number, number][];
   ld?: number; // labor discount applied to this session
+  imp?: 1; // imported (XLS) — flag for the portal badge
 }
 
 interface SlimVehicle {
@@ -103,7 +100,6 @@ interface SlimVehicle {
   tl: number;
   tp: number;
   vt: number;
-  llt?: number; // legacy locked total (sum of task.billedAmount/importedSalary)
   tcl?: number;
   tpr?: number;
   tmh?: number;
@@ -179,18 +175,47 @@ export function calculateClientCosts(
     let unbilledLabor = 0; // labor eligible for the per-vehicle discount
     
     const sessions: SessionCostDetail[] = [];
-    let legacyLockedTotal = 0;
 
     vehicleTasks.forEach(task => {
-      let diagnosticShown = false;
-      // Phase 1: ignore task.billedAmount / task.importedSalary entirely.
-      // Per-session labor is computed live; legacyLockedTotal is still
-      // surfaced so the portal warning badge can flag drift in Phase 3.
-      const legacy = task.billedAmount != null
-        ? task.billedAmount
-        : task.importedSalary != null ? task.importedSalary : null;
-      if (legacy != null) legacyLockedTotal += legacy;
+      // Phase 2: imported tasks short-circuit. They contribute their
+      // importedSalary as a single synthetic session row with no parts and
+      // no services. The vehicle-level discount still applies (added into
+      // unbilledLabor pool below). Adding parts to an imported task does
+      // not change its total.
+      if (task.importedSalary != null && task.importedSalary > 0) {
+        const v = task.importedSalary;
+        unbilledLabor += v;
+        totalLabor += v;
+        const lastSession = task.sessions && task.sessions.length > 0
+          ? task.sessions[task.sessions.length - 1]
+          : null;
+        const date = lastSession?.completedAt
+          || (lastSession && lastSession.periods.length > 0
+              ? lastSession.periods[lastSession.periods.length - 1].endTime
+              : (lastSession?.createdAt || task.createdAt));
+        sessions.push({
+          description: lastSession?.description || 'Imported task',
+          date,
+          duration: (task.sessions || []).reduce((s, ss) => s + ss.periods.reduce((p, pp) => p + pp.duration, 0), 0),
+          laborCost: v,
+          laborDiscount: 0,
+          cloningCost: 0,
+          programmingCost: 0,
+          addKeyCost: 0,
+          allKeysLostCost: 0,
+          minHourAdj: 0,
+          parts: [],
+          partsCost: 0,
+          status: task.status,
+          photoUrls: [],
+          diagnosticPdfUrl: task.diagnosticPdfPath || task.diagnosticPdfUrl,
+          periods: [],
+          imported: true,
+        });
+        return;
+      }
 
+      let diagnosticShown = false;
       task.sessions.forEach((session) => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
         const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
@@ -280,7 +305,6 @@ export function calculateClientCosts(
       discountType: vehicle.discountType,
       discountValue: vehicle.discountValue,
       vehicleTotal: Math.max(0, totalLabor - totalDiscount) + totalParts,
-      legacyLockedTotal,
     };
   });
 
@@ -328,11 +352,11 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         dpdf: s.diagnosticPdfUrl || undefined,
         pds: s.periods.length > 0 ? s.periods.map(p => [Math.floor(new Date(p.start).getTime() / 1000), Math.floor(new Date(p.end).getTime() / 1000)] as [number, number]) : undefined,
         ld: s.laborDiscount > 0 ? Math.round(s.laborDiscount * 100) / 100 : undefined,
+        imp: s.imported ? 1 : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
       vt: Math.round(vs.vehicleTotal * 100) / 100,
-      llt: vs.legacyLockedTotal > 0 ? Math.round(vs.legacyLockedTotal * 100) / 100 : undefined,
       tcl: vs.totalCloning > 0 ? Math.round(vs.totalCloning * 100) / 100 : undefined,
       tpr: vs.totalProgramming > 0 ? Math.round(vs.totalProgramming * 100) / 100 : undefined,
       tmh: vs.totalMinHourAdj > 0 ? Math.round(vs.totalMinHourAdj * 100) / 100 : undefined,
@@ -397,6 +421,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         photoUrls: ss.ph || [],
         diagnosticPdfUrl: ss.dpdf || undefined,
         periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
+        imported: ss.imp ? true : undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,
@@ -409,7 +434,6 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
       discountType: sv.dt,
       discountValue: sv.dv,
       vehicleTotal: sv.vt,
-      legacyLockedTotal: sv.llt || 0,
     })),
     grandTotalLabor: slim.tl,
     grandTotalParts: slim.tp,

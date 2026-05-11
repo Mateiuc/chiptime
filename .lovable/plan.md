@@ -1,73 +1,75 @@
-# Phase 1 — Unify Billing Math
+## Phase 2 — Delete `billedAmount` and surface `importedSalary`
 
-## Goal
+### Part A — Remove `billedAmount` everywhere
 
-Eliminate the $850 / $500 / $350 trilemma. Today the desktop task header, desktop vehicle rollup, and the client portal each compute totals differently because they handle legacy `billedAmount` / `importedSalary` inconsistently. After Phase 1, every surface routes through one shared utility and ignores those legacy fields entirely.
+1. **`src/types/index.ts`** — remove `billedAmount?: number` from `Task`. Keep `importedSalary`.
 
-## New file
+2. **`src/pages/Index.tsx` `handleMarkBilled` (~L469–L500)** — collapse to a pure status flip:
+   ```ts
+   updateTask(taskId, { status: 'billed' });
+   setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t));
+   ```
+   Drop the `labor`/`billedAmount` computation block entirely.
 
-**`src/lib/billing.ts`** — pure functions, no React, no storage:
+3. **`src/pages/DesktopDashboard.tsx` `handleMarkBilled` (~L700–L730)** — same simplification.
 
-- `computeSessionLabor(session, client, settings)` → `{ labor, services, total }`
-  - Hourly rate: `client.hourlyRate ?? settings.defaultHourlyRate ?? 0`
-  - Per-period min-hour rule (existing `WorkPeriod.chargeMinimumHour`) and per-session min-hour (`WorkSession.chargeMinimumHour`) preserved exactly as `calcPeriodCost` + current portal math
-  - Service fees from boolean flags (`isCloning`, `isProgramming`, `isAddKey`, `isAllKeysLost`) × matching client/settings rate fallback
+4. **`src/lib/xmlConverter.ts`**
+   - Export (~L82): remove the `billedAmount=...` attribute write.
+   - Import (~L286–L288): drop the field silently — do not parse, do not assign. Leave `importedSalary` parsing intact.
 
-- `computeTaskTotal(task, client, settings)` → `{ labor, services, parts, total }`
-  - Sums `computeSessionLabor` across `task.sessions`
-  - Parts: `price × quantity`, with `providedByClient` counted as $0
-  - **Never reads `task.billedAmount` or `task.importedSalary`.** Status does not branch the math.
+5. **`src/lib/xlsImporter.ts`** — verify no `billedAmount` reference (rg shows none); no change expected.
 
-- `computeVehicleTotal(vehicle, tasksForVehicle, client, settings)` → `{ labor, services, parts, discount, total }`
-  - Sums `computeTaskTotal` across the vehicle's tasks
-  - Applies `applyLaborDiscount` once at the vehicle level on `(labor + services)`; parts are not discounted
-  - `total = max(0, labor + services − discount) + parts`
+6. **`src/lib/clientPortalUtils.ts`**
+   - Remove `legacyLockedTotal` from `VehicleSummary` (~L41–L45) and the `llt` field on the slim portal payload (~L106).
+   - Remove the accumulator block (~L182–L192) reading `task.billedAmount`/`task.importedSalary` for `legacyLockedTotal`.
+   - Remove the encode (~L335) and decode (~L412) sites.
 
-## Call sites to replace
+7. **`src/components/ClientCostBreakdown.tsx`** — delete the warning block at L393–L396 and any now-unused `legacyLockedTotal` references.
 
-All three of these currently disagree on the same data — they will all return identical numbers after this change.
+8. **`src/lib/billing.ts`** — update file-level doc comment: drop the "still written by `handleMarkBilled`" line; new behavior is "ignored on read, never written".
 
-| File | Current | After |
-|---|---|---|
-| `src/pages/DesktopDashboard.tsx` `getTaskCost` (~L788) | reads `billedAmount`, applies discount, adds parts | `computeTaskTotal(task, client, settings).total` (vehicle-level discount applied where the rollup is computed) |
-| `src/pages/DesktopDashboard.tsx` `getTaskCostGross` (~L823) | returns `billedAmount` directly | `computeTaskTotal(...).total` |
-| `src/pages/DesktopDashboard.tsx` vehicle rollup / Grand Total / client revenue (L859, L945, L994) | sums `billedAmount` / `importedSalary` | `computeVehicleTotal(...).total` |
-| `src/lib/clientPortalUtils.ts` `calculateClientCosts` (L186–L290, including the locked-pool branch) | proportional split of `billedAmount` across sessions | per-session labor from `computeSessionLabor`; per-task total from `computeTaskTotal`; vehicle total from `computeVehicleTotal` |
-| `src/components/TaskCard.tsx` (~L1393–L1400 and the per-session helpers at L402, L810) | branches on `importedSalary` / `billedAmount` | `computeTaskTotal(...).total` for the header; `computeSessionLabor` for per-session lines |
-| `src/components/DesktopReportsView.tsx` (L144–L150) | reads `billedAmount` / `importedSalary` | `computeTaskTotal(...).labor + .services` for labor analytics |
-| `src/components/ManageClientsDialog.tsx` (L131, L177) | sums `importedSalary` | `computeTaskTotal(...)` aggregation |
-| `src/pages/DesktopDashboard.tsx` charts at L315, L382 | per-task / per-session labor branches | `computeTaskTotal` / `computeSessionLabor` |
+After Part A, `rg "billedAmount" src` returns **zero matches**.
 
-## Out of scope (Phase 2+)
+**Legacy-data safety**: pre-Phase-1 records in IndexedDB may still carry a `billedAmount` field. Removing it from the `Task` type means TypeScript will not reference it; at runtime the extra property is harmless (JS objects accept unknown keys). On next save, the field is stripped because no code path writes it back. No migration script needed.
 
-- Do **not** delete `task.billedAmount` or `task.importedSalary` from `Task` type, XML import/export (`xmlConverter.ts`), or `xlsImporter.ts`.
-- Do **not** change the writes in `handleMarkBilled` (Index.tsx L469, DesktopDashboard.tsx L700). The field is still written; it is just no longer read by the calculation path.
-- Do **not** touch the legacy reconcile/warning badge in `ClientCostBreakdown.tsx` (~L393–396).
-- Do **not** change the Cost/Due label in `TaskCard.tsx` (~L1534).
-- Do **not** change rounding behavior — reuse `calcPeriodCost`'s `Math.ceil(minutes/60 * rate)` exactly.
+### Part B — Make `importedSalary` explicit
 
-## Verification
+1. **`src/lib/billing.ts` `computeTaskTotal`** — short-circuit at the top:
+   ```ts
+   if (task.importedSalary != null && task.importedSalary > 0) {
+     const v = task.importedSalary;
+     return { labor: v, services: 0, parts: 0, total: v };
+   }
+   ```
+   No other call site reads `importedSalary`. **Imported tasks contribute their `importedSalary` to the vehicle's labor pool and ARE subject to vehicle-level discount like any other task. The short-circuit only skips the per-session computation and parts roll-up — it does not exempt the task from downstream vehicle math.**
 
-For the Lamborghini "Ali's" task (`status=billed`, `billedAmount=500`, 1 session of 1 second, 1 part Battery $350) the total must read **$350** at all six surfaces:
+2. **New component `src/components/ImportedBadge.tsx`** — reusable amber chip:
+   ```tsx
+   <span className="inline-flex items-center gap-1 rounded-md border-2 border-amber-600 bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+     Imported · parts not billed
+   </span>
+   ```
 
-1. Desktop task header (TaskCard)
-2. Desktop vehicle rollup
-3. Desktop Grand Total / client revenue card
-4. Client portal Billed-tab vehicle card
-5. Client portal Grand Total
-6. Mobile task card
+3. **Render the badge** wherever a task is shown, gated by `task.importedSalary != null && task.importedSalary > 0`, regardless of status:
+   - **`src/components/TaskCard.tsx`** — header, adjacent to the status chip.
+   - **`src/pages/DesktopDashboard.tsx`** — desktop task row (next to status).
+   - **`src/components/ClientCostBreakdown.tsx`** — each portal task row (used by `/desk` and `/client-view`).
 
-For the Mercedes GLS (Lance Naidoo) the total computes live from sessions + parts + vehicle discount, with no reference to `billedAmount`.
+4. **No behavior changes** to parts-list visibility rules or the XLS importer. `importedSalary` remains writable only by the importer.
 
-After the change, `rg "billedAmount|importedSalary" src` should show reads only in:
-- `xmlConverter.ts` (backup import/export)
-- `xlsImporter.ts` (write only)
-- `Index.tsx` / `DesktopDashboard.tsx` `handleMarkBilled` (write only)
-- `ClientCostBreakdown.tsx` legacy badge (Phase 3 will remove)
-- `clientPortalUtils.ts` portal-payload serialization (kept so legacy badge can still detect mismatch — flagged for Phase 3)
+### Verification
 
-## Deliverable in the build phase
+- `rg "billedAmount" src` → zero matches.
+- `rg "importedSalary" src` → reads only in `billing.ts` (calc) + `xmlConverter.ts` (load/save) + write sites (`xlsImporter.ts`, `DesktopDashboard.tsx` L252) + the three badge gates + the type def.
+- Lamborghini task (no `importedSalary`) still shows **$350** on all six surfaces.
+- Mercedes GLS: live computation unchanged.
+- Any imported task: total equals `importedSalary` everywhere; adding parts does not change the total; amber badge visible in `/desk` and `/client-view` across all status tabs.
+- Legacy "Total mismatch" warning no longer renders.
+- **Legacy record check**: open a task created and billed before Phase 1 (any pre-existing Mercedes GLS or earlier paid task) and confirm:
+  - Task loads without TypeScript or runtime errors despite IndexedDB possibly still containing a `billedAmount` value.
+  - Displayed total matches what `computeTaskTotal` returns from live session/part data.
+  - Saving the task back to IndexedDB strips the legacy `billedAmount` field from the stored record.
 
-- Files changed list with a one-line description of each replacement
-- Side-by-side before/after totals for the Lamborghini at all six surfaces
-- Confirmation that no calculation path reads `billedAmount` or `importedSalary` (search output included)
+### Out of scope
+
+Cost/Due label fix, min-hour flag reconciliation, paid-status validation.

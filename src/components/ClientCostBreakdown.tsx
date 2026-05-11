@@ -329,7 +329,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </span>
                             <span className="flex items-center gap-1 font-semibold text-foreground">
                               <DollarSign className="h-3 w-3" />
-                              {formatCurrency(session.laborCost + (session.laborDiscount || 0) - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.minHourAdj || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
+                              {formatCurrency(session.laborCost + (session.laborDiscount || 0) - (session.cloningCost || 0) - (session.programmingCost || 0) - (session.addKeyCost || 0) - (session.allKeysLostCost || 0))}
                             </span>
                           </div>
 

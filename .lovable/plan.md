@@ -1,75 +1,74 @@
-## Phase 2 — Delete `billedAmount` and surface `importedSalary`
+## Phase 3 — Cost/Due label fix
 
-### Part A — Remove `billedAmount` everywhere
+### Audit results
 
-1. **`src/types/index.ts`** — remove `billedAmount?: number` from `Task`. Keep `importedSalary`.
+The "Cost / Due" toggle exists at exactly **one** site in the entire codebase:
 
-2. **`src/pages/Index.tsx` `handleMarkBilled` (~L469–L500)** — collapse to a pure status flip:
-   ```ts
-   updateTask(taskId, { status: 'billed' });
-   setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t));
-   ```
-   Drop the `labor`/`billedAmount` computation block entirely.
+- **`src/components/TaskCard.tsx` L1534** — the per-task summary stat cell on the mobile task card (also rendered on desktop's task list since the same component is reused).
 
-3. **`src/pages/DesktopDashboard.tsx` `handleMarkBilled` (~L700–L730)** — same simplification.
+Other surfaces use different language and do not need changes:
 
-4. **`src/lib/xmlConverter.ts`**
-   - Export (~L82): remove the `billedAmount=...` attribute write.
-   - Import (~L286–L288): drop the field silently — do not parse, do not assign. Leave `importedSalary` parsing intact.
+| Surface | Current label | Verdict |
+|---|---|---|
+| `DesktopDashboard.tsx` desktop task row (~L1781) | no label, just `formatCurrency(cost)` | nothing to change |
+| `DesktopDashboard.tsx` vehicle/client header (L1282, L1336, L1602, L1677) | "Due:" / "Balance Due:" — already conditional on balance > 0 and not paid | already correct |
+| `ClientCostBreakdown.tsx` portal vehicle subtotal (L406) | "Balance due:" only when deposit > 0 | per-vehicle, not per-task; out of scope (Phase 3 is the per-task label) |
+| `TaskCard.tsx` expanded breakdown (L1680, L1690) | "Total:" + "Balance Due:" line that only renders when deposit > 0 | this is a separate breakdown row, not the Cost/Due label; leave as-is |
+| Bill PDFs (`TaskCard.tsx` L520/525, L921/926) | "TOTAL:" — never says "Cost" | nothing to change |
+| Aggregate PDFs (`DesktopDashboard.tsx`, `DesktopClientsView.tsx`, `ManageClientsDialog.tsx`) | "Balance Due:" only when deposits > 0 | aggregate-level, not per-task Cost/Due; out of scope |
 
-5. **`src/lib/xlsImporter.ts`** — verify no `billedAmount` reference (rg shows none); no change expected.
+So the change is genuinely a one-liner in TaskCard.
 
-6. **`src/lib/clientPortalUtils.ts`**
-   - Remove `legacyLockedTotal` from `VehicleSummary` (~L41–L45) and the `llt` field on the slim portal payload (~L106).
-   - Remove the accumulator block (~L182–L192) reading `task.billedAmount`/`task.importedSalary` for `legacyLockedTotal`.
-   - Remove the encode (~L335) and decode (~L412) sites.
+### Change
 
-7. **`src/components/ClientCostBreakdown.tsx`** — delete the warning block at L393–L396 and any now-unused `legacyLockedTotal` references.
+`src/components/TaskCard.tsx` L1534–L1535:
 
-8. **`src/lib/billing.ts`** — update file-level doc comment: drop the "still written by `handleMarkBilled`" line; new behavior is "ignored on read, never written".
+Before:
 
-After Part A, `rg "billedAmount" src` returns **zero matches**.
+```tsx
+<div className="text-muted-foreground text-xs font-medium mb-1">
+  {task.status !== 'paid' && (vehicle?.prepaidAmount || 0) > 0 ? 'Due' : 'Cost'}
+</div>
+<div className={...}>
+  {formatCurrency(
+    task.status !== 'paid' && (vehicle?.prepaidAmount || 0) > 0
+      ? Math.max(0, totalCost - (vehicle?.prepaidAmount || 0))
+      : totalCost
+  )}
+</div>
+```
 
-**Legacy-data safety**: pre-Phase-1 records in IndexedDB may still carry a `billedAmount` field. Removing it from the `Task` type means TypeScript will not reference it; at runtime the extra property is harmless (JS objects accept unknown keys). On next save, the field is stripped because no code path writes it back. No migration script needed.
+After:
 
-### Part B — Make `importedSalary` explicit
+```tsx
+<div className="text-muted-foreground text-xs font-medium mb-1">
+  {task.status === 'paid' ? 'Cost' : 'Due'}
+</div>
+<div className={...}>
+  {formatCurrency(
+    task.status === 'paid'
+      ? totalCost
+      : Math.max(0, totalCost - (vehicle?.prepaidAmount || 0))
+  )}
+</div>
+```
 
-1. **`src/lib/billing.ts` `computeTaskTotal`** — short-circuit at the top:
-   ```ts
-   if (task.importedSalary != null && task.importedSalary > 0) {
-     const v = task.importedSalary;
-     return { labor: v, services: 0, parts: 0, total: v };
-   }
-   ```
-   No other call site reads `importedSalary`. **Imported tasks contribute their `importedSalary` to the vehicle's labor pool and ARE subject to vehicle-level discount like any other task. The short-circuit only skips the per-session computation and parts roll-up — it does not exempt the task from downstream vehicle math.**
-
-2. **New component `src/components/ImportedBadge.tsx`** — reusable amber chip:
-   ```tsx
-   <span className="inline-flex items-center gap-1 rounded-md border-2 border-amber-600 bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
-     Imported · parts not billed
-   </span>
-   ```
-
-3. **Render the badge** wherever a task is shown, gated by `task.importedSalary != null && task.importedSalary > 0`, regardless of status:
-   - **`src/components/TaskCard.tsx`** — header, adjacent to the status chip.
-   - **`src/pages/DesktopDashboard.tsx`** — desktop task row (next to status).
-   - **`src/components/ClientCostBreakdown.tsx`** — each portal task row (used by `/desk` and `/client-view`).
-
-4. **No behavior changes** to parts-list visibility rules or the XLS importer. `importedSalary` remains writable only by the importer.
+When `prepaidAmount` is 0, `Math.max(0, totalCost - 0) === totalCost`, so the displayed number is unchanged for unpaid-no-deposit tasks — only the label flips from "Cost" to "Due", which is the desired behavior.
 
 ### Verification
 
-- `rg "billedAmount" src` → zero matches.
-- `rg "importedSalary" src` → reads only in `billing.ts` (calc) + `xmlConverter.ts` (load/save) + write sites (`xlsImporter.ts`, `DesktopDashboard.tsx` L252) + the three badge gates + the type def.
-- Lamborghini task (no `importedSalary`) still shows **$350** on all six surfaces.
-- Mercedes GLS: live computation unchanged.
-- Any imported task: total equals `importedSalary` everywhere; adding parts does not change the total; amber badge visible in `/desk` and `/client-view` across all status tabs.
-- Legacy "Total mismatch" warning no longer renders.
-- **Legacy record check**: open a task created and billed before Phase 1 (any pre-existing Mercedes GLS or earlier paid task) and confirm:
-  - Task loads without TypeScript or runtime errors despite IndexedDB possibly still containing a `billedAmount` value.
-  - Displayed total matches what `computeTaskTotal` returns from live session/part data.
-  - Saving the task back to IndexedDB strips the legacy `billedAmount` field from the stored record.
+- Unpaid task, no deposit → label "Due", value = `totalCost`.
+- Unpaid task, deposit < total → label "Due", value = `totalCost − deposit` (unchanged).
+- Unpaid task, deposit ≥ total → label "Due", value = `$0`.
+- Paid task → label "Cost", value = `totalCost` (unchanged).
+- Mobile + desktop both reuse `TaskCard`, so both surfaces flip together.
+- `/client-view` and PDFs untouched (already correct or use different vocabulary).
 
 ### Out of scope
 
-Cost/Due label fix, min-hour flag reconciliation, paid-status validation.
+Paid-status validation, min-hour reconciliation, any other behavior changes.
+
+### Deliverable
+
+- One file changed: `src/components/TaskCard.tsx` (label + value expression).
+- Confirmation that an unpaid task with no deposit reads "Due: $\<total\>" on TaskCard wherever it's rendered.

@@ -100,8 +100,7 @@ export interface Task {
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
   chargeMinimumHour?: boolean; // @deprecated - use session.chargeMinimumHour instead
-  importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column
-  billedAmount?: number;   // Locked cost at time of billing — never recalculated
+  importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column — locks task total
   diagnosticPdfUrl?: string; // Last-known signed URL (may expire)
   diagnosticPdfPath?: string; // Storage path in private bucket (canonical)
 }

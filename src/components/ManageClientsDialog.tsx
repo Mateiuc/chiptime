@@ -270,13 +270,9 @@ export const ManageClientsDialog = ({
     yPos += 6;
     doc.text(`Total Labor Time: ${formatDuration(financials.totalTime)}`, 25, yPos);
     yPos += 6;
-    const baseLab = financials.totalLaborCost - (financials.totalMinHourAdj || 0) - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
-    doc.text(`Base Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos);
+    const baseLab = financials.totalLaborCost - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos);
     yPos += 6;
-    if (financials.totalMinHourAdj > 0) {
-      doc.text(`Min 1 Hour adjustments: ${formatCurrency(financials.totalMinHourAdj)}`, 25, yPos);
-      yPos += 6;
-    }
     if (financials.totalCloning > 0) {
       doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, yPos);
       yPos += 6;

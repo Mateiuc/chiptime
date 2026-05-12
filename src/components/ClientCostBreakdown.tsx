@@ -423,11 +423,21 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               {grandTotalAllKeysLost > 0 && <div className="flex justify-between text-sm"><span>All Keys Lost:</span><span className="font-semibold">{formatCurrency(grandTotalAllKeysLost)}</span></div>}
               {grandTotalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400"><span>Total Discount:</span><span className="font-semibold">-{formatCurrency(grandTotalDiscount)}</span></div>}
               <div className="flex justify-between text-sm"><span>Total Parts:</span><span className="font-semibold">{formatCurrency(grandTotalParts)}</span></div>
-              <div className={`flex justify-between text-lg font-bold border-t pt-2 mt-2 ${
+              <div className={`flex justify-between items-center text-lg font-bold border-t pt-2 mt-2 ${
                 filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                 'text-blue-600 dark:text-blue-400'
-              }`}><span>GRAND TOTAL:</span><span>{formatCurrency(grandTotal)}</span></div>
+              }`}>
+                <span>{filter === 'paid' ? 'TOTAL PAID:' : filter === 'billed' ? 'TOTAL DUE:' : filter === 'pending' ? 'TOTAL:' : 'GRAND TOTAL:'}</span>
+                <span className="flex items-center gap-2">
+                  <span>{formatCurrency(grandTotal)}</span>
+                  {filter === 'paid' && (
+                    <span className="inline-flex items-center rounded-full border border-green-500/30 bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-300">
+                      ✓ PAID IN FULL
+                    </span>
+                  )}
+                </span>
+              </div>
               {(() => {
                 const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
                 const clientDeposit = costSummary.client.prepaidAmount || 0;
@@ -438,10 +448,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                   <>
                     {vehicleDeposits > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Vehicle Deposits:</span><span className="font-semibold">-{formatCurrency(vehicleDeposits)}</span></div>}
                     {clientDeposit > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Client Deposit:</span><span className="font-semibold">-{formatCurrency(clientDeposit)}</span></div>}
-                    {isPaid ? (
-                      <div className="flex justify-between text-lg font-bold text-emerald-600 dark:text-emerald-400"><span>PAID IN FULL</span><span>{formatCurrency(grandTotal)}</span></div>
-                    ) : (
-                      totalDeposits > 0 && <div className="flex justify-between text-lg font-bold text-orange-500"><span>BALANCE DUE:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
+                    {!isPaid && totalDeposits > 0 && (
+                      <div className="flex justify-between text-lg font-bold text-orange-500"><span>BALANCE DUE:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
                     )}
                   </>
                 );

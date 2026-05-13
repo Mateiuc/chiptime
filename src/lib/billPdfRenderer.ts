@@ -13,13 +13,9 @@ import { stripDiacritics } from '@/lib/pdfUtils';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
-  ensureRoom,
-  ensureDecorativeFinalPage,
+  safeTop,
   safeBottom,
-  CONTENT_TOP,
-  TOTAL_BLOCK_Y,
-  SAFE_BOTTOM_CLEAN,
-  type BillLayoutCursor,
+  type PageRole,
 } from '@/lib/billPdfLayout';
 
 export interface RendererSettings {

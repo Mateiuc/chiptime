@@ -70,6 +70,8 @@ export const SettingsDialog = ({
   const [addKeyRate, setAddKeyRate] = useState(settings.defaultAddKeyRate?.toString() || '');
   const [allKeysLostRate, setAllKeysLostRate] = useState(settings.defaultAllKeysLostRate?.toString() || '');
   const [showManageClients, setShowManageClients] = useState(false);
+  const [collapsedBilledClients, setCollapsedBilledClients] = useState<Set<string>>(new Set());
+  const [collapsedPaidClients, setCollapsedPaidClients] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useNotifications();
 

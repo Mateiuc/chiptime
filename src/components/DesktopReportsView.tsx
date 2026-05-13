@@ -569,7 +569,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2">{r.client}</td>
                       <td className="py-2">{r.vehicle}</td>
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
-                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
+                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge>{r.imported && <ImportedBadge className="ml-1" />}</td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
                       <td className="py-2 text-right font-mono">{formatCurrency(r.cost)}</td>
                     </tr>

@@ -175,9 +175,9 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
   let extra = 0;
   if (row.description) {
     wrappedPartDesc = doc.splitTextToSize(row.description, COL1_WIDTH - 2) as string[];
-    extra = 4 + wrappedPartDesc.length * 5;
+    extra = PART_DESC_EXTRA_PAD + wrappedPartDesc.length * 5;
   }
-  const height = ROW_LINE_HEIGHT + ROW_VPAD + extra + ROW_GAP;
+  const height = ROW_LINE_HEIGHT + ROW_VPAD + extra + PART_ROW_GAP;
   return { row, wrappedDesc: [row.name], wrappedPartDesc, height };
 }
 

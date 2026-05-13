@@ -296,7 +296,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       m.wrappedDesc.forEach((line, i) => {
         doc.text(line, COL1_X + 2, startY + i * ROW_LINE_HEIGHT);
       });
-      doc.text(r.time, COL2_X + 2, startY);
+      doc.text(r.time, COL2_X, startY, { align: 'right' });
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     } else if (r.kind === 'option') {
       doc.text(r.label, COL1_X + 2, startY);

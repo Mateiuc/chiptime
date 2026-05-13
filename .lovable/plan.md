@@ -1,63 +1,34 @@
-## Root cause
+## Goal
+Add collapse/expand to the per-client groups in **Settings → View Billed Tasks** and **Settings → View Paid Tasks** so long lists are easier to navigate.
 
-The Phase 13 universal `cloudPath` backfill wrote a literal `null` element into the `data.tasks` array on two `app_sync` rows (Mercedes workspace `92b1ba2d…` and one unscoped row). Cloud sync pulls these arrays into the desktop dashboard, which iterates `tasks.filter(t => t.status === ...)` — reading `.status` on `null` throws, the ErrorBoundary catches it, and the user sees "Cannot read properties of null (reading 'status')". The `/desk` route flashes for ~1s during initial render and then unmounts into the error UI.
+## Current behavior
+Each view (`SettingsDialog.tsx` lines 602–698) renders one card per client with the client name + total in a header bar, followed by all of that client's task cards always expanded. With many clients/tasks the list becomes very long.
 
-Verified via `psql`:
+## Proposed change (UI only, in `src/components/SettingsDialog.tsx`)
 
-```
-workspace_id                          | task_count | null_status
-92b1ba2d-7935-4959-8a30-c55375779c88  |    60      |     1
-(unscoped)                            |    53      |     1
-```
+1. Add a single state for tracking collapsed groups, scoped per view:
+   ```ts
+   const [collapsedBilledClients, setCollapsedBilledClients] = useState<Set<string>>(new Set());
+   const [collapsedPaidClients, setCollapsedPaidClients] = useState<Set<string>>(new Set());
+   ```
+   Default: **all collapsed** when opening either view (initialize from the keys of `billedTasksByClient` / `paidTasksByClient` via a `useEffect` keyed on the dialog opening or the keys changing). This gives an immediate overview of clients + totals; user taps to expand the one they want.
 
-Both null entries are literal `null` JSONB values inside `data.tasks`.
+2. Convert the existing client-group header (the `<div>` with the name + total badge) into a `<button>` that toggles that client's id in the corresponding Set. Add a chevron icon on the right (`ChevronDown` when collapsed, `ChevronUp` when expanded), reusing the same lucide-react icons already imported elsewhere.
 
-## Fix
+3. Conditionally render the inner `<div className="p-2 space-y-2">…task cards…</div>` only when the client id is **not** in the collapsed Set.
 
-**1. Data cleanup — SQL migration**
+4. Add a small toolbar above each list with task count + an "Expand all / Collapse all" button (same pattern used in `ClientCostBreakdown.tsx` lines 244–254 for visual consistency).
 
-For every `app_sync` row, rebuild `data.tasks` excluding `null` entries:
-
-```sql
-UPDATE public.app_sync
-SET data = jsonb_set(
-  data,
-  '{tasks}',
-  COALESCE(
-    (SELECT jsonb_agg(t)
-       FROM jsonb_array_elements(data->'tasks') t
-      WHERE t IS NOT NULL AND t <> 'null'::jsonb),
-    '[]'::jsonb
-  )
-)
-WHERE data ? 'tasks'
-  AND EXISTS (
-    SELECT 1 FROM jsonb_array_elements(data->'tasks') t
-    WHERE t IS NULL OR t = 'null'::jsonb
-  );
-```
-
-Apply the same cleanup to `data.clients` and `data.vehicles` defensively (same shape — same backfill could in principle have hit them too).
-
-**2. Defensive filter — `src/services/cloudSyncService.ts` (and/or `appSyncService.ts`)**
-
-When merging or applying remote `app_sync.data`, sanitize each top-level array:
-
-```ts
-data.tasks    = (data.tasks    ?? []).filter((t: any) => t && typeof t === 'object' && t.id);
-data.clients  = (data.clients  ?? []).filter((c: any) => c && typeof c === 'object' && c.id);
-data.vehicles = (data.vehicles ?? []).filter((v: any) => v && typeof v === 'object' && v.id);
-```
-
-Mirror in `capacitorStorage.setTasks` (already strips `billedAmount`) so a bad payload from any source can't corrupt local storage.
-
-**3. Verify**
-
-- After the migration, `SELECT … WHERE t IS NULL` returns 0 rows.
-- Reload `/desk` while signed in as the Mercedes workspace user — page renders without ErrorBoundary.
-- No regression: client list + dashboard counts unchanged.
+5. Keep the existing colors, borders, badges, and spacing — no other styling changes.
 
 ## Out of scope
+- No changes to client portal, PDF, mobile task list, or data layer.
+- No changes to `TaskCard` itself.
+- No persistence of collapsed state across dialog open/close (in-memory only).
 
-- Diagnosing exactly which line in the original backfill created the `null` (the data is already in place; cleanup + defense is sufficient).
-- Any UI changes to `/desk`.
+## Verification
+- Open Settings → View Billed Tasks: see all client cards collapsed showing just name + total + chevron.
+- Tap a header → tasks expand; tap again → collapse.
+- "Expand all" / "Collapse all" toggles every group at once.
+- Same behavior on the Paid Tasks view.
+- Empty-state messages ("No billed tasks yet." / "No paid tasks yet.") unchanged.

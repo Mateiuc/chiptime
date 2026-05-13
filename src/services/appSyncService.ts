@@ -70,6 +70,21 @@ function sanitizeForCloud(data: SyncData): SyncData {
 // re-seed it via getRemoteVersion).
 let lastKnownVersion: number | null = null;
 
+// In-memory cache of the latest server snapshot we've successfully read or
+// written. Used as the BASE for 3-way conflict reconciliation in
+// useStorage.mergeOnConflict — a true overlap requires both local and
+// remote to have diverged from this base.
+let baseSnapshot: SyncData | null = null;
+const cloneSnap = (s: SyncData): SyncData => {
+  try {
+    return typeof structuredClone === 'function'
+      ? structuredClone(s)
+      : JSON.parse(JSON.stringify(s));
+  } catch {
+    return JSON.parse(JSON.stringify(s));
+  }
+};
+
 export const appSyncService = {
   getWorkspaceId(): string | null {
     return localStorage.getItem(LOCAL_WORKSPACE_KEY);

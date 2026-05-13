@@ -126,6 +126,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [rptShowActive, setRptShowActive] = useState(true);
   const [sortField, setSortField] = useState<'date' | 'cost' | 'client' | 'status'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [bucketMode, setBucketMode] = useState<'work' | 'created'>('work');
 
   const [drillRevTime, setDrillRevTime] = useState<DrillState | null>(null);
   const [drillClient, setDrillClient] = useState<DrillState | null>(null);

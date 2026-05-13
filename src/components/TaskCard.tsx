@@ -746,7 +746,7 @@ export const TaskCard = ({
   }, 0);
   const rawLabor = calculatedLabor;
   const { discount: laborDiscount, laborAfter: laborCost } = applyLaborDiscount(rawLabor, vehicle);
-  const totalCost = Math.ceil(laborCost + partsCost);
+  const totalCost = ceilDollars(laborCost + partsCost);
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="p-3 py-0">

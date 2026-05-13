@@ -613,20 +613,27 @@ export const TaskCard = ({
           description: `Photo added to Session ${sessionIndex + 1}`,
         });
 
-        // Background cloud upload (fire-and-forget)
+        // Background cloud upload (fire-and-forget). Re-fetch the task before
+        // merging cloud fields so concurrent updates aren't clobbered.
         photoStorageService.uploadPhotoToCloud(photo.base64String!, task.id, photoId)
-          .then(({ url: cloudUrl, path: cloudPath }) => {
-            const taskWithCloudUrl = {
-              ...updatedTask,
-              sessions: updatedTask.sessions.map(session =>
-                session.id === targetSessionId
-                  ? { ...session, photos: session.photos?.map(p =>
-                      p.id === photoId ? { ...p, cloudUrl, cloudPath } : p
-                    )}
-                  : session
-              ),
-            };
-            onUpdateTask?.(taskWithCloudUrl);
+          .then(async ({ url: cloudUrl, path: cloudPath }) => {
+            try {
+              const freshTasks = await capacitorStorage.getTasks();
+              const latest = freshTasks.find(t => t.id === task.id);
+              if (!latest) return;
+              const merged = {
+                ...latest,
+                sessions: latest.sessions.map(session => ({
+                  ...session,
+                  photos: session.photos?.map(p =>
+                    p.id === photoId ? { ...p, cloudUrl, cloudPath } : p
+                  ),
+                })),
+              };
+              onUpdateTask?.(merged);
+            } catch (mergeErr) {
+              console.warn('[TaskCard] Cloud merge failed:', mergeErr);
+            }
           })
           .catch(err => console.warn('[TaskCard] Cloud upload failed:', err));
       }

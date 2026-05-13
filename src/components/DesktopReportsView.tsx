@@ -148,9 +148,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     if (bucketMode === 'work') {
       let earliest: number | null = null;
       for (const s of task.sessions || []) {
-        const t = new Date(s.startTime).getTime();
-        if (!isFinite(t)) continue;
-        if (earliest === null || t < earliest) earliest = t;
+        const candidates: any[] = [s.createdAt, ...(s.periods || []).map(p => p.startTime)];
+        for (const c of candidates) {
+          const t = new Date(c).getTime();
+          if (!isFinite(t)) continue;
+          if (earliest === null || t < earliest) earliest = t;
+        }
       }
       return new Date(earliest ?? task.createdAt);
     }

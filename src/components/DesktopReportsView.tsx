@@ -500,7 +500,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                     <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
-                      {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
+                      {revenueByVehicle.map((entry, i) => <Cell key={i} fill={entry.vehicleId === '__others__' ? '#94a3b8' : CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

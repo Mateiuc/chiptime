@@ -314,7 +314,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text(r.quantity, COL2_X + 2, startY);
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
       if (m.wrappedPartDesc.length > 0) {
-        let y = startY + ROW_LINE_HEIGHT;
+        let y = startY + PART_LABEL_TO_DESC;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 100, 100);

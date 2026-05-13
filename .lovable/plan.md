@@ -1,59 +1,94 @@
-## PDF generation audit — read-only
+## Goal
 
-### Entry points found
+Fix six layout regressions in `src/lib/billPdfRenderer.ts` while keeping the decorative bill template (BILL header, flag watermark, "Thank you"). Decorative art appears only on the page that contains the TOTAL block; all other pages (continuation + photos) use the clean header-only background.
 
-| # | File : function | Triggered by | Lives on | Scope | Status tabs | Branded bill? | Shared renderer? | Phase fix applied? |
-|---|---|---|---|---|---|---|---|---|
-| 1 | `src/components/TaskCard.tsx` : `generateBillingPDF` | Dropdown "Bill" + "Generate Bill & Mark Billed" handler (`handleGenerateBill`) | Mobile TaskCard | Single task / vehicle | Completed → Billed (`billed`) | Yes (bill-background) | Renderer A — mobile/share | **Yes** — uses `billPdfLayout` (paintBillBackground, ensureRoom, ensureDecorativeFinalPage) |
-| 2 | `src/components/TaskCard.tsx` : `generatePreviewPDF` | Dropdown "Preview Bill" | Mobile TaskCard | Single task | Completed | Yes | Renderer A (duplicated) | **Yes** |
-| 3 | `src/components/TaskCard.tsx` : `generateDetailPDF` | Dropdown "Print detail" | Mobile TaskCard | Single task | Billed / Paid | No (plain) | Renderer B — plain detail | N/A (no background) |
-| 4 | **`src/pages/DesktopDashboard.tsx` : `generateBillPdf`** | Desktop "Generate Bill & Mark Billed" (`handleGenerateBillAndMarkBilled` L652) and desktop "Preview Bill" (`handlePreviewBill` L661); also re-billing from billed/paid rows on desktop | Desktop dashboard rows | Single task / vehicle | Completed / Billed / Paid (any desktop bill action) | Yes (bill-background) | Renderer C — desktop bill (independent copy) | **NO** — calls `doc.addImage(billBackground, ...)` once at L324, uses fixed `yPos = 261` for totals (L456), `doc.addPage()` for photos at L517 with no `paintBillBackground('clean')`, no `ensureRoom`, no safe-area logic. Photo fetch falls back to "(Photo on device only)" text at L579. |
-| 5 | `src/pages/DesktopDashboard.tsx` : `generateClientPDF` (L928) | "Print PDF" on a client | Desktop client cards | Client aggregate report | All | No (plain) | Renderer D — client report | N/A |
-| 6 | `src/components/DesktopClientsView.tsx` (L143 `new jsPDF()`) | Client report button on desktop clients view | Desktop clients view | Client aggregate | All | No | Renderer D-variant | N/A |
-| 7 | `src/components/ManageClientsDialog.tsx` : `generateClientPDF` (L202) | "Print PDF" in Manage Clients dialog | Mobile manage-clients | Client aggregate | All | No | Renderer D-variant | N/A |
-| 8 | `src/components/DesktopInvoiceView.tsx` : `generatePDF` | "Generate PDF" button in standalone invoice creator | Desktop Invoice view | Manual invoice | N/A | Yes (separate `invoice-background.jpg`) | Renderer E — invoice creator | N/A (different artwork; not affected by bill issues) |
-| — | `src/components/TaskCard.tsx` L1155 | Error-fallback only | — | — | — | — | not used | — |
+## Files touched
 
-### Distinct *bill/invoice* rendering paths
+- `src/lib/billPdfLayout.ts` — add measure helper + tighten `ensureDecorativeFinalPage`.
+- `src/lib/billPdfRenderer.ts` — rewrite row-flow + photo-page logic.
+- (Investigation only, no edits) `src/components/TaskCard.tsx`, `src/pages/DesktopDashboard.tsx`, `src/services/photoStorageService.ts`.
 
-Three branded paths exist:
-- **Renderer A** — TaskCard.generateBillingPDF + generatePreviewPDF (mobile). Phase 6/PDF fix applied.
-- **Renderer C** — DesktopDashboard.generateBillPdf. **Not patched.**
-- **Renderer E** — DesktopInvoiceView (manual invoice, different background, different problem domain).
+## Approach
 
-### Why the Valy Ilasca / Mercedes GLS bill is still broken
+### 1. Two-pass render to choose page-1 background (Bug 1)
 
-The user re-generated the bill from the **desktop UI**, which routes through `handleGenerateBillAndMarkBilled` / `handlePreviewBill` → `DesktopDashboard.generateBillPdf` (Renderer C). The Phase fix only touched `TaskCard.tsx` (Renderer A). That is why:
-- Parts/totals still collide — Renderer C uses a hard-coded `yPos = 261` for the TOTAL block (L456-490) regardless of how many rows have been laid out above it.
-- "(Photo on device only)" placeholders still appear — Renderer C tries `cloudPath/cloudUrl → signed URL → fetch → base64`. The mobile renderer uses the same logic but its photo records carry richer fallbacks at this point, and Renderer C never falls back to the local IndexedDB photo cache the mobile path uses.
-- "Thank you" still appears mid-content — the photos page is added with `doc.addPage()` (L517) but the bill background isn't reapplied; jsPDF leaves a blank page, so on multi-photo runs the totals/photo content visually overlaps the decorative footer of page 1 (and the second bill page also lacks the white mask the new `paintBillBackground('clean')` provides).
+Today page 1 is painted `decorative` unconditionally, capping the safe area at y≈145mm (~5 rows fit) and forcing an early break.
 
-### Recommendation — Option A (consolidate)
+- Add a measure pass: walk sessions/options/parts with the same wrap math used for drawing (`splitTextToSize` against `col1Width = col2X - col1X - 4`), compute each block's height, sum + add the totals block height.
+- If everything fits on a single decorative page → paint page 1 `decorative`.
+- Otherwise → paint page 1 `clean` so page 1 gets the full ~268mm safe area (~9–10 rows). The TOTAL block then lands on a fresh decorative page via `ensureDecorativeFinalPage`.
 
-Strongly preferred. Create one shared renderer module (e.g. `src/lib/billPdfRenderer.ts`) that:
-- Takes `(task, client, vehicle, settings, opts)` and returns a `jsPDF` document (or a Blob).
-- Uses the existing `billPdfLayout` helpers (`paintBillBackground`, `ensureRoom`, `ensureDecorativeFinalPage`) end-to-end.
-- Houses the photo-embedding logic (with the IndexedDB → cloud → signed-URL fallback chain) in one place.
-- Houses the totals/discount/deposit block in one place so future billing-math changes (Phase 1/6) only have to land once.
+### 2. Single shared row renderer with proper wrap (Bugs 2 + 6)
 
-Then:
-- Replace `TaskCard.generateBillingPDF` / `generatePreviewPDF` with thin wrappers that call the shared renderer (mobile only adds the share/save plumbing around it).
-- Replace `DesktopDashboard.generateBillPdf` with a thin wrapper that calls the same shared renderer and then performs the desktop save / diagnostic-merge step.
-- Leave Renderer B (detail), D (client report) and E (manual invoice) alone — they're different products.
+- Extract `drawRow(label, time, amount)` that wraps `label` to `col1Width`, computes `rowHeight = max(8, lines * 6 + 2)`, calls `ensureRoom(cursor, rowHeight)` first (so a row never straddles a page), draws label wrapped, TIME at `col2X`, AMOUNT right-aligned at `col3X`, all top-aligned, then advances `cursor.yPos` by `rowHeight`.
+- Continuation header (already wired via `cursor.drawContinuationHeader`) reuses `drawTableHeader` so font/columns are identical on every page.
+- Apply `drawRow` to sessions, option rows, and part rows. Parts keep their italic gray sub-description with the same wrap width.
 
-Outcome: one place for layout, photos, totals, and any future bill changes; the Valy Ilasca regression disappears the moment desktop switches over.
+### 3. Greedy packing, orphan-row prevention, totals fit-on-current-page (Bug 3)
 
-### Option B (only if A is too risky to land in one go)
+Two distinct rules, both run after greedy packing.
 
-Port the Phase fix into `DesktopDashboard.generateBillPdf` directly:
-1. Replace the single `doc.addImage(billBackground, ...)` with `paintBillBackground(doc, 'decorative')`.
-2. Build a `BillLayoutCursor` and route all row writes through `ensureRoom(...)` so parts/options can flow to a clean continuation page.
-3. Call `ensureDecorativeFinalPage(cursor)` before drawing the TOTAL block (drop the hard-coded `yPos = 261`).
-4. Before the photos page, call `paintBillBackground(doc, 'clean')` after `doc.addPage()` (and on every photo overflow page).
-5. Add the IndexedDB-photo fallback (mirror the mobile logic) so missing-cloud photos no longer print the "(Photo on device only)" placeholder when a local copy exists.
+**3a. Orphan-row prevention (always runs, before totals).**
+After packing each row, before opening a new page for the next row N:
 
-Then file a follow-up task to consolidate (Option A).
+```
+if N is the LAST remaining row
+   AND previousPage.yPosBeforeBreak + rowHeight(N) <= safeBottom(prevMode) + 8mm
+then place N on the previous page (relax safe area by up to 8mm)
+else open new clean page as usual
+```
 
-### Deliverable for next step
+Never leave exactly one row alone on a content page. Implemented by a small lookahead in the row-flow loop: instead of calling `ensureRoom` directly per row, the loop tracks `remaining` count and, when `remaining === 1` and the next row would overflow by ≤8mm, draws it inline anyway. This is independent of the totals rule.
 
-Tell me **A** or **B** and I'll implement. I'd recommend A — the desktop and mobile renderers will keep diverging otherwise, and Phase 6's billing-math work has the same shape (one shared module).
+**3b. Totals fit-on-current-page.**
+- Compute `totalsHeight = 7 + (showDiscount?7:0) + (showDeposit?8:0) + 9` (≤31mm).
+- New `ensureDecorativeFinalPage(cursor, totalsHeight)`:
+  - If `cursor.bgMode === 'decorative'` AND `cursor.yPos + totalsHeight <= SAFE_BOTTOM_DECORATIVE` → keep current page; draw totals at `cursor.yPos`.
+  - Else open a fresh decorative page; draw totals at `TOTAL_BLOCK_Y - 7*extraLines` as today.
+
+### 4. Photo pages — clean background + safe top offset (Bug 4)
+
+- First photo page already calls `paintBillBackground(doc, 'clean')`. Bug: `photoYPos` starts at 20mm, under the BILL header (header band ends ~64mm).
+- Start "Work Photos" centered title at `CONTENT_TOP` (66mm), then advance to `CONTENT_TOP + 12`.
+- New-page trigger: switch when `photoYPos + colHeight + captionHeight > SAFE_BOTTOM_CLEAN`.
+- Two-column grid; `colHeight` ~75mm; 12mm vertical row gap.
+
+### 5. Photo loading investigation + multi-source loader (Bug 5)
+
+**Storage map (from code trace):**
+
+| Source | Set by | Reachable from |
+|---|---|---|
+| `filePath` (Capacitor Filesystem on native, IndexedDB store `photo-storage-db` on web) | `TaskCard` → `photoStorageService.savePhoto` at capture | Same device only |
+| `cloudPath` + `cloudUrl` (Supabase private `session-photos` bucket; signed URL ~1h) | `uploadPhotoToCloud` async after capture | Any device, requires `sign-photo-urls` edge fn |
+| Legacy `base64` | Pre-migration only | Embedded in task |
+
+Why the desktop bill currently shows "(Image could not be loaded)": task captured on phone → `filePath` resolves to a mobile path the desktop browser's IndexedDB doesn't have, AND `signPhotoUrls` either failed silently or `cloudPath` is missing on older photos. The renderer attempts the chain but logs only.
+
+**Fix in `renderPhotoPages`:**
+
+1. Per-photo loader chain, in order: `base64` → local map → batched signed URL → public `cloudUrl` → on-demand single-path `signPhotoUrls` retry.
+2. Resize loaded image client-side (canvas) to longest side 800px, JPEG quality 0.75 before `addImage`.
+3. Track `{ ok, failed }` counts.
+4. **Omit failures silently** — drop the "(Image could not be loaded)" placeholder. If `ok === 0`, skip the entire photo section (don't even call `addPage`); move the early bail to after the loader pass.
+5. Return `{ photosOk, photosFailed }` from `renderBillPdf` so callers can toast a quiet "N photos couldn't be loaded" notice.
+
+### 6. Verification
+
+Regenerate the Mercedes GLS bill (16 sessions + 6 parts + discount + deposit). Expected:
+
+- Page 1: clean background, header band only, ~9–10 session rows.
+- Page 2: same fonts/columns, header repeated, remaining sessions + option rows + parts (~12 rows).
+- Page 3: decorative background, only the TOTAL block (Subtotal $5,191 − Discount $591 − Deposit $800 = TOTAL $3,800).
+- No orphan single-row pages anywhere.
+- Photo pages (if any photo loadable): clean background, "Work Photos" title at safe top, two-column grid with no header overlap.
+- Photo failures silent; section omitted if all fail.
+
+`bunx tsc --noEmit` clean. Test the desktop "Generate Bill & Mark Billed" path (now routes through the same renderer).
+
+## Risks
+
+- Measure pass must mirror draw math exactly or page-1 background choice will be wrong → share a single `wrapAndMeasure(label)` helper used by both passes.
+- 8mm orphan-tolerance can push a row slightly into the flag art on a decorative page; orphan rule applies only on `clean` pages (the only place rows live in multi-page bills).
+- `ensureDecorativeFinalPage` change affects single-page bills; verify a 2-row bill still gets the full decorative background.
+- Photo resize creates an `Image` + `<canvas>` per photo; fine for ~10 photos.

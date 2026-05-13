@@ -202,10 +202,11 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     [] as NonNullable<Task['sessions'][number]['parts']>,
   );
   allParts.forEach((part) => {
+    const condition = (part.description || '').trim();
     flowRows.push({
       kind: 'part',
       name: stripDiacritics(part.name),
-      description: part.description ? stripDiacritics(part.description) : null,
+      description: condition ? stripDiacritics(condition) : null,
       quantity: `${part.quantity}`,
       amount: formatCurrency(part.price * part.quantity),
     });

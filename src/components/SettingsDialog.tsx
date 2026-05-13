@@ -639,44 +639,67 @@ export const SettingsDialog = ({
                   <p>No billed tasks yet.</p>
                 </div>
               ) : (
-                Object.entries(billedTasksByClient).map(([clientId, clientTasks]) => {
-                  const client = clients.find(c => c.id === clientId);
-                  const clientTotal = calculateClientTotalCost(clientTasks, clientId);
-                  
-                  return (
-                    <div key={clientId} className="rounded-xl border-2 overflow-hidden bg-muted/30 border-border/50 shadow-md">
-                      <div className="flex items-center justify-between p-3 border-b-2 border-border/30 bg-background/10">
-                        <h2 className="text-lg font-semibold text-foreground">
-                          {client?.name || 'Unknown Client'}
-                        </h2>
-                        <Badge variant="secondary" className="text-sm font-bold bg-background/50 text-foreground border-border/30">
-                          ${clientTotal.toFixed(2)}
-                        </Badge>
+                <>
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border border-border">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      {Object.keys(billedTasksByClient).length} client{Object.keys(billedTasksByClient).length !== 1 ? 's' : ''} · {billedTasks.length} task{billedTasks.length !== 1 ? 's' : ''}
+                    </p>
+                    <button
+                      onClick={() => toggleAllCollapse('billed')}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors font-medium"
+                    >
+                      {Object.keys(billedTasksByClient).every(k => collapsedBilledClients.has(k)) ? 'Expand all ↓' : 'Collapse all ↑'}
+                    </button>
+                  </div>
+                  {Object.entries(billedTasksByClient).map(([clientId, clientTasks]) => {
+                    const client = clients.find(c => c.id === clientId);
+                    const clientTotal = calculateClientTotalCost(clientTasks, clientId);
+                    const isCollapsed = collapsedBilledClients.has(clientId);
+                    return (
+                      <div key={clientId} className="rounded-xl border-2 overflow-hidden bg-muted/30 border-border/50 shadow-md">
+                        <button
+                          type="button"
+                          onClick={() => toggleClientCollapse('billed', clientId)}
+                          className="w-full flex items-center justify-between p-3 border-b-2 border-border/30 bg-background/10 hover:bg-background/30 transition-colors text-left"
+                        >
+                          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                            {client?.name || 'Unknown Client'}
+                            <span className="text-xs font-normal text-muted-foreground">({clientTasks.length})</span>
+                          </h2>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className="text-sm font-bold bg-background/50 text-foreground border-border/30">
+                              ${clientTotal.toFixed(2)}
+                            </Badge>
+                            {isCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <div className="p-2 space-y-2">
+                            {clientTasks.map(task => {
+                              const vehicle = vehicles.find(v => v.id === task.vehicleId);
+                              const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
+                              return (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  client={client}
+                                  vehicle={vehicle}
+                                  settings={settings}
+                                  onMarkBilled={onMarkBilled}
+                                  onMarkPaid={onMarkPaid}
+                                  onRestartTimer={onRestartTimer}
+                                  onUpdateTask={onUpdateTask}
+                                  onDelete={onDelete}
+                                  vehicleColorScheme={colorScheme}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      <div className="p-2 space-y-2">
-                        {clientTasks.map(task => {
-                          const vehicle = vehicles.find(v => v.id === task.vehicleId);
-                          const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
-                          return (
-                            <TaskCard
-                              key={task.id}
-                              task={task}
-                              client={client}
-                              vehicle={vehicle}
-                              settings={settings}
-                              onMarkBilled={onMarkBilled}
-                              onMarkPaid={onMarkPaid}
-                              onRestartTimer={onRestartTimer}
-                              onUpdateTask={onUpdateTask}
-                              onDelete={onDelete}
-                              vehicleColorScheme={colorScheme}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           )}
@@ -688,44 +711,67 @@ export const SettingsDialog = ({
                   <p>No paid tasks yet.</p>
                 </div>
               ) : (
-                Object.entries(paidTasksByClient).map(([clientId, clientTasks]) => {
-                  const client = clients.find(c => c.id === clientId);
-                  const clientTotal = calculateClientTotalCost(clientTasks, clientId);
-                  
-                  return (
-                    <div key={clientId} className="rounded-xl border-2 overflow-hidden bg-muted/30 border-border/50 shadow-md">
-                      <div className="flex items-center justify-between p-3 border-b-2 border-border/30 bg-background/10">
-                        <h2 className="text-lg font-semibold text-foreground">
-                          {client?.name || 'Unknown Client'}
-                        </h2>
-                        <Badge variant="secondary" className="text-sm font-bold bg-background/50 text-foreground border-border/30">
-                          ${clientTotal.toFixed(2)}
-                        </Badge>
+                <>
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border border-border">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      {Object.keys(paidTasksByClient).length} client{Object.keys(paidTasksByClient).length !== 1 ? 's' : ''} · {paidTasks.length} task{paidTasks.length !== 1 ? 's' : ''}
+                    </p>
+                    <button
+                      onClick={() => toggleAllCollapse('paid')}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors font-medium"
+                    >
+                      {Object.keys(paidTasksByClient).every(k => collapsedPaidClients.has(k)) ? 'Expand all ↓' : 'Collapse all ↑'}
+                    </button>
+                  </div>
+                  {Object.entries(paidTasksByClient).map(([clientId, clientTasks]) => {
+                    const client = clients.find(c => c.id === clientId);
+                    const clientTotal = calculateClientTotalCost(clientTasks, clientId);
+                    const isCollapsed = collapsedPaidClients.has(clientId);
+                    return (
+                      <div key={clientId} className="rounded-xl border-2 overflow-hidden bg-muted/30 border-border/50 shadow-md">
+                        <button
+                          type="button"
+                          onClick={() => toggleClientCollapse('paid', clientId)}
+                          className="w-full flex items-center justify-between p-3 border-b-2 border-border/30 bg-background/10 hover:bg-background/30 transition-colors text-left"
+                        >
+                          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                            {client?.name || 'Unknown Client'}
+                            <span className="text-xs font-normal text-muted-foreground">({clientTasks.length})</span>
+                          </h2>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className="text-sm font-bold bg-background/50 text-foreground border-border/30">
+                              ${clientTotal.toFixed(2)}
+                            </Badge>
+                            {isCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <div className="p-2 space-y-2">
+                            {clientTasks.map(task => {
+                              const vehicle = vehicles.find(v => v.id === task.vehicleId);
+                              const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
+                              return (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  client={client}
+                                  vehicle={vehicle}
+                                  settings={settings}
+                                  onMarkBilled={onMarkBilled}
+                                  onMarkPaid={onMarkPaid}
+                                  onRestartTimer={onRestartTimer}
+                                  onUpdateTask={onUpdateTask}
+                                  onDelete={onDelete}
+                                  vehicleColorScheme={colorScheme}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      <div className="p-2 space-y-2">
-                        {clientTasks.map(task => {
-                          const vehicle = vehicles.find(v => v.id === task.vehicleId);
-                          const colorScheme = getVehicleColorScheme(vehicle?.id || task.vehicleId);
-                          return (
-                            <TaskCard
-                              key={task.id}
-                              task={task}
-                              client={client}
-                              vehicle={vehicle}
-                              settings={settings}
-                              onMarkBilled={onMarkBilled}
-                              onMarkPaid={onMarkPaid}
-                              onRestartTimer={onRestartTimer}
-                              onUpdateTask={onUpdateTask}
-                              onDelete={onDelete}
-                              vehicleColorScheme={colorScheme}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           )}

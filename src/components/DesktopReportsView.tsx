@@ -237,7 +237,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .sort((a, b) => b.revenue - a.revenue);
   }, [filteredTasks, clients]);
 
-  const revenueByVehicle = useMemo(() => {
+  const revenueByVehicleFull = useMemo(() => {
     const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
       const v = vehicles.find(v => v.id === t.vehicleId);
@@ -247,9 +247,24 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     });
     return Object.values(map)
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 20);
+      .sort((a, b) => b.revenue - a.revenue);
   }, [filteredTasks, vehicles]);
+
+  const othersVehicleIds = useMemo(
+    () => revenueByVehicleFull.length > 20 ? revenueByVehicleFull.slice(19).map(r => r.vehicleId) : [],
+    [revenueByVehicleFull]
+  );
+
+  const revenueByVehicle = useMemo(() => {
+    if (revenueByVehicleFull.length <= 20) return revenueByVehicleFull;
+    const top = revenueByVehicleFull.slice(0, 19);
+    const rest = revenueByVehicleFull.slice(19);
+    const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
+    return [
+      ...top,
+      { vehicleId: '__others__', label: `Others (${rest.length} vehicles)`, revenue: othersRevenue },
+    ];
+  }, [revenueByVehicleFull]);
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};

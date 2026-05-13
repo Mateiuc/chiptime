@@ -133,7 +133,11 @@ export interface RenderBillOptions {
 const COL1_X = 20;
 const COL2_X = 150;
 const COL3_X = 190.9;
-const COL1_WIDTH = COL2_X - COL1_X - 4;
+const TIME_COL_WIDTH = 14; // mm — reserved width for right-aligned TIME values
+const COL1_WIDTH = COL2_X - COL1_X - TIME_COL_WIDTH - 2; // = 114
+const TOTALS_ANCHOR_Y = 240;       // mm — bottom-right anchor on last/single page
+const TOTALS_LABEL_X = 130;        // mm — totals labels start
+const TOTALS_VALUE_X = COL3_X;     // mm — totals values right-align
 const TABLE_TOP = 66;
 const ROW_LINE_HEIGHT = 6;
 const ROW_VPAD = 2;

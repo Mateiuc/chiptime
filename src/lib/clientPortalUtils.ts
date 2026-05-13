@@ -746,14 +746,56 @@ h+='</div>';
 if(s.pms&&s.pms.length>0){h+='<div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:16px">';s.pms.forEach(function(pm){var pu=safeUrl(pm.u,true);if(!pu)return;h+='<a href="'+esc(pu)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">'+(pm.i?esc(pm.i)+' ':'💵 ')+'Pay via '+esc(pm.l)+'</a>'});h+='</div>'}else if(s.pl){var spl=safeUrl(s.pl,true);if(spl)h+='<div style="text-align:center;margin-top:16px"><a href="'+esc(spl)+'" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:#059669;max-width:300px">💵 Pay Now'+(s.plbl?' via '+esc(s.plbl):'')+'</a></div>'}
 }
 el.innerHTML=h;
+// Wire up thumbnail clicks via delegation — no inline onclick handlers,
+// so user-supplied URLs never reach an attribute that gets re-parsed.
+var thumbs=el.querySelectorAll('img.lb-thumb');
+for(var ti=0;ti<thumbs.length;ti++){
+(function(t){t.addEventListener('click',function(){
+try{var arr=JSON.parse(t.getAttribute('data-photos')||'[]');var idx=parseInt(t.getAttribute('data-idx')||'0',10);openLB(arr,isNaN(idx)?0:idx)}catch(_){/* ignore */}
+})})(thumbs[ti]);
+}
 }
 function openLB(urls,idx){
-var ov=document.createElement('div');ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;align-items:center;justify-content:center';
-var ci=idx;function render(){ov.innerHTML='<div style="position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.7);font-size:14px">'+(ci+1)+'/'+urls.length+'</div><div style="position:absolute;top:12px;right:12px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:24px" onclick="this.parentElement.remove()">✕</div>'+(urls.length>1?'<div style="position:absolute;left:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-prev">‹</div>':'')+'<img src="'+urls[ci]+'" style="max-width:90%;max-height:85vh;object-fit:contain;border-radius:8px">'+(urls.length>1?'<div style="position:absolute;right:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px" id="lb-next">›</div>':'');
-if(urls.length>1){var p=ov.querySelector('#lb-prev');var n=ov.querySelector('#lb-next');if(p)p.onclick=function(){ci=(ci-1+urls.length)%urls.length;render()};if(n)n.onclick=function(){ci=(ci+1)%urls.length;render()}}
-}render();ov.onclick=function(e){if(e.target===ov)ov.remove()};document.body.appendChild(ov);
+var ov=document.createElement('div');
+ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;align-items:center;justify-content:center';
+var ci=idx;
+function clear(){while(ov.firstChild)ov.removeChild(ov.firstChild)}
+function render(){
+clear();
+var counter=document.createElement('div');
+counter.style.cssText='position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.7);font-size:14px';
+counter.textContent=(ci+1)+'/'+urls.length;
+ov.appendChild(counter);
+var close=document.createElement('div');
+close.style.cssText='position:absolute;top:12px;right:12px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:24px';
+close.textContent='\\u2715';
+close.onclick=function(){ov.remove()};
+ov.appendChild(close);
+if(urls.length>1){
+var prev=document.createElement('div');
+prev.style.cssText='position:absolute;left:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px';
+prev.textContent='\\u2039';
+prev.onclick=function(){ci=(ci-1+urls.length)%urls.length;render()};
+ov.appendChild(prev);
 }
-function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+var img=document.createElement('img');
+img.style.cssText='max-width:90%;max-height:85vh;object-fit:contain;border-radius:8px';
+img.setAttribute('src',safeUrl(urls[ci],false)||'');
+ov.appendChild(img);
+if(urls.length>1){
+var next=document.createElement('div');
+next.style.cssText='position:absolute;right:8px;cursor:pointer;color:rgba(255,255,255,0.7);font-size:32px';
+next.textContent='\\u203a';
+next.onclick=function(){ci=(ci+1)%urls.length;render()};
+ov.appendChild(next);
+}
+}
+render();
+ov.onclick=function(e){if(e.target===ov)ov.remove()};
+document.body.appendChild(ov);
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function safeUrl(u,allowExternal){if(typeof u!=='string'||!u)return '';try{var p=new URL(u);if(p.protocol!=='https:')return '';if(!allowExternal){if(!/\\.supabase\\.co$/.test(p.hostname))return ''}return p.href}catch(_e){return ''}}
 init();
 </script>
 </body>

@@ -96,6 +96,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
                   statusBadgeColors[r.status] || '')}>
                   {r.status}
                 </span>
+                {r.imported && <ImportedBadge className="ml-1" />}
               </td>
               <td className="py-1 text-right font-mono">{formatDuration(r.timeWorked)}</td>
               <td className="py-1 text-right font-mono font-semibold">{formatCurrency(r.cost)}</td>

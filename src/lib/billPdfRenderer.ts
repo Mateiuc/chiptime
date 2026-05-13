@@ -529,11 +529,13 @@ async function renderPhotoPages(doc: jsPDF, task: Task): Promise<void> {
   console.info(`[bill] photos: ${ok.length} ok, ${failed} failed of ${resolved.length}`);
   if (ok.length === 0) return; // omit entire section
 
-  // Render: clean background, two-column grid, anchored below header.
+  // Render: middle-page background (logo only), two-column grid.
+  const PHOTO_TOP = safeTop('middle');
+  const PHOTO_BOTTOM = safeBottom('middle');
   doc.addPage();
-  paintBillBackground(doc, 'clean');
+  paintBillBackground(doc, 'middle');
 
-  let y = CONTENT_TOP;
+  let y = PHOTO_TOP;
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(128, 0, 128);
@@ -549,10 +551,10 @@ async function renderPhotoPages(doc: jsPDF, task: Task): Promise<void> {
   let colIdx = 0;
 
   for (const item of ok) {
-    if (y + captionHeight + colHeight > SAFE_BOTTOM_CLEAN) {
+    if (y + captionHeight + colHeight > PHOTO_BOTTOM) {
       doc.addPage();
-      paintBillBackground(doc, 'clean');
-      y = CONTENT_TOP;
+      paintBillBackground(doc, 'middle');
+      y = PHOTO_TOP;
       colIdx = 0;
     }
     const x = colX[colIdx];

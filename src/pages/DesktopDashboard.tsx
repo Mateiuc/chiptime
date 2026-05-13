@@ -31,6 +31,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { PhoneContact } from '@/services/contactsService';
+import jsPDF from 'jspdf';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { supabase } from '@/integrations/supabase/client';

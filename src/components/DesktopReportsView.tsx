@@ -143,9 +143,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
     const client = clients.find(c => c.id === task.clientId) || null;
-    const t = computeTaskTotal(task, client, settings);
-    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
-    return Math.ceil(laborAfter + t.parts);
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).total;
   };
 
   const getTaskSeconds = (task: Task) =>

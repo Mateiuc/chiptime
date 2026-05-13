@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+const SAFE_SEGMENT = /^[a-zA-Z0-9._-]+$/
+const isSafeSegment = (s: string) => SAFE_SEGMENT.test(s)
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -55,17 +58,45 @@ Deno.serve(async (req) => {
       })
     }
 
-    const prefix = `${wsId}/`
-    const safePaths: string[] = []
-    const urls: Record<string, string> = {}
-    for (const p of paths) {
-      if (typeof p !== 'string') continue
-      if (!p.startsWith(prefix)) continue
-      // Disallow path traversal
-      if (p.includes('..') || p.includes('//')) continue
-      safePaths.push(p)
+    const taskOwnershipCache = new Map<string, boolean>()
+    const checkTaskOwnership = async (taskId: string): Promise<boolean> => {
+      if (taskOwnershipCache.has(taskId)) return taskOwnershipCache.get(taskId)!
+      const { data, error } = await supabase
+        .from('app_sync')
+        .select('sync_id')
+        .eq('workspace_id', wsId)
+        .filter('data', '@?', `$.tasks[*] ? (@.id == "${taskId}")`)
+        .limit(1)
+        .maybeSingle()
+      const owned = !error && !!data
+      taskOwnershipCache.set(taskId, owned)
+      return owned
     }
 
+    const safePaths: string[] = []
+    for (const p of paths) {
+      if (typeof p !== 'string') continue
+      if (p.includes('..') || p.includes('//')) continue
+      const segs = p.split('/')
+      if (!segs.every(isSafeSegment)) continue
+      const last = segs[segs.length - 1]
+      if (!last.toLowerCase().endsWith('.jpg')) continue
+
+      if (segs.length === 3) {
+        // Prefixed: wsId/taskId/photoId.jpg — must match caller workspace.
+        if (segs[0] !== wsId) continue
+        safePaths.push(p)
+      } else if (segs.length === 2) {
+        // Legacy: taskId/photoId.jpg — verify caller's workspace owns this task.
+        const taskId = segs[0]
+        if (await checkTaskOwnership(taskId)) safePaths.push(p)
+      } else {
+        // Unknown shape — drop.
+        continue
+      }
+    }
+
+    const urls: Record<string, string> = {}
     if (safePaths.length === 0) {
       return new Response(JSON.stringify({ urls }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

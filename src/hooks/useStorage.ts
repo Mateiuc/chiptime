@@ -35,36 +35,55 @@ const byId = <T extends { id: string }>(arr: T[]): Map<string, T> => {
 /**
  * 3-way merge: for any id in `changedIds.<entity>`, take local. For all
  * other ids, take remote. Returns the merged snapshot AND a flag noting
- * whether any "real" overlap occurred (someone else also edited an id we
- * just edited) so the caller can warn the user.
+ * whether any TRUE overlap occurred — i.e. an id where BOTH local and
+ * remote diverged from the common base AND disagree with each other.
+ *
+ * Edge case: when `base` is null (fresh session, no pull/push yet), we
+ * skip overlap detection entirely. Without a base, any divergence could
+ * just be local-ahead-of-remote, and a toast would be a false alarm.
+ * The merge itself still runs (local wins for changedIds, remote for
+ * the rest), so no data is lost.
  */
 function mergeOnConflict(
   local: SyncData,
   remote: SyncData,
+  base: SyncData | null,
   changed: ChangedIds | undefined
 ): { merged: SyncData; overlapped: boolean } {
   const ch = changed || {};
   const stringify = (x: any) => JSON.stringify(x);
+  const haveBase = !!base;
   let overlapped = false;
 
   const mergeArr = <T extends { id: string }>(
     localArr: T[],
     remoteArr: T[],
+    baseArr: T[] | undefined,
     changedIds: string[] | undefined
   ): T[] => {
     const localMap = byId(localArr);
     const remoteMap = byId(remoteArr);
+    const baseMap = byId(baseArr || []);
     const result: T[] = [];
     const taken = new Set<string>();
     const changedSet = new Set(changedIds || []);
 
-    // Start from remote (server is the base for items we didn't touch).
     for (const [id, rItem] of remoteMap) {
       if (changedSet.has(id)) {
         const lItem = localMap.get(id);
         if (lItem) {
-          // Real overlap if remote also drifted from our local copy.
-          if (stringify(lItem) !== stringify(rItem)) overlapped = true;
+          if (haveBase) {
+            const bItem = baseMap.get(id);
+            const localChanged = stringify(lItem) !== stringify(bItem);
+            const remoteChanged = stringify(rItem) !== stringify(bItem);
+            if (
+              localChanged &&
+              remoteChanged &&
+              stringify(lItem) !== stringify(rItem)
+            ) {
+              overlapped = true;
+            }
+          }
           result.push(lItem);
         }
         // If id is in changedSet but no local item, we just deleted it — skip.
@@ -73,7 +92,6 @@ function mergeOnConflict(
       }
       taken.add(id);
     }
-    // Locals we touched that aren't on remote (newly added).
     for (const [id, lItem] of localMap) {
       if (!taken.has(id) && changedSet.has(id)) result.push(lItem);
     }
@@ -81,13 +99,16 @@ function mergeOnConflict(
   };
 
   const merged: SyncData = {
-    clients: mergeArr(local.clients, remote.clients, ch.clients),
-    vehicles: mergeArr(local.vehicles, remote.vehicles, ch.vehicles),
-    tasks: mergeArr(local.tasks, remote.tasks, ch.tasks),
+    clients: mergeArr(local.clients, remote.clients, base?.clients, ch.clients),
+    vehicles: mergeArr(local.vehicles, remote.vehicles, base?.vehicles, ch.vehicles),
+    tasks: mergeArr(local.tasks, remote.tasks, base?.tasks, ch.tasks),
     settings: ch.settingsChanged ? local.settings : (remote.settings || local.settings),
   };
-  if (ch.settingsChanged && stringify(local.settings) !== stringify(remote.settings)) {
-    overlapped = true;
+  if (ch.settingsChanged && haveBase) {
+    const bs = stringify(base!.settings);
+    const ls = stringify(local.settings);
+    const rs = stringify(remote.settings);
+    if (ls !== bs && rs !== bs && ls !== rs) overlapped = true;
   }
   return { merged, overlapped };
 }

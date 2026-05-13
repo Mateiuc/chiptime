@@ -94,6 +94,13 @@ describe("useStorage reconciliation", () => {
     const A_remote = makeTask("A", { customerName: "A-orig" });
     const B_remote = makeTask("B", { customerName: "B-remote-edit" });
 
+    // Base snapshot reflects the pre-edit state (both A and B at "-orig").
+    setBase({
+      clients: [], vehicles: [],
+      tasks: [makeTask("A", { customerName: "A-orig" }), makeTask("B", { customerName: "B-orig" })],
+      settings: { defaultHourlyRate: 75 },
+    });
+
     pushSpy
       .mockImplementationOnce(() => {
         throw new VersionConflictError(

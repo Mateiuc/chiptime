@@ -139,9 +139,26 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setRptClient('all'); setRptVehicle('all');
     setRptDateFrom(undefined); setRptDateTo(undefined);
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
+    setBucketMode('work');
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
+
+  const getTaskBucketDate = (task: Task): Date => {
+    if (bucketMode === 'work') {
+      let earliest: number | null = null;
+      for (const s of task.sessions || []) {
+        const t = new Date(s.startTime).getTime();
+        if (!isFinite(t)) continue;
+        if (earliest === null || t < earliest) earliest = t;
+      }
+      return new Date(earliest ?? task.createdAt);
+    }
+    return new Date(task.createdAt);
+  };
+
+  const monthKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);

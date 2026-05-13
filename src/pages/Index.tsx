@@ -14,7 +14,7 @@ import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
-import { migratePhotosToFilesystem } from '@/lib/photoMigration';
+import { migratePhotosToFilesystem, reconcileCloudPhotos } from '@/lib/photoMigration';
 import { photoStorageService } from '@/services/photoStorageService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { contactsService } from '@/services/contactsService';

@@ -13,9 +13,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
-import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
-import { applyLaborDiscount } from '@/lib/discount';
-import { computeTaskTotal } from '@/lib/billing';
+import { formatDuration, formatCurrency } from '@/lib/formatTime';
+import { computeTaskTotalAllocated } from '@/lib/billing';
+import { ImportedBadge } from '@/components/ImportedBadge';
 
 const CHART_COLORS = [
   '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
@@ -50,6 +50,7 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
+  imported: boolean;
 }
 
 interface DrillState {
@@ -95,6 +96,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
                   statusBadgeColors[r.status] || '')}>
                   {r.status}
                 </span>
+                {r.imported && <ImportedBadge className="ml-1" />}
               </td>
               <td className="py-1 text-right font-mono">{formatDuration(r.timeWorked)}</td>
               <td className="py-1 text-right font-mono font-semibold">{formatCurrency(r.cost)}</td>
@@ -143,9 +145,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
     const client = clients.find(c => c.id === task.clientId) || null;
-    const t = computeTaskTotal(task, client, settings);
-    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
-    return Math.ceil(laborAfter + t.parts);
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).total;
   };
 
   const getTaskSeconds = (task: Task) =>
@@ -164,6 +165,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
+    imported: t.importedSalary != null && t.importedSalary > 0,
   });
 
   const availableVehicles = useMemo(() => {
@@ -282,7 +284,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
   const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
-  const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
+  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status !== 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
 
   const drillRowsForMonth = (month: string) =>
     filteredTasks.filter(t => {
@@ -567,7 +569,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2">{r.client}</td>
                       <td className="py-2">{r.vehicle}</td>
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
-                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
+                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge>{r.imported && <ImportedBadge className="ml-1" />}</td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
                       <td className="py-2 text-right font-mono">{formatCurrency(r.cost)}</td>
                     </tr>

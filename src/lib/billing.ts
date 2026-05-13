@@ -112,6 +112,45 @@ export function computeTaskTotal(
   return { labor, services, parts, total: labor + services + parts };
 }
 
+export interface TaskTotalAllocated {
+  labor: number;
+  services: number;
+  parts: number;
+  discount: number;
+  total: number;
+}
+
+/**
+ * Per-task total with the vehicle-level discount allocated proportionally
+ * across all tasks belonging to the same vehicle. The sum of `discount`
+ * across a vehicle's tasks equals the vehicle's discount within float
+ * rounding, so summing per-task totals matches `computeVehicleTotal`.
+ */
+export function computeTaskTotalAllocated(
+  task: Task,
+  vehicle: Vehicle | null | undefined,
+  allVehicleTasks: Task[],
+  client: Client | null | undefined,
+  settings: Settings
+): TaskTotalAllocated {
+  const t = computeTaskTotal(task, client, settings);
+  const taskPool = t.labor + t.services;
+  const vehiclePool = allVehicleTasks.reduce((s, vt) => {
+    const x = computeTaskTotal(vt, client, settings);
+    return s + x.labor + x.services;
+  }, 0);
+  const vehicleDiscount = applyLaborDiscount(vehiclePool, vehicle || undefined).discount;
+  const share = vehiclePool > 0 ? taskPool / vehiclePool : 0;
+  const taskDiscount = vehicleDiscount * share;
+  return {
+    labor: t.labor,
+    services: t.services,
+    parts: t.parts,
+    discount: taskDiscount,
+    total: Math.max(0, taskPool - taskDiscount) + t.parts,
+  };
+}
+
 export function computeVehicleTotal(
   vehicle: Vehicle | null | undefined,
   vehicleTasks: Task[],

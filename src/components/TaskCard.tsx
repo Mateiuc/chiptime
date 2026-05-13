@@ -13,7 +13,15 @@ import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
 import { EditTaskDialog } from './EditTaskDialog';
 import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
-import billBackground from '@/assets/bill-background.jpg';
+// Bill background asset is loaded from the shared layout helper.
+import {
+  paintBillBackground,
+  ensureRoom,
+  ensureDecorativeFinalPage,
+  CONTENT_TOP,
+  TOTAL_BLOCK_Y,
+  type BillLayoutCursor,
+} from '@/lib/billPdfLayout';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
@@ -322,8 +330,8 @@ export const TaskCard = ({
         format: 'letter'
       });
 
-      // Add background image
-      doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);
+      // Page 1 background — full decorative (BILL header + flag + Thank you).
+      paintBillBackground(doc, 'decorative');
 
       // Bill Information
       doc.setFontSize(17);
@@ -361,19 +369,22 @@ export const TaskCard = ({
       const col1X = 20;
       const col2X = 130;
       const col3X = 190.9;
-      const tableWidth = 175.9;
 
-      // Table headers
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('DESCRIPTION', 25, tableTop + 6);
-      doc.text('TIME', col2X - 1, tableTop + 6);
-      doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
-
-      // Red line under headers
-      doc.setLineWidth(0.3);
-      doc.setDrawColor(255, 0, 0);
-      doc.line(20, tableTop + 8, 195.9, tableTop + 8);
+      // Helper: draws DESCRIPTION / TIME / AMOUNT row + red rule.
+      // Used for the initial table and for re-drawing the header on each
+      // continuation page so columns remain readable across page breaks.
+      const drawTableHeader = (d: jsPDF, top: number) => {
+        d.setFontSize(16);
+        d.setFont('helvetica', 'bold');
+        d.setTextColor(0, 0, 0);
+        d.text('DESCRIPTION', 25, top + 6);
+        d.text('TIME', col2X - 1, top + 6);
+        d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
+        d.setLineWidth(0.3);
+        d.setDrawColor(255, 0, 0);
+        d.line(20, top + 8, 195.9, top + 8);
+      };
+      drawTableHeader(doc, tableTop);
 
       // Helper function to format duration as hh:mm
       const formatDurationHHMM = (seconds: number): string => {
@@ -388,109 +399,111 @@ export const TaskCard = ({
         return acc.concat(session.parts || []);
       }, [] as typeof task.sessions[0]['parts']);
 
-      // Table rows - Labor (per session)
-      let yPos = tableTop + 16;
+      // Layout cursor for safe-area page-break flow.
+      // On any forced continuation page, redraw the table header at the top
+      // and advance the cursor below it.
+      const cursor: BillLayoutCursor = {
+        doc,
+        yPos: tableTop + 16,
+        bgMode: 'decorative',
+        drawContinuationHeader: (d) => {
+          drawTableHeader(d, CONTENT_TOP);
+          cursor.yPos = CONTENT_TOP + 16;
+        },
+      };
+
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
 
+      // Table rows - Labor (per session)
       (task.sessions || []).forEach((session) => {
-        // Calculate total duration for this session
         const sessionDuration = (session.periods || []).reduce((total, period) => {
           return total + period.duration;
         }, 0);
-        
-        // Calculate cost for this session
         const sessionCost = (sessionDuration / 3600) * hourlyRate;
-        
-        // Get description or use default
         const description = stripDiacritics(session.description || 'Work session');
-        
-        // Render row with text wrapping
         const col1Width = col2X - col1X - 4;
         const wrappedDescription = doc.splitTextToSize(description, col1Width);
-        const startYPos = yPos;
+        // Reserve room for the whole wrapped row before drawing.
+        const rowHeight = Math.max(8, 6 * (wrappedDescription.length - 1) + 8);
+        cursor.yPos = ensureRoom(cursor, rowHeight);
+        const startYPos = cursor.yPos;
+        let y = cursor.yPos;
         wrappedDescription.forEach((line: string, index: number) => {
-          doc.text(line, col1X + 2, yPos);
-          if (index < wrappedDescription.length - 1) {
-            yPos += 6;
-          }
+          doc.text(line, col1X + 2, y);
+          if (index < wrappedDescription.length - 1) y += 6;
         });
         doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startYPos);
         doc.text(formatCurrency(sessionCost), col3X + 2, startYPos, { align: 'right' });
-        
-        yPos += 8;
+        cursor.yPos = y + 8;
       });
 
-      // Billing option line items
-      if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalCloning > 0) {
-        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalProgramming > 0) {
-        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalAddKey > 0) {
-        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
+      // Billing option line items (each is a single 8mm row)
+      const renderOptionRow = (label: string, amount: number) => {
+        cursor.yPos = ensureRoom(cursor, 8);
+        doc.text(label, col1X + 2, cursor.yPos);
+        doc.text(formatCurrency(amount), col3X + 2, cursor.yPos, { align: 'right' });
+        cursor.yPos += 8;
+      };
+      if (totalMinHourAdj > 0) renderOptionRow(`Min 1 Hour adjustment (x${minHourCount})`, totalMinHourAdj);
+      if (totalCloning > 0) renderOptionRow(`Cloning (x${cloningCount})`, totalCloning);
+      if (totalProgramming > 0) renderOptionRow(`Programming (x${programmingCount})`, totalProgramming);
+      if (totalAddKey > 0) renderOptionRow(`Add Key (x${addKeyCount})`, totalAddKey);
+      if (totalAllKeysLost > 0) renderOptionRow(`All Keys Lost (x${allKeysLostCount})`, totalAllKeysLost);
 
-      // Table rows - Parts
+      // Table rows - Parts (single column flow; never side-by-side with totals)
       if (parts.length > 0) {
         doc.setFontSize(11);
         parts.forEach((part) => {
-          const partNameYPos = yPos;
+          // Estimate full part-row height (name + optional wrapped description).
+          let estDescLines = 0;
+          let wrappedPartDesc: string[] = [];
+          if (part.description) {
+            const col1Width = col2X - col1X - 6;
+            wrappedPartDesc = doc.splitTextToSize(stripDiacritics(part.description), col1Width);
+            estDescLines = wrappedPartDesc.length;
+          }
+          const rowHeight = 8 + (estDescLines > 0 ? 6 + 5 * (estDescLines - 1) + 2 : 0);
+          cursor.yPos = ensureRoom(cursor, rowHeight);
+
+          const partNameYPos = cursor.yPos;
           doc.setFont('helvetica', 'normal');
           doc.text(stripDiacritics(part.name), col1X + 2, partNameYPos);
-          
-          // Add description if exists
-          if (part.description) {
-            yPos += 6;
+
+          if (estDescLines > 0) {
+            cursor.yPos += 6;
             doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
-            const col1Width = col2X - col1X - 6;
-            const wrappedPartDesc = doc.splitTextToSize(stripDiacritics(part.description), col1Width);
             wrappedPartDesc.forEach((line: string, index: number) => {
-              doc.text(line, col1X + 4, yPos);
-              if (index < wrappedPartDesc.length - 1) {
-                yPos += 5;
-              }
+              doc.text(line, col1X + 4, cursor.yPos);
+              if (index < wrappedPartDesc.length - 1) cursor.yPos += 5;
             });
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(11);
-            yPos += 2;
+            cursor.yPos += 2;
           }
-          
-          // Quantity and price on the same line as part name
+
           doc.text(`${part.quantity}`, col2X + 2, partNameYPos);
           doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partNameYPos, { align: 'right' });
-          
-          yPos += 8;
+          cursor.yPos += 8;
         });
       }
 
+      // 12pt vertical gap between parts/content and totals box.
+      cursor.yPos += 4;
 
-      // Total Section
+      // Total Section — must live on a decorative page (flag + Thank you).
+      // If the current page is a clean continuation page, or page 1 is full,
+      // open a fresh decorative page for the closing block.
+      ensureDecorativeFinalPage(cursor);
+
       const deposit = vehicle?.prepaidAmount || 0;
       const showDiscount = laborDiscount > 0;
       const showDeposit = deposit > 0;
       const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
-      yPos = 261 - 7 * extraLines;
+      let yPos = TOTAL_BLOCK_Y - 7 * extraLines;
       const totalX = col3X - 45;
       if (extraLines > 0) {
         doc.setFontSize(12);
@@ -557,13 +570,13 @@ export const TaskCard = ({
         });
       });
 
-      // If there are photos, load them from filesystem and add a new page
+      // If there are photos, load them from filesystem and add new clean pages.
+      // Photo pages always use the clean continuation background — no flag,
+      // no "Thank you" — regardless of where they fall in the page sequence.
       if (allPhotos.length > 0) {
-        // Load all photos from filesystem
         const filePaths = allPhotos
           .map(item => item.photo.filePath)
           .filter((fp): fp is string => !!fp);
-        
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
 
         // Pre-mint signed URLs for cloud-only photos
@@ -573,9 +586,10 @@ export const TaskCard = ({
             .filter((p): p is string => !!p)
         ));
         const cloudSigned1 = cloudPaths1.length ? await photoStorageService.signPhotoUrls(cloudPaths1) : {};
-        
+
         doc.addPage();
-        
+        paintBillBackground(doc, 'clean');
+
         let photoYPos = 20;
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
@@ -583,16 +597,17 @@ export const TaskCard = ({
         doc.text('Work Photos', 105, photoYPos, { align: 'center' });
         doc.setTextColor(0, 0, 0);
         photoYPos += 15;
-        
+
         const colWidth = 85;
         const colHeight = 64;
         const colX = [15, 110];
         let colIdx = 0;
 
         for (const item of allPhotos) {
-          // Check if we need a new page
+          // Check if we need a new page (clean bg again).
           if (colIdx === 0 && photoYPos > 200) {
             doc.addPage();
+            paintBillBackground(doc, 'clean');
             photoYPos = 20;
           }
 
@@ -607,7 +622,6 @@ export const TaskCard = ({
             ? photoDataMap.get(item.photo.filePath)
             : item.photo.base64;
 
-          // Fallback to signed cloud URL if local photo is missing
           if (!photoBase64) {
             const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
             const fetchUrl = (path && cloudSigned1[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
@@ -651,7 +665,6 @@ export const TaskCard = ({
             photoYPos += colHeight + 12;
           }
         }
-        // If last row had only one photo, advance Y
         if (colIdx !== 0) {
           photoYPos += colHeight + 12;
         }
@@ -743,8 +756,8 @@ export const TaskCard = ({
         format: 'letter'
       });
 
-      // Add background image
-      doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);
+      // Page 1 background — full decorative (BILL header + flag + Thank you).
+      paintBillBackground(doc, 'decorative');
 
       doc.setFontSize(17);
       doc.setFont('helvetica', 'bold');
@@ -778,15 +791,19 @@ export const TaskCard = ({
       const col2X = 130;
       const col3X = 190.9;
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('DESCRIPTION', 25, tableTop + 6);
-      doc.text('TIME', col2X - 1, tableTop + 6);
-      doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
-
-      doc.setLineWidth(0.3);
-      doc.setDrawColor(255, 0, 0);
-      doc.line(20, tableTop + 8, 195.9, tableTop + 8);
+      // Re-usable header drawer for the initial table + continuation pages.
+      const drawTableHeader = (d: jsPDF, top: number) => {
+        d.setFontSize(16);
+        d.setFont('helvetica', 'bold');
+        d.setTextColor(0, 0, 0);
+        d.text('DESCRIPTION', 25, top + 6);
+        d.text('TIME', col2X - 1, top + 6);
+        d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
+        d.setLineWidth(0.3);
+        d.setDrawColor(255, 0, 0);
+        d.line(20, top + 8, 195.9, top + 8);
+      };
+      drawTableHeader(doc, tableTop);
 
       const formatDurationHHMM = (seconds: number): string => {
         const totalMinutes = Math.round(seconds / 60);
@@ -799,7 +816,18 @@ export const TaskCard = ({
         return acc.concat(session.parts || []);
       }, [] as typeof task.sessions[0]['parts']);
 
-      let yPos = tableTop + 16;
+      // Layout cursor — page-breaks to a clean continuation page when the
+      // next block would cross into the flag/Thank-you decorative zone.
+      const cursor: BillLayoutCursor = {
+        doc,
+        yPos: tableTop + 16,
+        bgMode: 'decorative',
+        drawContinuationHeader: (d) => {
+          drawTableHeader(d, CONTENT_TOP);
+          cursor.yPos = CONTENT_TOP + 16;
+        },
+      };
+
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
 
@@ -807,91 +835,84 @@ export const TaskCard = ({
         const sessionDuration = (session.periods || []).reduce((total, period) => {
           return total + period.duration;
         }, 0);
-        
         const sessionCost = (sessionDuration / 3600) * hourlyRate;
         const description = session.description || 'Work session';
-        
         const col1Width = col2X - col1X - 4;
         const wrappedDescription = doc.splitTextToSize(description, col1Width);
-        const startYPos = yPos;
+        const rowHeight = Math.max(8, 6 * (wrappedDescription.length - 1) + 8);
+        cursor.yPos = ensureRoom(cursor, rowHeight);
+        const startYPos = cursor.yPos;
+        let y = cursor.yPos;
         wrappedDescription.forEach((line: string, index: number) => {
-          doc.text(line, col1X + 2, yPos);
-          if (index < wrappedDescription.length - 1) {
-            yPos += 6;
-          }
+          doc.text(line, col1X + 2, y);
+          if (index < wrappedDescription.length - 1) y += 6;
         });
         doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startYPos);
         doc.text(formatCurrency(sessionCost), col3X + 2, startYPos, { align: 'right' });
-        
-        yPos += 8;
+        cursor.yPos = y + 8;
       });
 
-      // Billing option line items
-      if (totalMinHourAdj > 0) {
-        doc.text(`Min 1 Hour adjustment (x${minHourCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalMinHourAdj), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalCloning > 0) {
-        doc.text(`Cloning (x${cloningCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalCloning), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalProgramming > 0) {
-        doc.text(`Programming (x${programmingCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalProgramming), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalAddKey > 0) {
-        doc.text(`Add Key (x${addKeyCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalAddKey), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
-      if (totalAllKeysLost > 0) {
-        doc.text(`All Keys Lost (x${allKeysLostCount})`, col1X + 2, yPos);
-        doc.text(formatCurrency(totalAllKeysLost), col3X + 2, yPos, { align: 'right' });
-        yPos += 8;
-      }
+      const renderOptionRow = (label: string, amount: number) => {
+        cursor.yPos = ensureRoom(cursor, 8);
+        doc.text(label, col1X + 2, cursor.yPos);
+        doc.text(formatCurrency(amount), col3X + 2, cursor.yPos, { align: 'right' });
+        cursor.yPos += 8;
+      };
+      if (totalMinHourAdj > 0) renderOptionRow(`Min 1 Hour adjustment (x${minHourCount})`, totalMinHourAdj);
+      if (totalCloning > 0) renderOptionRow(`Cloning (x${cloningCount})`, totalCloning);
+      if (totalProgramming > 0) renderOptionRow(`Programming (x${programmingCount})`, totalProgramming);
+      if (totalAddKey > 0) renderOptionRow(`Add Key (x${addKeyCount})`, totalAddKey);
+      if (totalAllKeysLost > 0) renderOptionRow(`All Keys Lost (x${allKeysLostCount})`, totalAllKeysLost);
 
       if (parts.length > 0) {
         doc.setFontSize(11);
         parts.forEach((part) => {
-          const partNameYPos = yPos;
+          let estDescLines = 0;
+          let wrappedPartDesc: string[] = [];
+          if (part.description) {
+            const col1Width = col2X - col1X - 6;
+            wrappedPartDesc = doc.splitTextToSize(part.description, col1Width);
+            estDescLines = wrappedPartDesc.length;
+          }
+          const rowHeight = 8 + (estDescLines > 0 ? 6 + 5 * (estDescLines - 1) + 2 : 0);
+          cursor.yPos = ensureRoom(cursor, rowHeight);
+
+          const partNameYPos = cursor.yPos;
           doc.setFont('helvetica', 'normal');
           doc.text(part.name, col1X + 2, partNameYPos);
-          
-          if (part.description) {
-            yPos += 6;
+
+          if (estDescLines > 0) {
+            cursor.yPos += 6;
             doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
-            const col1Width = col2X - col1X - 6;
-            const wrappedPartDesc = doc.splitTextToSize(part.description, col1Width);
             wrappedPartDesc.forEach((line: string, index: number) => {
-              doc.text(line, col1X + 4, yPos);
-              if (index < wrappedPartDesc.length - 1) {
-                yPos += 5;
-              }
+              doc.text(line, col1X + 4, cursor.yPos);
+              if (index < wrappedPartDesc.length - 1) cursor.yPos += 5;
             });
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(11);
-            yPos += 2;
+            cursor.yPos += 2;
           }
-          
+
           doc.text(`${part.quantity}`, col2X + 2, partNameYPos);
           doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partNameYPos, { align: 'right' });
-          
-          yPos += 8;
+          cursor.yPos += 8;
         });
       }
 
-      yPos = 261;
+      // 12pt vertical gap between content and the totals box.
+      cursor.yPos += 4;
+
+      // Totals must land on a decorative page (flag + Thank you).
+      ensureDecorativeFinalPage(cursor);
+
       const previewDeposit = vehicle?.prepaidAmount || 0;
       const showDiscountP = laborDiscount > 0;
       const showDepositP = previewDeposit > 0;
       const extraLinesP = (showDiscountP ? 1 : 0) + (showDepositP ? 1 : 0);
-      yPos = 261 - 7 * extraLinesP;
+      let yPos = TOTAL_BLOCK_Y - 7 * extraLinesP;
       const totalXP = col3X - 45;
       if (extraLinesP > 0) {
         doc.setFontSize(12);
@@ -957,13 +978,11 @@ export const TaskCard = ({
         });
       });
 
-      // If there are photos, load them from filesystem and add a new page
+      // Photo pages always use the clean continuation background.
       if (allPhotos.length > 0) {
-        // Load all photos from filesystem
         const filePaths = allPhotos
           .map(item => item.photo.filePath)
           .filter((fp): fp is string => !!fp);
-        
         const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
 
         const cloudPaths2 = Array.from(new Set(
@@ -972,9 +991,10 @@ export const TaskCard = ({
             .filter((p): p is string => !!p)
         ));
         const cloudSigned2 = cloudPaths2.length ? await photoStorageService.signPhotoUrls(cloudPaths2) : {};
-        
+
         doc.addPage();
-        
+        paintBillBackground(doc, 'clean');
+
         let photoYPos = 20;
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
@@ -982,7 +1002,7 @@ export const TaskCard = ({
         doc.text('Work Photos', 105, photoYPos, { align: 'center' });
         doc.setTextColor(0, 0, 0);
         photoYPos += 15;
-        
+
         const colWidth2 = 85;
         const colHeight2 = 64;
         const colX2 = [15, 110];
@@ -991,6 +1011,7 @@ export const TaskCard = ({
         for (const item of allPhotos) {
           if (colIdx2 === 0 && photoYPos > 200) {
             doc.addPage();
+            paintBillBackground(doc, 'clean');
             photoYPos = 20;
           }
 

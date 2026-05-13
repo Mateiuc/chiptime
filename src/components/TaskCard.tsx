@@ -13,15 +13,7 @@ import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
 import { EditTaskDialog } from './EditTaskDialog';
 import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
-// Bill background asset is loaded from the shared layout helper.
-import {
-  paintBillBackground,
-  ensureRoom,
-  ensureDecorativeFinalPage,
-  CONTENT_TOP,
-  TOTAL_BLOCK_Y,
-  type BillLayoutCursor,
-} from '@/lib/billPdfLayout';
+import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
@@ -323,365 +315,26 @@ export const TaskCard = ({
     });
   };
 
-  // Generate billing PDF (branded format for invoicing)
+  // Generate billing PDF (branded format for invoicing).
+  // Delegates to the shared renderer; this wrapper handles only filename
+  // construction, optional diagnostic-PDF merge, and the share-payload return
+  // shape used by handleGenerateBill / Share.
   const generateBillingPDF = async () => {
     try {
-      const doc = new jsPDF({
-        format: 'letter'
-      });
+      const doc = await renderBillPdf({ task, client, vehicle, settings });
 
-      // Page 1 background — full decorative (BILL header + flag + Thank you).
-      paintBillBackground(doc, 'decorative');
-
-      // Bill Information
-      doc.setFontSize(17);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(128, 0, 128); // Purple color matching the background
-      doc.text(`Bill to:`, 20, 48.5);
-      
-      // Billed on date (right side)
-      const billedDate = new Date().toLocaleDateString('en-US');
-      doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
-      
-      // Client name (back to black)
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      let clientLine = client?.companyName || client?.name || 'N/A';
-      if (client?.companyName) {
-        const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
-        if (addrParts.length > 0) {
-          clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
-        }
-      }
-      doc.text(stripDiacritics(clientLine), 20, 53);
-      
-      // Vehicle info
-      const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
-        .filter(Boolean)
-        .join(' ');
-      const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
-      const fullVehicleInfo = vehicleInfo ? `${vehicleInfo} ${vinInfo}` : 'Vehicle Info Not Available';
-      doc.text(stripDiacritics(fullVehicleInfo), 20, 58.5);
-
-      // Table Section
-      const tableTop = 66;
-      const col1X = 20;
-      const col2X = 130;
-      const col3X = 190.9;
-
-      // Helper: draws DESCRIPTION / TIME / AMOUNT row + red rule.
-      // Used for the initial table and for re-drawing the header on each
-      // continuation page so columns remain readable across page breaks.
-      const drawTableHeader = (d: jsPDF, top: number) => {
-        d.setFontSize(16);
-        d.setFont('helvetica', 'bold');
-        d.setTextColor(0, 0, 0);
-        d.text('DESCRIPTION', 25, top + 6);
-        d.text('TIME', col2X - 1, top + 6);
-        d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
-        d.setLineWidth(0.3);
-        d.setDrawColor(255, 0, 0);
-        d.line(20, top + 8, 195.9, top + 8);
-      };
-      drawTableHeader(doc, tableTop);
-
-      // Helper function to format duration as hh:mm
-      const formatDurationHHMM = (seconds: number): string => {
-        const totalMinutes = Math.round(seconds / 60);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-      };
-
-      // Collect all parts from sessions
-      const parts = (task.sessions || []).reduce((acc, session) => {
-        return acc.concat(session.parts || []);
-      }, [] as typeof task.sessions[0]['parts']);
-
-      // Layout cursor for safe-area page-break flow.
-      // On any forced continuation page, redraw the table header at the top
-      // and advance the cursor below it.
-      const cursor: BillLayoutCursor = {
-        doc,
-        yPos: tableTop + 16,
-        bgMode: 'decorative',
-        drawContinuationHeader: (d) => {
-          drawTableHeader(d, CONTENT_TOP);
-          cursor.yPos = CONTENT_TOP + 16;
-        },
-      };
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-
-      // Table rows - Labor (per session)
-      (task.sessions || []).forEach((session) => {
-        const sessionDuration = (session.periods || []).reduce((total, period) => {
-          return total + period.duration;
-        }, 0);
-        const sessionCost = (sessionDuration / 3600) * hourlyRate;
-        const description = stripDiacritics(session.description || 'Work session');
-        const col1Width = col2X - col1X - 4;
-        const wrappedDescription = doc.splitTextToSize(description, col1Width);
-        // Reserve room for the whole wrapped row before drawing.
-        const rowHeight = Math.max(8, 6 * (wrappedDescription.length - 1) + 8);
-        cursor.yPos = ensureRoom(cursor, rowHeight);
-        const startYPos = cursor.yPos;
-        let y = cursor.yPos;
-        wrappedDescription.forEach((line: string, index: number) => {
-          doc.text(line, col1X + 2, y);
-          if (index < wrappedDescription.length - 1) y += 6;
-        });
-        doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startYPos);
-        doc.text(formatCurrency(sessionCost), col3X + 2, startYPos, { align: 'right' });
-        cursor.yPos = y + 8;
-      });
-
-      // Billing option line items (each is a single 8mm row)
-      const renderOptionRow = (label: string, amount: number) => {
-        cursor.yPos = ensureRoom(cursor, 8);
-        doc.text(label, col1X + 2, cursor.yPos);
-        doc.text(formatCurrency(amount), col3X + 2, cursor.yPos, { align: 'right' });
-        cursor.yPos += 8;
-      };
-      if (totalMinHourAdj > 0) renderOptionRow(`Min 1 Hour adjustment (x${minHourCount})`, totalMinHourAdj);
-      if (totalCloning > 0) renderOptionRow(`Cloning (x${cloningCount})`, totalCloning);
-      if (totalProgramming > 0) renderOptionRow(`Programming (x${programmingCount})`, totalProgramming);
-      if (totalAddKey > 0) renderOptionRow(`Add Key (x${addKeyCount})`, totalAddKey);
-      if (totalAllKeysLost > 0) renderOptionRow(`All Keys Lost (x${allKeysLostCount})`, totalAllKeysLost);
-
-      // Table rows - Parts (single column flow; never side-by-side with totals)
-      if (parts.length > 0) {
-        doc.setFontSize(11);
-        parts.forEach((part) => {
-          // Estimate full part-row height (name + optional wrapped description).
-          let estDescLines = 0;
-          let wrappedPartDesc: string[] = [];
-          if (part.description) {
-            const col1Width = col2X - col1X - 6;
-            wrappedPartDesc = doc.splitTextToSize(stripDiacritics(part.description), col1Width);
-            estDescLines = wrappedPartDesc.length;
-          }
-          const rowHeight = 8 + (estDescLines > 0 ? 6 + 5 * (estDescLines - 1) + 2 : 0);
-          cursor.yPos = ensureRoom(cursor, rowHeight);
-
-          const partNameYPos = cursor.yPos;
-          doc.setFont('helvetica', 'normal');
-          doc.text(stripDiacritics(part.name), col1X + 2, partNameYPos);
-
-          if (estDescLines > 0) {
-            cursor.yPos += 6;
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(100, 100, 100);
-            wrappedPartDesc.forEach((line: string, index: number) => {
-              doc.text(line, col1X + 4, cursor.yPos);
-              if (index < wrappedPartDesc.length - 1) cursor.yPos += 5;
-            });
-            doc.setTextColor(0, 0, 0);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            cursor.yPos += 2;
-          }
-
-          doc.text(`${part.quantity}`, col2X + 2, partNameYPos);
-          doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partNameYPos, { align: 'right' });
-          cursor.yPos += 8;
-        });
-      }
-
-      // 12pt vertical gap between parts/content and totals box.
-      cursor.yPos += 4;
-
-      // Total Section — must live on a decorative page (flag + Thank you).
-      // If the current page is a clean continuation page, or page 1 is full,
-      // open a fresh decorative page for the closing block.
-      ensureDecorativeFinalPage(cursor);
-
-      const deposit = vehicle?.prepaidAmount || 0;
-      const showDiscount = laborDiscount > 0;
-      const showDeposit = deposit > 0;
-      const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
-      let yPos = TOTAL_BLOCK_Y - 7 * extraLines;
-      const totalX = col3X - 45;
-      if (extraLines > 0) {
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(Math.ceil(rawLabor + partsCost)), col3X + 2, yPos, { align: 'right' });
-        yPos += 7;
-        if (showDiscount) {
-          doc.setFontSize(11);
-          doc.setTextColor(22, 163, 74);
-          const dLabel = vehicle?.discountType === 'percent' ? `Discount (${vehicle?.discountValue}%):` : 'Discount:';
-          doc.text(dLabel, totalX, yPos);
-          doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
-          doc.setTextColor(0, 0, 0);
-          yPos += 7;
-        }
-        if (showDeposit) {
-          doc.setFontSize(11);
-          doc.setTextColor(220, 38, 38);
-          doc.text('Deposit:', totalX, yPos);
-          doc.text(`-${formatCurrency(deposit)}`, col3X + 2, yPos, { align: 'right' });
-          doc.setTextColor(0, 0, 0);
-          yPos += 8;
-        }
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL:', totalX, yPos);
-        doc.text(formatCurrency(Math.max(0, totalCost - deposit)), col3X + 2, yPos, { align: 'right' });
-      } else {
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL:', totalX, yPos);
-        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
-      }
-
-      // Add timestamp at the very bottom center
-      const formatTimestamp = (date: Date): string => {
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = String(date.getFullYear()).slice(-2);
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        
-        return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-      };
-
-      const pageHeight = 279.4; // Letter height in mm
-      const bottomMargin = 2;
-      const timestampY = pageHeight - bottomMargin;
-      const pageCenter = 107.95; // 215.9mm / 2 = center of Letter page
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      const timestamp = formatTimestamp(new Date());
-      doc.text(`Generated: ${timestamp}`, pageCenter, timestampY, { align: 'center' });
-
-      // Collect all photos from all sessions for the photos page
-      const allPhotos: Array<{ photo: SessionPhoto; sessionNum: number }> = [];
-      task.sessions.forEach((session, idx) => {
-        (session.photos || []).forEach(photo => {
-          allPhotos.push({ photo, sessionNum: idx + 1 });
-        });
-      });
-
-      // If there are photos, load them from filesystem and add new clean pages.
-      // Photo pages always use the clean continuation background — no flag,
-      // no "Thank you" — regardless of where they fall in the page sequence.
-      if (allPhotos.length > 0) {
-        const filePaths = allPhotos
-          .map(item => item.photo.filePath)
-          .filter((fp): fp is string => !!fp);
-        const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
-
-        // Pre-mint signed URLs for cloud-only photos
-        const cloudPaths1 = Array.from(new Set(
-          allPhotos
-            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
-            .filter((p): p is string => !!p)
-        ));
-        const cloudSigned1 = cloudPaths1.length ? await photoStorageService.signPhotoUrls(cloudPaths1) : {};
-
-        doc.addPage();
-        paintBillBackground(doc, 'clean');
-
-        let photoYPos = 20;
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(128, 0, 128);
-        doc.text('Work Photos', 105, photoYPos, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-        photoYPos += 15;
-
-        const colWidth = 85;
-        const colHeight = 64;
-        const colX = [15, 110];
-        let colIdx = 0;
-
-        for (const item of allPhotos) {
-          // Check if we need a new page (clean bg again).
-          if (colIdx === 0 && photoYPos > 200) {
-            doc.addPage();
-            paintBillBackground(doc, 'clean');
-            photoYPos = 20;
-          }
-
-          const x = colX[colIdx];
-
-          // Session label
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`Session ${item.sessionNum}`, x, photoYPos);
-
-          let photoBase64 = item.photo.filePath 
-            ? photoDataMap.get(item.photo.filePath)
-            : item.photo.base64;
-
-          if (!photoBase64) {
-            const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
-            const fetchUrl = (path && cloudSigned1[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
-            if (fetchUrl) {
-              try {
-                const response = await fetch(fetchUrl);
-                const blob = await response.blob();
-                photoBase64 = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    const result = reader.result as string;
-                    resolve(result.split(',')[1]);
-                  };
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-              } catch (fetchError) {
-                console.warn('Failed to fetch photo from cloud:', fetchError);
-              }
-            }
-          }
-
-          if (photoBase64) {
-            try {
-              const imgData = `data:image/jpeg;base64,${photoBase64}`;
-              doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth, colHeight);
-            } catch (imgError) {
-              doc.setFontSize(9);
-              doc.setFont('helvetica', 'italic');
-              doc.text('(Image could not be loaded)', x, photoYPos + 15);
-            }
-          } else {
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.text('(Image could not be loaded)', x, photoYPos + 15);
-          }
-
-          colIdx++;
-          if (colIdx >= 2) {
-            colIdx = 0;
-            photoYPos += colHeight + 12;
-          }
-        }
-        if (colIdx !== 0) {
-          photoYPos += colHeight + 12;
-        }
-      }
-
-      // Generate filename and return PDF data for sharing
       const clientNameSafe = sanitizeForFilename(client?.name);
       const carBrand = sanitizeForFilename(vehicle?.make);
       const workStartDate = formatDateForFilename(task.createdAt);
       const fileName = `bill_${clientNameSafe}_${carBrand}_${workStartDate}.pdf`;
-      
-      // Get vehicle info for share message
+
       const vehicleInfoStr = [vehicle?.year, vehicle?.make, vehicle?.model]
         .filter(Boolean)
         .join(' ') || 'your vehicle';
-      
-      // Merge diagnostic PDF if available (task-level)
+      const deposit = vehicle?.prepaidAmount || 0;
+      const displayedTotal = deposit > 0 ? Math.max(0, totalCost - deposit) : totalCost;
+
+      // Merge diagnostic PDF if available (task-level).
       if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
         try {
           const freshUrl = await resolveDiagnosticPdfUrl({ path: task.diagnosticPdfPath, url: task.diagnosticPdfUrl });
@@ -690,18 +343,14 @@ export const TaskCard = ({
           const mergedBlob = await mergePdfs(billBlob, freshUrl);
           const reader = new FileReader();
           const mergedBase64 = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => {
-              const result = reader.result as string;
-              resolve(result.split(',')[1]);
-            };
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
             reader.onerror = reject;
             reader.readAsDataURL(mergedBlob);
           });
-          const billDeposit = vehicle?.prepaidAmount || 0;
           return {
             pdfBase64: mergedBase64,
             fileName,
-            totalCost: billDeposit > 0 ? Math.max(0, totalCost - billDeposit) : totalCost,
+            totalCost: displayedTotal,
             vehicleInfo: vehicleInfoStr,
             clientName: client?.name || 'Customer',
             clientPhone: client?.phone,
@@ -711,13 +360,11 @@ export const TaskCard = ({
         }
       }
 
-      // Return PDF data instead of saving directly
       const pdfBase64 = doc.output('datauristring').split(',')[1];
-      const shareDeposit = vehicle?.prepaidAmount || 0;
       return {
         pdfBase64,
         fileName,
-        totalCost: shareDeposit > 0 ? Math.max(0, totalCost - shareDeposit) : totalCost,
+        totalCost: displayedTotal,
         vehicleInfo: vehicleInfoStr,
         clientName: client?.name || 'Customer',
         clientPhone: client?.phone,
@@ -725,355 +372,30 @@ export const TaskCard = ({
     } catch (error) {
       console.error('PDF generation error:', error);
       toast({
-        title: "Bill Generation Failed",
-        description: "There was an error creating the PDF. Please try again.",
-        variant: "destructive"
+        title: 'Bill Generation Failed',
+        description: 'There was an error creating the PDF. Please try again.',
+        variant: 'destructive',
       });
       return null;
     }
   };
 
-  // Generate preview PDF (same as billing but with different filename)
+  // Generate preview PDF (same renderer, different filename + direct save).
   const generatePreviewPDF = async () => {
     try {
-      // Add loading toast
-      toast({
-        title: "Generating Preview",
-        description: "Creating PDF preview..."
-      });
-      
-      // Validate required data
+      toast({ title: 'Generating Preview', description: 'Creating PDF preview...' });
       if (!task.sessions || task.sessions.length === 0) {
         toast({
-          title: "No Work Sessions",
-          description: "This task has no work sessions to preview.",
-          variant: "destructive"
+          title: 'No Work Sessions',
+          description: 'This task has no work sessions to preview.',
+          variant: 'destructive',
         });
         return;
       }
-      
-      const doc = new jsPDF({
-        format: 'letter'
-      });
 
-      // Page 1 background — full decorative (BILL header + flag + Thank you).
-      paintBillBackground(doc, 'decorative');
+      const doc = await renderBillPdf({ task, client, vehicle, settings });
+      const fileName = `preview_${sanitizeForFilename(client?.name)}_${sanitizeForFilename(vehicle?.make)}_${formatDateForFilename(task.createdAt)}.pdf`;
 
-      doc.setFontSize(17);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(128, 0, 128);
-      doc.text(`Bill to:`, 20, 48.5);
-      
-      const billedDate = new Date().toLocaleDateString('en-US');
-      doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
-      
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      let clientLine2 = client?.companyName || client?.name || 'N/A';
-      if (client?.companyName) {
-        const addrParts2 = [client.address, client.city, client.state, client.zip].filter(Boolean);
-        if (addrParts2.length > 0) {
-          clientLine2 = `${client.companyName} - ${addrParts2.join(', ')}`;
-        }
-      }
-      doc.text(clientLine2, 20, 53);
-      
-      const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model]
-        .filter(Boolean)
-        .join(' ');
-      const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
-      const fullVehicleInfo = vehicleInfo ? `${vehicleInfo} ${vinInfo}` : 'Vehicle Info Not Available';
-      doc.text(fullVehicleInfo, 20, 58.5);
-
-      const tableTop = 66;
-      const col1X = 20;
-      const col2X = 130;
-      const col3X = 190.9;
-
-      // Re-usable header drawer for the initial table + continuation pages.
-      const drawTableHeader = (d: jsPDF, top: number) => {
-        d.setFontSize(16);
-        d.setFont('helvetica', 'bold');
-        d.setTextColor(0, 0, 0);
-        d.text('DESCRIPTION', 25, top + 6);
-        d.text('TIME', col2X - 1, top + 6);
-        d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
-        d.setLineWidth(0.3);
-        d.setDrawColor(255, 0, 0);
-        d.line(20, top + 8, 195.9, top + 8);
-      };
-      drawTableHeader(doc, tableTop);
-
-      const formatDurationHHMM = (seconds: number): string => {
-        const totalMinutes = Math.round(seconds / 60);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-      };
-
-      const parts = (task.sessions || []).reduce((acc, session) => {
-        return acc.concat(session.parts || []);
-      }, [] as typeof task.sessions[0]['parts']);
-
-      // Layout cursor — page-breaks to a clean continuation page when the
-      // next block would cross into the flag/Thank-you decorative zone.
-      const cursor: BillLayoutCursor = {
-        doc,
-        yPos: tableTop + 16,
-        bgMode: 'decorative',
-        drawContinuationHeader: (d) => {
-          drawTableHeader(d, CONTENT_TOP);
-          cursor.yPos = CONTENT_TOP + 16;
-        },
-      };
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-
-      (task.sessions || []).forEach((session) => {
-        const sessionDuration = (session.periods || []).reduce((total, period) => {
-          return total + period.duration;
-        }, 0);
-        const sessionCost = (sessionDuration / 3600) * hourlyRate;
-        const description = session.description || 'Work session';
-        const col1Width = col2X - col1X - 4;
-        const wrappedDescription = doc.splitTextToSize(description, col1Width);
-        const rowHeight = Math.max(8, 6 * (wrappedDescription.length - 1) + 8);
-        cursor.yPos = ensureRoom(cursor, rowHeight);
-        const startYPos = cursor.yPos;
-        let y = cursor.yPos;
-        wrappedDescription.forEach((line: string, index: number) => {
-          doc.text(line, col1X + 2, y);
-          if (index < wrappedDescription.length - 1) y += 6;
-        });
-        doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startYPos);
-        doc.text(formatCurrency(sessionCost), col3X + 2, startYPos, { align: 'right' });
-        cursor.yPos = y + 8;
-      });
-
-      const renderOptionRow = (label: string, amount: number) => {
-        cursor.yPos = ensureRoom(cursor, 8);
-        doc.text(label, col1X + 2, cursor.yPos);
-        doc.text(formatCurrency(amount), col3X + 2, cursor.yPos, { align: 'right' });
-        cursor.yPos += 8;
-      };
-      if (totalMinHourAdj > 0) renderOptionRow(`Min 1 Hour adjustment (x${minHourCount})`, totalMinHourAdj);
-      if (totalCloning > 0) renderOptionRow(`Cloning (x${cloningCount})`, totalCloning);
-      if (totalProgramming > 0) renderOptionRow(`Programming (x${programmingCount})`, totalProgramming);
-      if (totalAddKey > 0) renderOptionRow(`Add Key (x${addKeyCount})`, totalAddKey);
-      if (totalAllKeysLost > 0) renderOptionRow(`All Keys Lost (x${allKeysLostCount})`, totalAllKeysLost);
-
-      if (parts.length > 0) {
-        doc.setFontSize(11);
-        parts.forEach((part) => {
-          let estDescLines = 0;
-          let wrappedPartDesc: string[] = [];
-          if (part.description) {
-            const col1Width = col2X - col1X - 6;
-            wrappedPartDesc = doc.splitTextToSize(part.description, col1Width);
-            estDescLines = wrappedPartDesc.length;
-          }
-          const rowHeight = 8 + (estDescLines > 0 ? 6 + 5 * (estDescLines - 1) + 2 : 0);
-          cursor.yPos = ensureRoom(cursor, rowHeight);
-
-          const partNameYPos = cursor.yPos;
-          doc.setFont('helvetica', 'normal');
-          doc.text(part.name, col1X + 2, partNameYPos);
-
-          if (estDescLines > 0) {
-            cursor.yPos += 6;
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(100, 100, 100);
-            wrappedPartDesc.forEach((line: string, index: number) => {
-              doc.text(line, col1X + 4, cursor.yPos);
-              if (index < wrappedPartDesc.length - 1) cursor.yPos += 5;
-            });
-            doc.setTextColor(0, 0, 0);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            cursor.yPos += 2;
-          }
-
-          doc.text(`${part.quantity}`, col2X + 2, partNameYPos);
-          doc.text(formatCurrency(part.price * part.quantity), col3X + 2, partNameYPos, { align: 'right' });
-          cursor.yPos += 8;
-        });
-      }
-
-      // 12pt vertical gap between content and the totals box.
-      cursor.yPos += 4;
-
-      // Totals must land on a decorative page (flag + Thank you).
-      ensureDecorativeFinalPage(cursor);
-
-      const previewDeposit = vehicle?.prepaidAmount || 0;
-      const showDiscountP = laborDiscount > 0;
-      const showDepositP = previewDeposit > 0;
-      const extraLinesP = (showDiscountP ? 1 : 0) + (showDepositP ? 1 : 0);
-      let yPos = TOTAL_BLOCK_Y - 7 * extraLinesP;
-      const totalXP = col3X - 45;
-      if (extraLinesP > 0) {
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Subtotal:', totalXP, yPos);
-        doc.text(formatCurrency(Math.ceil(rawLabor + partsCost)), col3X + 2, yPos, { align: 'right' });
-        yPos += 7;
-        if (showDiscountP) {
-          doc.setFontSize(11);
-          doc.setTextColor(22, 163, 74);
-          const dLabel = vehicle?.discountType === 'percent' ? `Discount (${vehicle?.discountValue}%):` : 'Discount:';
-          doc.text(dLabel, totalXP, yPos);
-          doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
-          doc.setTextColor(0, 0, 0);
-          yPos += 7;
-        }
-        if (showDepositP) {
-          doc.setFontSize(11);
-          doc.setTextColor(220, 38, 38);
-          doc.text('Deposit:', totalXP, yPos);
-          doc.text(`-${formatCurrency(previewDeposit)}`, col3X + 2, yPos, { align: 'right' });
-          doc.setTextColor(0, 0, 0);
-          yPos += 8;
-        }
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL:', totalXP, yPos);
-        doc.text(formatCurrency(Math.max(0, totalCost - previewDeposit)), col3X + 2, yPos, { align: 'right' });
-      } else {
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL:', totalXP, yPos);
-        doc.text(formatCurrency(totalCost), col3X + 2, yPos, { align: 'right' });
-      }
-
-      const formatTimestamp = (date: Date): string => {
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = String(date.getFullYear()).slice(-2);
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        
-        return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-      };
-
-      const pageHeight = 279.4;
-      const bottomMargin = 2;
-      const timestampY = pageHeight - bottomMargin;
-      const pageCenter = 107.95;
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      const timestamp = formatTimestamp(new Date());
-      doc.text(`Generated: ${timestamp}`, pageCenter, timestampY, { align: 'center' });
-
-      // Collect all photos from all sessions for the photos page
-      const allPhotos: Array<{ photo: SessionPhoto; sessionNum: number }> = [];
-      task.sessions.forEach((session, idx) => {
-        (session.photos || []).forEach(photo => {
-          allPhotos.push({ photo, sessionNum: idx + 1 });
-        });
-      });
-
-      // Photo pages always use the clean continuation background.
-      if (allPhotos.length > 0) {
-        const filePaths = allPhotos
-          .map(item => item.photo.filePath)
-          .filter((fp): fp is string => !!fp);
-        const photoDataMap = await photoStorageService.loadMultiplePhotos(filePaths);
-
-        const cloudPaths2 = Array.from(new Set(
-          allPhotos
-            .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
-            .filter((p): p is string => !!p)
-        ));
-        const cloudSigned2 = cloudPaths2.length ? await photoStorageService.signPhotoUrls(cloudPaths2) : {};
-
-        doc.addPage();
-        paintBillBackground(doc, 'clean');
-
-        let photoYPos = 20;
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(128, 0, 128);
-        doc.text('Work Photos', 105, photoYPos, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-        photoYPos += 15;
-
-        const colWidth2 = 85;
-        const colHeight2 = 64;
-        const colX2 = [15, 110];
-        let colIdx2 = 0;
-
-        for (const item of allPhotos) {
-          if (colIdx2 === 0 && photoYPos > 200) {
-            doc.addPage();
-            paintBillBackground(doc, 'clean');
-            photoYPos = 20;
-          }
-
-          const x = colX2[colIdx2];
-
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`Session ${item.sessionNum}`, x, photoYPos);
-
-          let photoBase64: string | undefined = item.photo.filePath 
-            ? photoDataMap.get(item.photo.filePath)
-            : item.photo.base64;
-
-          if (!photoBase64) {
-            const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
-            const fetchUrl = (path && cloudSigned2[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
-            if (fetchUrl) {
-              try {
-                const response = await fetch(fetchUrl);
-                const blob = await response.blob();
-                photoBase64 = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    const result = reader.result as string;
-                    resolve(result.split(',')[1]);
-                  };
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-              } catch (e) {
-                console.warn('Failed to fetch photo from cloud:', e);
-              }
-            }
-          }
-
-          if (photoBase64) {
-            try {
-              const imgData = `data:image/jpeg;base64,${photoBase64}`;
-              doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth2, colHeight2);
-            } catch (imgError) {
-              doc.setFontSize(9);
-              doc.setFont('helvetica', 'italic');
-              doc.text('(Image could not be loaded)', x, photoYPos + 15);
-            }
-          } else {
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.text('(Image could not be loaded)', x, photoYPos + 15);
-          }
-
-          colIdx2++;
-          if (colIdx2 >= 2) {
-            colIdx2 = 0;
-            photoYPos += colHeight2 + 12;
-          }
-        }
-        if (colIdx2 !== 0) {
-          photoYPos += colHeight2 + 12;
-        }
-      }
-
-      // Merge diagnostic PDF if available (task-level)
       if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
         try {
           const freshUrl = await resolveDiagnosticPdfUrl({ path: task.diagnosticPdfPath, url: task.diagnosticPdfUrl });
@@ -1083,7 +405,7 @@ export const TaskCard = ({
           const url = URL.createObjectURL(mergedBlob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `preview_${sanitizeForFilename(client?.name)}_${sanitizeForFilename(vehicle?.make)}_${formatDateForFilename(task.createdAt)}.pdf`;
+          a.download = fileName;
           a.click();
           URL.revokeObjectURL(url);
           toast({ title: 'Preview Generated', description: 'Includes diagnostic report' });
@@ -1093,23 +415,14 @@ export const TaskCard = ({
         }
       }
 
-      // Save PDF with preview filename
-      const clientName = sanitizeForFilename(client?.name);
-      const carBrand = sanitizeForFilename(vehicle?.make);
-      const workStartDate = formatDateForFilename(task.createdAt);
-      const fileName = `preview_${clientName}_${carBrand}_${workStartDate}.pdf`;
       doc.save(fileName);
-      
-      toast({
-        title: "Preview Generated",
-        description: `Preview saved as ${fileName}`
-      });
+      toast({ title: 'Preview Generated', description: `Preview saved as ${fileName}` });
     } catch (error) {
       console.error('Preview PDF generation error:', error);
       toast({
-        title: "Preview Generation Failed",
-        description: error instanceof Error ? error.message : "There was an error creating the preview. Please try again.",
-        variant: "destructive"
+        title: 'Preview Generation Failed',
+        description: error instanceof Error ? error.message : 'There was an error creating the preview. Please try again.',
+        variant: 'destructive',
       });
     }
   };

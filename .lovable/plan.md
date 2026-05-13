@@ -1,104 +1,59 @@
-# Phase 7 — Semantic correctness
+## PDF generation audit — read-only
 
-Three changes to `src/components/DesktopReportsView.tsx`. No other files affected.
+### Entry points found
 
-## 7.1 — Bucketing toggle (Work date vs Created date)
+| # | File : function | Triggered by | Lives on | Scope | Status tabs | Branded bill? | Shared renderer? | Phase fix applied? |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `src/components/TaskCard.tsx` : `generateBillingPDF` | Dropdown "Bill" + "Generate Bill & Mark Billed" handler (`handleGenerateBill`) | Mobile TaskCard | Single task / vehicle | Completed → Billed (`billed`) | Yes (bill-background) | Renderer A — mobile/share | **Yes** — uses `billPdfLayout` (paintBillBackground, ensureRoom, ensureDecorativeFinalPage) |
+| 2 | `src/components/TaskCard.tsx` : `generatePreviewPDF` | Dropdown "Preview Bill" | Mobile TaskCard | Single task | Completed | Yes | Renderer A (duplicated) | **Yes** |
+| 3 | `src/components/TaskCard.tsx` : `generateDetailPDF` | Dropdown "Print detail" | Mobile TaskCard | Single task | Billed / Paid | No (plain) | Renderer B — plain detail | N/A (no background) |
+| 4 | **`src/pages/DesktopDashboard.tsx` : `generateBillPdf`** | Desktop "Generate Bill & Mark Billed" (`handleGenerateBillAndMarkBilled` L652) and desktop "Preview Bill" (`handlePreviewBill` L661); also re-billing from billed/paid rows on desktop | Desktop dashboard rows | Single task / vehicle | Completed / Billed / Paid (any desktop bill action) | Yes (bill-background) | Renderer C — desktop bill (independent copy) | **NO** — calls `doc.addImage(billBackground, ...)` once at L324, uses fixed `yPos = 261` for totals (L456), `doc.addPage()` for photos at L517 with no `paintBillBackground('clean')`, no `ensureRoom`, no safe-area logic. Photo fetch falls back to "(Photo on device only)" text at L579. |
+| 5 | `src/pages/DesktopDashboard.tsx` : `generateClientPDF` (L928) | "Print PDF" on a client | Desktop client cards | Client aggregate report | All | No (plain) | Renderer D — client report | N/A |
+| 6 | `src/components/DesktopClientsView.tsx` (L143 `new jsPDF()`) | Client report button on desktop clients view | Desktop clients view | Client aggregate | All | No | Renderer D-variant | N/A |
+| 7 | `src/components/ManageClientsDialog.tsx` : `generateClientPDF` (L202) | "Print PDF" in Manage Clients dialog | Mobile manage-clients | Client aggregate | All | No | Renderer D-variant | N/A |
+| 8 | `src/components/DesktopInvoiceView.tsx` : `generatePDF` | "Generate PDF" button in standalone invoice creator | Desktop Invoice view | Manual invoice | N/A | Yes (separate `invoice-background.jpg`) | Renderer E — invoice creator | N/A (different artwork; not affected by bill issues) |
+| — | `src/components/TaskCard.tsx` L1155 | Error-fallback only | — | — | — | — | not used | — |
 
-**State + helper** (top of component, near other `useState` calls):
+### Distinct *bill/invoice* rendering paths
 
-```ts
-const [bucketMode, setBucketMode] = useState<'work' | 'created'>('work');
+Three branded paths exist:
+- **Renderer A** — TaskCard.generateBillingPDF + generatePreviewPDF (mobile). Phase 6/PDF fix applied.
+- **Renderer C** — DesktopDashboard.generateBillPdf. **Not patched.**
+- **Renderer E** — DesktopInvoiceView (manual invoice, different background, different problem domain).
 
-const getTaskBucketDate = (task: Task): Date => {
-  if (bucketMode === 'work') {
-    let earliest: number | null = null;
-    for (const s of task.sessions || []) {
-      const t = new Date(s.startTime).getTime();
-      if (!isFinite(t)) continue;
-      if (earliest === null || t < earliest) earliest = t;
-    }
-    return new Date(earliest ?? task.createdAt);
-  }
-  return new Date(task.createdAt);
-};
+### Why the Valy Ilasca / Mercedes GLS bill is still broken
 
-const monthKey = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-```
+The user re-generated the bill from the **desktop UI**, which routes through `handleGenerateBillAndMarkBilled` / `handlePreviewBill` → `DesktopDashboard.generateBillPdf` (Renderer C). The Phase fix only touched `TaskCard.tsx` (Renderer A). That is why:
+- Parts/totals still collide — Renderer C uses a hard-coded `yPos = 261` for the TOTAL block (L456-490) regardless of how many rows have been laid out above it.
+- "(Photo on device only)" placeholders still appear — Renderer C tries `cloudPath/cloudUrl → signed URL → fetch → base64`. The mobile renderer uses the same logic but its photo records carry richer fallbacks at this point, and Renderer C never falls back to the local IndexedDB photo cache the mobile path uses.
+- "Thank you" still appears mid-content — the photos page is added with `doc.addPage()` (L517) but the bill background isn't reapplied; jsPDF leaves a blank page, so on multi-photo runs the totals/photo content visually overlaps the decorative footer of page 1 (and the second bill page also lacks the white mask the new `paintBillBackground('clean')` provides).
 
-**Replace `new Date(t.createdAt)` bucketing in:**
+### Recommendation — Option A (consolidate)
 
-- Date range filter inside `filteredTasks` (L180–186): use `getTaskBucketDate(t)` instead of `new Date(t.createdAt)`.
-- `revenueOverTime` (L198–199), `hoursOverTime` (L248–249), `carsOverTime` (L260–261): use `getTaskBucketDate(t)` + `monthKey(d)`.
-- `drillRowsForMonth` (L289–293): same — match by `monthKey(getTaskBucketDate(t))`.
-- Add `bucketMode` to all relevant `useMemo` deps (`filteredTasks`, `revenueOverTime`, `hoursOverTime`, `carsOverTime`).
+Strongly preferred. Create one shared renderer module (e.g. `src/lib/billPdfRenderer.ts`) that:
+- Takes `(task, client, vehicle, settings, opts)` and returns a `jsPDF` document (or a Blob).
+- Uses the existing `billPdfLayout` helpers (`paintBillBackground`, `ensureRoom`, `ensureDecorativeFinalPage`) end-to-end.
+- Houses the photo-embedding logic (with the IndexedDB → cloud → signed-URL fallback chain) in one place.
+- Houses the totals/discount/deposit block in one place so future billing-math changes (Phase 1/6) only have to land once.
 
-**UI control** in the filter bar between status toggles and the date pickers (around L376/377):
+Then:
+- Replace `TaskCard.generateBillingPDF` / `generatePreviewPDF` with thin wrappers that call the shared renderer (mobile only adds the share/save plumbing around it).
+- Replace `DesktopDashboard.generateBillPdf` with a thin wrapper that calls the same shared renderer and then performs the desktop save / diagnostic-merge step.
+- Leave Renderer B (detail), D (client report) and E (manual invoice) alone — they're different products.
 
-```tsx
-<div className="flex items-center rounded-md border h-8 overflow-hidden">
-  <button
-    type="button"
-    onClick={() => setBucketMode('work')}
-    className={cn("px-2 text-xs h-full", bucketMode === 'work' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
-  >Work date</button>
-  <button
-    type="button"
-    onClick={() => setBucketMode('created')}
-    className={cn("px-2 text-xs h-full border-l", bucketMode === 'created' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
-  >Created date</button>
-</div>
-```
+Outcome: one place for layout, photos, totals, and any future bill changes; the Valy Ilasca regression disappears the moment desktop switches over.
 
-`resetFilters` (L137) resets `bucketMode` to `'work'`.
+### Option B (only if A is too risky to land in one go)
 
-## 7.2 — Exclude imported tasks from hours
+Port the Phase fix into `DesktopDashboard.generateBillPdf` directly:
+1. Replace the single `doc.addImage(billBackground, ...)` with `paintBillBackground(doc, 'decorative')`.
+2. Build a `BillLayoutCursor` and route all row writes through `ensureRoom(...)` so parts/options can flow to a clean continuation page.
+3. Call `ensureDecorativeFinalPage(cursor)` before drawing the TOTAL block (drop the hard-coded `yPos = 261`).
+4. Before the photos page, call `paintBillBackground(doc, 'clean')` after `doc.addPage()` (and on every photo overflow page).
+5. Add the IndexedDB-photo fallback (mirror the mobile logic) so missing-cloud photos no longer print the "(Photo on device only)" placeholder when a local copy exists.
 
-In `hoursOverTime` (L245) and `totalHours` (L286): filter out tasks where `t.importedSalary != null && t.importedSalary > 0` before summing seconds. Detail table, drill rows, and revenue charts are unchanged. The header summary chip "X hrs" reflects the filtered total.
+Then file a follow-up task to consolidate (Option A).
 
-## 7.3 — Top-20 vehicle chart with "Others" bar
+### Deliverable for next step
 
-Rewrite `revenueByVehicle` (L220–232):
-
-```ts
-const revenueByVehicle = useMemo(() => {
-  const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
-  filteredTasks.forEach(t => {
-    const v = vehicles.find(v => v.id === t.vehicleId);
-    const label = v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
-    if (!map[t.vehicleId]) map[t.vehicleId] = { vehicleId: t.vehicleId, label, revenue: 0 };
-    map[t.vehicleId].revenue += getTaskCost(t);
-  });
-  const sorted = Object.values(map)
-    .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
-    .sort((a, b) => b.revenue - a.revenue);
-
-  if (sorted.length <= 20) return sorted;
-
-  const top = sorted.slice(0, 19);
-  const rest = sorted.slice(19);
-  const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
-  return [
-    ...top,
-    { vehicleId: '__others__', label: `Others (${rest.length} vehicles)`, revenue: othersRevenue },
-  ];
-}, [filteredTasks, vehicles]);
-```
-
-Click handler (`handleVehicleClick`, L304): if `p.vehicleId === '__others__'`, set drill rows to all tasks whose `vehicleId` is in the `rest` set. Implement by capturing the "others" vehicle-ids inside the memo via a sibling `useMemo` (`othersVehicleIds`) returned alongside, or simpler: recompute the set inside the handler from `revenueByVehicle` length + a separate `useMemo`. Cleanest: also expose `othersVehicleIds` as a separate memo so the click handler has direct access.
-
-For the bar color, pass a neutral gray (`#94a3b8`) only for the `__others__` row. Easiest way: in the chart's `<Bar>` use `<Cell>` per row (already common in this file's pattern) with `fill = entry.vehicleId === '__others__' ? '#94a3b8' : CHART_COLORS[i % CHART_COLORS.length]`.
-
-`vehicleChartHeight` (L345) automatically grows to accommodate the extra bar.
-
-## Verification
-
-1. Toggle bucketing: a task created in March but with first session in April moves between months in Revenue Over Time, Hours Over Time, Cars Serviced.
-2. Date range filter respects bucketing mode (a `from=Apr 1` filter excludes the same task when bucketing by Created if it was created in March, includes it when bucketing by Work).
-3. Imported tasks contribute to revenue charts and detail table but not to Hours Over Time or the header "X hrs" chip.
-4. With 25 vehicles in scope, vehicle chart shows 19 bars + 1 gray "Others (6 vehicles)" bar; clicking Others drills to those 6 vehicles' tasks.
-5. Status filter toggles still affect chart contents; bucketing toggle is orthogonal.
-
-## Out of scope (unchanged from spec)
-
-CSV export, click-through to editor, URL persistence, Revenue Mix card — Phases 8–9.
+Tell me **A** or **B** and I'll implement. I'd recommend A — the desktop and mobile renderers will keep diverging otherwise, and Phase 6's billing-math work has the same shape (one shared module).

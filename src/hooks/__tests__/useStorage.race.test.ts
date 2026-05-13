@@ -29,6 +29,8 @@ vi.mock("@/lib/capacitorStorage", () => ({
 // Programmable appSyncService that preserves the real VersionConflictError class
 const pushSpy = vi.fn();
 const pullSpy = vi.fn();
+let baseSnap: any = null;
+const setBase = (s: any) => { baseSnap = s; };
 vi.mock("@/services/appSyncService", async () => {
   const actual = await vi.importActual<any>("@/services/appSyncService");
   return {
@@ -37,6 +39,7 @@ vi.mock("@/services/appSyncService", async () => {
       pushToCloud: (...a: any[]) => pushSpy(...a),
       pullFromCloud: (...a: any[]) => pullSpy(...a),
       getWorkspaceId: () => "ws-test",
+      getBaseSnapshot: () => baseSnap,
       setLocalUpdatedAt: () => {},
     },
   };
@@ -71,6 +74,7 @@ beforeEach(() => {
   toastMock.mockClear();
   pushSpy.mockReset();
   pullSpy.mockReset();
+  baseSnap = null;
   vi.resetModules();
 });
 
@@ -89,6 +93,13 @@ describe("useStorage reconciliation", () => {
     // Remote: A unchanged from original, B edited remotely
     const A_remote = makeTask("A", { customerName: "A-orig" });
     const B_remote = makeTask("B", { customerName: "B-remote-edit" });
+
+    // Base snapshot reflects the pre-edit state (both A and B at "-orig").
+    setBase({
+      clients: [], vehicles: [],
+      tasks: [makeTask("A", { customerName: "A-orig" }), makeTask("B", { customerName: "B-orig" })],
+      settings: { defaultHourlyRate: 75 },
+    });
 
     pushSpy
       .mockImplementationOnce(() => {
@@ -135,6 +146,13 @@ describe("useStorage reconciliation", () => {
     const A_local = makeTask("A", { status: "paid" });
     store.tasks = [A_local];
     const A_remote = makeTask("A", { status: "billed" });
+
+    // Base: pristine A (status "pending"). Both sides diverged → real overlap.
+    setBase({
+      clients: [], vehicles: [],
+      tasks: [makeTask("A")],
+      settings: { defaultHourlyRate: 75 },
+    });
 
     pushSpy
       .mockImplementationOnce(() => {
@@ -228,5 +246,91 @@ describe("useStorage reconciliation", () => {
     expect(ids).toEqual(["A", "B", "C", "D"]);
     const a = store.tasks.find((t) => t.id === "A")!;
     expect(a.customerName).toBe("A-local");
+  });
+
+  it("G2 — local and remote edit different ids → silent merge", async () => {
+    const { VersionConflictError } = await import("@/services/appSyncService");
+    const { useTasks } = await import("@/hooks/useStorage");
+    const { renderHook, act } = await import("@testing-library/react");
+
+    // Local edits A and B. Remote independently edited C and D.
+    const A_local = makeTask("A", { customerName: "A-local" });
+    const B_local = makeTask("B", { customerName: "B-local" });
+    const C_orig  = makeTask("C", { customerName: "C-orig" });
+    const D_orig  = makeTask("D", { customerName: "D-orig" });
+    store.tasks = [A_local, B_local, C_orig, D_orig];
+
+    setBase({
+      clients: [], vehicles: [],
+      tasks: [
+        makeTask("A", { customerName: "A-orig" }),
+        makeTask("B", { customerName: "B-orig" }),
+        makeTask("C", { customerName: "C-orig" }),
+        makeTask("D", { customerName: "D-orig" }),
+      ],
+      settings: { defaultHourlyRate: 75 },
+    });
+
+    const remote = {
+      clients: [], vehicles: [],
+      tasks: [
+        makeTask("A", { customerName: "A-orig" }),
+        makeTask("B", { customerName: "B-orig" }),
+        makeTask("C", { customerName: "C-remote" }),
+        makeTask("D", { customerName: "D-remote" }),
+      ],
+      settings: { defaultHourlyRate: 75 },
+    };
+
+    pushSpy
+      .mockImplementationOnce(() => { throw new VersionConflictError(remote as any, 2, "tr"); })
+      .mockResolvedValueOnce({ version: 3, updatedAt: "tf" });
+
+    const { result } = renderHook(() => useTasks());
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      await result.current.setTasks(store.tasks, ["A", "B"]);
+    });
+
+    const m = new Map(store.tasks.map((t) => [t.id, t.customerName]));
+    expect(m.get("A")).toBe("A-local");
+    expect(m.get("B")).toBe("B-local");
+    expect(m.get("C")).toBe("C-remote");
+    expect(m.get("D")).toBe("D-remote");
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("K — first-sync (no base) → silent merge, no toast", async () => {
+    const { VersionConflictError } = await import("@/services/appSyncService");
+    const { useTasks } = await import("@/hooks/useStorage");
+    const { renderHook, act } = await import("@testing-library/react");
+
+    // baseSnap stays null (set in beforeEach)
+    const A_local = makeTask("A", { status: "paid" });
+    store.tasks = [A_local];
+    const A_remote = makeTask("A", { status: "billed" });
+
+    pushSpy
+      .mockImplementationOnce(() => {
+        throw new VersionConflictError(
+          { clients: [], vehicles: [], tasks: [A_remote], settings: { defaultHourlyRate: 75 } },
+          1,
+          "tr",
+        );
+      })
+      .mockResolvedValueOnce({ version: 2, updatedAt: "tf" });
+
+    const { result } = renderHook(() => useTasks());
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      await result.current.setTasks([A_local], ["A"]);
+    });
+
+    expect(pushSpy).toHaveBeenCalledTimes(2);
+    expect(store.tasks[0].status).toBe("paid");
+    // No base → overlap detection skipped → no soft toast
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });

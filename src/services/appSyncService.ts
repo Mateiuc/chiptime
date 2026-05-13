@@ -70,6 +70,21 @@ function sanitizeForCloud(data: SyncData): SyncData {
 // re-seed it via getRemoteVersion).
 let lastKnownVersion: number | null = null;
 
+// In-memory cache of the latest server snapshot we've successfully read or
+// written. Used as the BASE for 3-way conflict reconciliation in
+// useStorage.mergeOnConflict — a true overlap requires both local and
+// remote to have diverged from this base.
+let baseSnapshot: SyncData | null = null;
+const cloneSnap = (s: SyncData): SyncData => {
+  try {
+    return typeof structuredClone === 'function'
+      ? structuredClone(s)
+      : JSON.parse(JSON.stringify(s));
+  } catch {
+    return JSON.parse(JSON.stringify(s));
+  }
+};
+
 export const appSyncService = {
   getWorkspaceId(): string | null {
     return localStorage.getItem(LOCAL_WORKSPACE_KEY);
@@ -81,6 +96,7 @@ export const appSyncService = {
     // New workspace context — drop the cached version so the next push
     // re-fetches from the new row.
     lastKnownVersion = null;
+    baseSnapshot = null;
   },
 
   getLocalUpdatedAt(): string | null {
@@ -98,6 +114,15 @@ export const appSyncService = {
 
   getLastKnownVersion(): number | null {
     return lastKnownVersion;
+  },
+
+  /**
+   * Last server snapshot we observed (via pull or successful push).
+   * Consumed by useStorage.mergeOnConflict for 3-way diffing. Returns
+   * `null` before the first pull/push of a session.
+   */
+  getBaseSnapshot(): SyncData | null {
+    return baseSnapshot;
   },
 
   /**
@@ -162,6 +187,7 @@ export const appSyncService = {
         const newVersion = Number((updated as any).data_version);
         const newUpdatedAt = String((updated as any).updated_at);
         lastKnownVersion = newVersion;
+        baseSnapshot = cloneSnap(sanitized);
         this.setLocalUpdatedAt(newUpdatedAt);
         console.log('[AppSync] Pushed v' + newVersion + ' at', newUpdatedAt);
         return { version: newVersion, updatedAt: newUpdatedAt };
@@ -209,6 +235,7 @@ export const appSyncService = {
       const newVersion = Number((inserted as any).data_version);
       const newUpdatedAt = String((inserted as any).updated_at);
       lastKnownVersion = newVersion;
+      baseSnapshot = cloneSnap(sanitized);
       this.setLocalUpdatedAt(newUpdatedAt);
       console.log('[AppSync] Inserted v' + newVersion + ' at', newUpdatedAt);
       return { version: newVersion, updatedAt: newUpdatedAt };
@@ -238,6 +265,7 @@ export const appSyncService = {
     const syncData = normalizeRaw((data as any).data || {});
     const version = Number((data as any).data_version ?? 0);
     lastKnownVersion = version;
+    baseSnapshot = cloneSnap(syncData);
     console.log('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);
     return { data: syncData, updatedAt: data.updated_at, version };
   },

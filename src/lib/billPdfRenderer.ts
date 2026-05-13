@@ -138,6 +138,9 @@ const TABLE_TOP = 66;
 const ROW_LINE_HEIGHT = 6;
 const ROW_VPAD = 2;
 const ROW_GAP = 2;
+const PART_LABEL_TO_DESC = 4;   // baseline gap from part label to first italic line
+const PART_DESC_EXTRA_PAD = 2;  // padding before italic block (was 4)
+const PART_ROW_GAP = 0;         // overrides ROW_GAP for inter-part spacing
 const ORPHAN_TOLERANCE = 8; // mm
 
 // One unit of flow content: an item to be rendered as a line in the table.

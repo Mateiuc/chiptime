@@ -663,20 +663,26 @@ pin='';
 for(var i=0;i<4;i++)pin+=pi.children[i].value;
 document.getElementById('pin-btn').disabled=pin.length<4;
 }
-function verifyPin(){
-document.getElementById('pin-btn').disabled=true;
-tryDecrypt(pin).then(function(s){
-D={s:s};
-document.getElementById('pin-screen').classList.add('hidden');
-renderContent();
-}).catch(function(){
+function pinFail(){
 document.getElementById('pin-error').textContent='Incorrect code. Please try again.';
 document.getElementById('pin-error').classList.remove('hidden');
 var pi=document.getElementById('pin-inputs');
 for(var i=0;i<4;i++)pi.children[i].value='';
 pi.children[0].focus();
 pin='';
-});
+document.getElementById('pin-btn').disabled=true;
+}
+function verifyPin(){
+document.getElementById('pin-btn').disabled=true;
+// Guard against malformed encrypted payloads — would otherwise hang the screen.
+if(!E||!E.salt||!E.iv||!E.ct){pinFail();return}
+try{
+tryDecrypt(pin).then(function(s){
+D={s:s};
+document.getElementById('pin-screen').classList.add('hidden');
+renderContent();
+}).catch(function(){pinFail()});
+}catch(_e){pinFail()}
 }
 function fmt(n){return'$'+n.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')}
 function fmtDur(s){var tm=Math.round(s/60);var h=Math.floor(tm/60);var m=tm%60;return h+'h '+m+'m'}

@@ -96,6 +96,7 @@ export const appSyncService = {
     // New workspace context — drop the cached version so the next push
     // re-fetches from the new row.
     lastKnownVersion = null;
+    baseSnapshot = null;
   },
 
   getLocalUpdatedAt(): string | null {

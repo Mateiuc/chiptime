@@ -108,3 +108,62 @@ export async function migratePhotosToFilesystem(): Promise<{ migrated: boolean; 
     return { migrated: false, photoCount: 0 };
   }
 }
+
+/**
+ * Reconcile photos missing cloudPath by re-uploading them from local storage.
+ * Native-only (web has no Capacitor filesystem). Idempotent: skips photos that
+ * already have cloudPath, and uploadPhotoToCloud uses upsert.
+ */
+export async function reconcileCloudPhotos(): Promise<{ uploaded: number; failed: number }> {
+  const { Capacitor } = await import('@capacitor/core');
+  if (!Capacitor.isNativePlatform()) return { uploaded: 0, failed: 0 };
+
+  let uploaded = 0;
+  let failed = 0;
+
+  try {
+    const tasks = await capacitorStorage.getTasks();
+    const updatedTasks: Task[] = [];
+
+    for (const task of tasks) {
+      let modified = false;
+      const updatedSessions = await Promise.all(
+        task.sessions.map(async (session) => {
+          if (!session.photos || session.photos.length === 0) return session;
+          const updatedPhotos = await Promise.all(
+            session.photos.map(async (photo) => {
+              if (photo.cloudPath) return photo;
+              if (!photo.filePath) return photo;
+              try {
+                const base64 = await photoStorageService.loadPhoto(photo.filePath);
+                if (!base64) return photo;
+                const { url: cloudUrl, path: cloudPath } =
+                  await photoStorageService.uploadPhotoToCloud(base64, task.id, photo.id);
+                modified = true;
+                uploaded++;
+                return { ...photo, cloudUrl, cloudPath } as SessionPhoto;
+              } catch (e) {
+                failed++;
+                console.warn('[PhotoReconciler] upload failed', photo.id, e);
+                return photo;
+              }
+            })
+          );
+          return { ...session, photos: updatedPhotos };
+        })
+      );
+      if (modified) updatedTasks.push({ ...task, sessions: updatedSessions });
+    }
+
+    if (updatedTasks.length > 0) {
+      const current = await capacitorStorage.getTasks();
+      const merged = current.map(t => updatedTasks.find(u => u.id === t.id) || t);
+      await capacitorStorage.setTasks(merged);
+      console.log(`[PhotoReconciler] Backfilled cloudPath on ${uploaded} photos across ${updatedTasks.length} tasks`);
+    }
+  } catch (e) {
+    console.error('[PhotoReconciler] failed:', e);
+  }
+
+  return { uploaded, failed };
+}

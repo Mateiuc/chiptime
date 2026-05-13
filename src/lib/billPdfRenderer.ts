@@ -313,7 +313,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(0, 0, 0);
       }
-      doc.text(r.quantity, COL2_X + 2, startY);
+      doc.text(r.quantity, COL2_X, startY, { align: 'right' });
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     }
     cursor.yPos = startY + m.height;

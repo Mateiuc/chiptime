@@ -93,20 +93,30 @@ export function ensureRoom(cursor: BillLayoutCursor, blockHeight: number): numbe
 
 /**
  * Make sure the TOTAL block lands on a page that has the decorative
- * background. If the current page is clean OR doesn't have enough room above
- * y = TOTAL_BLOCK_Y for the block, append a fresh decorative page.
+ * background.
+ *
+ *  - If the current page is already decorative AND the totals block fits in
+ *    the remaining space (above the flag art), keep the cursor where it is
+ *    so the totals can render directly under the last content row.
+ *  - Otherwise append a fresh decorative page and reset the cursor.
  *
  * After this call the cursor's bgMode is guaranteed to be 'decorative'.
+ * Returns true when a new page was opened (so the caller knows to use the
+ * pinned TOTAL_BLOCK_Y origin instead of the current cursor position).
  */
-export function ensureDecorativeFinalPage(cursor: BillLayoutCursor): void {
-  const needsNewPage =
-    cursor.bgMode !== 'decorative' ||
-    cursor.yPos > TOTAL_BLOCK_Y - TOTAL_BLOCK_MAX_HEIGHT;
+export function ensureDecorativeFinalPage(
+  cursor: BillLayoutCursor,
+  totalsHeight: number = TOTAL_BLOCK_MAX_HEIGHT,
+): boolean {
+  const fitsHere =
+    cursor.bgMode === 'decorative' &&
+    cursor.yPos + totalsHeight <= SAFE_BOTTOM_DECORATIVE;
 
-  if (needsNewPage) {
-    cursor.doc.addPage();
-    paintBillBackground(cursor.doc, 'decorative');
-    cursor.bgMode = 'decorative';
-    cursor.yPos = CONTENT_TOP;
-  }
+  if (fitsHere) return false;
+
+  cursor.doc.addPage();
+  paintBillBackground(cursor.doc, 'decorative');
+  cursor.bgMode = 'decorative';
+  cursor.yPos = CONTENT_TOP;
+  return true;
 }

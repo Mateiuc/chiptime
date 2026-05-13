@@ -414,6 +414,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <Button size="sm" variant={rptShowPaid ? 'default' : 'outline'} onClick={() => setRptShowPaid(!rptShowPaid)}
               className={cn("h-8 text-xs", rptShowPaid && "bg-emerald-600 hover:bg-emerald-700")}>Paid</Button>
           </div>
+          <div className="flex items-center rounded-md border h-8 overflow-hidden" title="Bucket monthly charts by work date or task created date">
+            <button
+              type="button"
+              onClick={() => setBucketMode('work')}
+              className={cn("px-2 text-xs h-full", bucketMode === 'work' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+            >Work date</button>
+            <button
+              type="button"
+              onClick={() => setBucketMode('created')}
+              className={cn("px-2 text-xs h-full border-l", bucketMode === 'created' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+            >Created date</button>
+          </div>
           <DatePicker value={rptDateFrom} onChange={setRptDateFrom} label="From" />
           <DatePicker value={rptDateTo} onChange={setRptDateTo} label="To" />
           <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8">

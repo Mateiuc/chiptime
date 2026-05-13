@@ -339,6 +339,11 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const handleVehicleClick = (e: any) => {
     const p = e?.activePayload?.[0]?.payload;
     if (!p?.vehicleId) return;
+    if (p.vehicleId === '__others__') {
+      const ids = new Set(othersVehicleIds);
+      setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => ids.has(t.vehicleId)).map(toDrillRow) });
+      return;
+    }
     setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => t.vehicleId === p.vehicleId).map(toDrillRow) });
   };
   const handleStatusClick = (e: any) => {

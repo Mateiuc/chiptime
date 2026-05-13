@@ -147,6 +147,13 @@ describe("useStorage reconciliation", () => {
     store.tasks = [A_local];
     const A_remote = makeTask("A", { status: "billed" });
 
+    // Base: pristine A (status "pending"). Both sides diverged → real overlap.
+    setBase({
+      clients: [], vehicles: [],
+      tasks: [makeTask("A")],
+      settings: { defaultHourlyRate: 75 },
+    });
+
     pushSpy
       .mockImplementationOnce(() => {
         throw new VersionConflictError(

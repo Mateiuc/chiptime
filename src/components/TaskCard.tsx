@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
 import { EditTaskDialog } from './EditTaskDialog';
 import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
-import billBackground from '@/assets/bill-background.jpg';
+// Bill background asset is loaded from the shared layout helper.
 import {
   paintBillBackground,
   ensureRoom,

@@ -352,7 +352,9 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     }
 
     // Repeat the column header on every page.
-    drawTableHeader(doc, safeTop(page.role));
+    if (page.rows.length > 0) {
+      drawTableHeader(doc, safeTop(page.role));
+    }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
 

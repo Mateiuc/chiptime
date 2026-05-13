@@ -207,7 +207,8 @@ export const pushNow = async (snapshot?: SyncData): Promise<void> => {
         tasks: snap.tasks.map(t => t.id),
         settingsChanged: true,
       };
-      const { merged, overlapped } = mergeOnConflict(snap, err.remoteData, allChanged);
+      const base = appSyncService.getBaseSnapshot();
+      const { merged, overlapped } = mergeOnConflict(snap, err.remoteData, base, allChanged);
       await writeLocalSnapshot(merged);
       cloudSyncEvents.triggerPull();
       if (overlapped) {

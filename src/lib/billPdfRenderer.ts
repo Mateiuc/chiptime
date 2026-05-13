@@ -131,7 +131,7 @@ export interface RenderBillOptions {
 
 // Layout constants — used by both measure and draw passes.
 const COL1_X = 20;
-const COL2_X = 130;
+const COL2_X = 150;
 const COL3_X = 190.9;
 const COL1_WIDTH = COL2_X - COL1_X - 4;
 const TABLE_TOP = 66;

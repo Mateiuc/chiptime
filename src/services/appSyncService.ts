@@ -96,7 +96,15 @@ export const appSyncService = {
       return null;
     }
 
-    const syncData = data.data as unknown as SyncData;
+    const raw = (data.data || {}) as any;
+    const isObj = (x: any) => x && typeof x === 'object' && !Array.isArray(x);
+    const syncData: SyncData = {
+      ...raw,
+      tasks: Array.isArray(raw.tasks) ? raw.tasks.filter((t: any) => isObj(t) && t.id) : [],
+      clients: Array.isArray(raw.clients) ? raw.clients.filter((c: any) => isObj(c) && c.id) : [],
+      vehicles: Array.isArray(raw.vehicles) ? raw.vehicles.filter((v: any) => isObj(v) && v.id) : [],
+      settings: raw.settings || { defaultHourlyRate: 75 },
+    };
     console.log('[AppSync] Pulled from cloud, updated_at:', data.updated_at);
     return { data: syncData, updatedAt: data.updated_at };
   },

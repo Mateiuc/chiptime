@@ -138,6 +138,9 @@ const TABLE_TOP = 66;
 const ROW_LINE_HEIGHT = 6;
 const ROW_VPAD = 2;
 const ROW_GAP = 2;
+const PART_LABEL_TO_DESC = 4;   // baseline gap from part label to first italic line
+const PART_DESC_EXTRA_PAD = 2;  // padding before italic block (was 4)
+const PART_ROW_GAP = 0;         // overrides ROW_GAP for inter-part spacing
 const ORPHAN_TOLERANCE = 8; // mm
 
 // One unit of flow content: an item to be rendered as a line in the table.
@@ -172,9 +175,9 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
   let extra = 0;
   if (row.description) {
     wrappedPartDesc = doc.splitTextToSize(row.description, COL1_WIDTH - 2) as string[];
-    extra = 4 + wrappedPartDesc.length * 5;
+    extra = PART_DESC_EXTRA_PAD + wrappedPartDesc.length * 5;
   }
-  const height = ROW_LINE_HEIGHT + ROW_VPAD + extra + ROW_GAP;
+  const height = ROW_LINE_HEIGHT + ROW_VPAD + extra + PART_ROW_GAP;
   return { row, wrappedDesc: [row.name], wrappedPartDesc, height };
 }
 
@@ -311,7 +314,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text(r.quantity, COL2_X + 2, startY);
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
       if (m.wrappedPartDesc.length > 0) {
-        let y = startY + ROW_LINE_HEIGHT;
+        let y = startY + PART_LABEL_TO_DESC;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 100, 100);

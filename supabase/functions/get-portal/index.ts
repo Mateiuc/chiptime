@@ -174,10 +174,19 @@ Deno.serve(async (req) => {
 })
 
 // Walk the slimmed portal payload and replace storage paths in `ph[]` with
-// short-lived signed URLs. Entries that already look like absolute URLs
-// (legacy public URLs) are left untouched.
+// short-lived signed URLs. Entries that look like legacy public/signed
+// session-photos URLs are also re-signed by extracting their storage path.
 async function signPortalPhotos(supabase: any, payload: any): Promise<any> {
   if (!payload || !Array.isArray(payload.v)) return payload
+
+  const LEGACY_URL_RE = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/session-photos\/([^?#]+)/i
+  const extractPath = (entry: string): string | null => {
+    if (!entry) return null
+    if (!/^https?:\/\//i.test(entry)) return entry
+    const m = entry.match(LEGACY_URL_RE)
+    if (!m) return null
+    try { return decodeURIComponent(m[1]) } catch { return m[1] }
+  }
 
   const paths = new Set<string>()
   for (const vehicle of payload.v) {
@@ -185,9 +194,9 @@ async function signPortalPhotos(supabase: any, payload: any): Promise<any> {
     for (const session of vehicle.s) {
       if (!Array.isArray(session?.ph)) continue
       for (const entry of session.ph) {
-        if (typeof entry === 'string' && !/^https?:\/\//i.test(entry)) {
-          paths.add(entry)
-        }
+        if (typeof entry !== 'string') continue
+        const p = extractPath(entry)
+        if (p) paths.add(p)
       }
     }
   }
@@ -196,7 +205,6 @@ async function signPortalPhotos(supabase: any, payload: any): Promise<any> {
 
   const pathList = Array.from(paths)
   const map: Record<string, string> = {}
-  // createSignedUrls handles up to a few hundred entries comfortably
   const { data: signed, error } = await supabase.storage
     .from('session-photos')
     .createSignedUrls(pathList, 60 * 60) // 1h
@@ -212,9 +220,11 @@ async function signPortalPhotos(supabase: any, payload: any): Promise<any> {
     if (!Array.isArray(vehicle?.s)) continue
     for (const session of vehicle.s) {
       if (!Array.isArray(session?.ph)) continue
-      session.ph = session.ph.map((entry: string) =>
-        typeof entry === 'string' && map[entry] ? map[entry] : entry
-      )
+      session.ph = session.ph.map((entry: string) => {
+        if (typeof entry !== 'string') return entry
+        const p = extractPath(entry)
+        return p && map[p] ? map[p] : entry
+      })
     }
   }
 

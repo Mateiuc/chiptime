@@ -1,86 +1,104 @@
-# Reports Overhaul — Phase 6: Math Consistency
+# Phase 7 — Semantic correctness
 
-Implement Phase 6 only. Pause for review before Phase 7.
+Three changes to `src/components/DesktopReportsView.tsx`. No other files affected.
 
-## Changes
+## 7.1 — Bucketing toggle (Work date vs Created date)
 
-### 1. `src/lib/billing.ts` — add `computeTaskTotalAllocated`
-
-New helper that allocates the vehicle-level discount proportionally across tasks (matching `computeVehicleTotal` math, just sliced per task):
+**State + helper** (top of component, near other `useState` calls):
 
 ```ts
-export interface TaskTotalAllocated {
-  labor: number; services: number; parts: number;
-  discount: number; total: number;
-}
+const [bucketMode, setBucketMode] = useState<'work' | 'created'>('work');
 
-export function computeTaskTotalAllocated(
-  task: Task,
-  vehicle: Vehicle | null | undefined,
-  allVehicleTasks: Task[],
-  client: Client | null | undefined,
-  settings: Settings
-): TaskTotalAllocated {
-  const t = computeTaskTotal(task, client, settings);
-  const taskPool = t.labor + t.services;
-  const vehiclePool = allVehicleTasks.reduce((s, vt) => {
-    const x = computeTaskTotal(vt, client, settings);
-    return s + x.labor + x.services;
-  }, 0);
-  const vehicleDiscount = applyLaborDiscount(vehiclePool, vehicle).discount;
-  const share = vehiclePool > 0 ? taskPool / vehiclePool : 0;
-  const taskDiscount = vehicleDiscount * share;
-  return {
-    labor: t.labor, services: t.services, parts: t.parts,
-    discount: taskDiscount,
-    total: Math.max(0, taskPool - taskDiscount) + t.parts,
-  };
-}
-```
-
-Sum of `taskDiscount` across a vehicle's tasks equals the vehicle's discount within float rounding. Existing `computeVehicleTotal` is untouched.
-
-### 2. `src/components/DesktopReportsView.tsx`
-
-**6.5 — Remove dead import (L16):** drop `calcPeriodCost` from the `formatTime` import. Also drop `applyLaborDiscount` import (no longer used directly here) and add `computeTaskTotalAllocated`.
-
-**6.1 + 6.2 — Rewrite `getTaskCost` (L143–149):**
-
-```ts
-const getTaskCost = (task: Task) => {
-  const vehicle = vehicles.find(v => v.id === task.vehicleId);
-  const client = clients.find(c => c.id === task.clientId) || null;
-  const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-  return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).total;
+const getTaskBucketDate = (task: Task): Date => {
+  if (bucketMode === 'work') {
+    let earliest: number | null = null;
+    for (const s of task.sessions || []) {
+      const t = new Date(s.startTime).getTime();
+      if (!isFinite(t)) continue;
+      if (earliest === null || t < earliest) earliest = t;
+    }
+    return new Date(earliest ?? task.createdAt);
+  }
+  return new Date(task.createdAt);
 };
+
+const monthKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 ```
 
-No more per-task full discount, no more `Math.ceil`. Display rounding is handled by `formatCurrency`.
+**Replace `new Date(t.createdAt)` bucketing in:**
 
-**6.3 — Unpaid balance pill (search for the `'billed'`-only sum near L285):**
+- Date range filter inside `filteredTasks` (L180–186): use `getTaskBucketDate(t)` instead of `new Date(t.createdAt)`.
+- `revenueOverTime` (L198–199), `hoursOverTime` (L248–249), `carsOverTime` (L260–261): use `getTaskBucketDate(t)` + `monthKey(d)`.
+- `drillRowsForMonth` (L289–293): same — match by `monthKey(getTaskBucketDate(t))`.
+- Add `bucketMode` to all relevant `useMemo` deps (`filteredTasks`, `revenueOverTime`, `hoursOverTime`, `carsOverTime`).
+
+**UI control** in the filter bar between status toggles and the date pickers (around L376/377):
+
+```tsx
+<div className="flex items-center rounded-md border h-8 overflow-hidden">
+  <button
+    type="button"
+    onClick={() => setBucketMode('work')}
+    className={cn("px-2 text-xs h-full", bucketMode === 'work' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+  >Work date</button>
+  <button
+    type="button"
+    onClick={() => setBucketMode('created')}
+    className={cn("px-2 text-xs h-full border-l", bucketMode === 'created' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+  >Created date</button>
+</div>
+```
+
+`resetFilters` (L137) resets `bucketMode` to `'work'`.
+
+## 7.2 — Exclude imported tasks from hours
+
+In `hoursOverTime` (L245) and `totalHours` (L286): filter out tasks where `t.importedSalary != null && t.importedSalary > 0` before summing seconds. Detail table, drill rows, and revenue charts are unchanged. The header summary chip "X hrs" reflects the filtered total.
+
+## 7.3 — Top-20 vehicle chart with "Others" bar
+
+Rewrite `revenueByVehicle` (L220–232):
 
 ```ts
-const unpaidBalance = filteredTasks
-  .filter(t => t.status !== 'paid')
-  .reduce((s, t) => s + getTaskCost(t), 0);
+const revenueByVehicle = useMemo(() => {
+  const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
+  filteredTasks.forEach(t => {
+    const v = vehicles.find(v => v.id === t.vehicleId);
+    const label = v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
+    if (!map[t.vehicleId]) map[t.vehicleId] = { vehicleId: t.vehicleId, label, revenue: 0 };
+    map[t.vehicleId].revenue += getTaskCost(t);
+  });
+  const sorted = Object.values(map)
+    .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  if (sorted.length <= 20) return sorted;
+
+  const top = sorted.slice(0, 19);
+  const rest = sorted.slice(19);
+  const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
+  return [
+    ...top,
+    { vehicleId: '__others__', label: `Others (${rest.length} vehicles)`, revenue: othersRevenue },
+  ];
+}, [filteredTasks, vehicles]);
 ```
 
-Now respects active filters and counts every non-paid status.
+Click handler (`handleVehicleClick`, L304): if `p.vehicleId === '__others__'`, set drill rows to all tasks whose `vehicleId` is in the `rest` set. Implement by capturing the "others" vehicle-ids inside the memo via a sibling `useMemo` (`othersVehicleIds`) returned alongside, or simpler: recompute the set inside the handler from `revenueByVehicle` length + a separate `useMemo`. Cleanest: also expose `othersVehicleIds` as a separate memo so the click handler has direct access.
 
-**6.4 — Imported badge in tables:**
+For the bar color, pass a neutral gray (`#94a3b8`) only for the `__others__` row. Easiest way: in the chart's `<Bar>` use `<Cell>` per row (already common in this file's pattern) with `fill = entry.vehicleId === '__others__' ? '#94a3b8' : CHART_COLORS[i % CHART_COLORS.length]`.
 
-- Import `ImportedBadge` from `@/components/ImportedBadge`.
-- Extend `DrillRow` with `imported: boolean` (set in `toDrillRow` from `t.importedSalary != null && t.importedSalary > 0`).
-- In `DrillTable` (L67) status cell: render `<ImportedBadge className="ml-1" />` next to the status pill when `r.imported`.
-- In the detail table (L545) description/status cell: same badge inline.
+`vehicleChartHeight` (L345) automatically grows to accommodate the extra bar.
 
-## Verification (Phase 6)
+## Verification
 
-1. Multi-task vehicle with a fixed-dollar discount → sum of per-task totals in Reports detail table now equals the `/desk` and `/client-view` vehicle total (was lower before).
-2. Toggle status filters → unpaid pill value changes (was constant).
-3. Imported task rows show the amber badge in both DrillTable and detail table.
-4. `rg "calcPeriodCost" src/components/DesktopReportsView.tsx` returns zero matches.
+1. Toggle bucketing: a task created in March but with first session in April moves between months in Revenue Over Time, Hours Over Time, Cars Serviced.
+2. Date range filter respects bucketing mode (a `from=Apr 1` filter excludes the same task when bucketing by Created if it was created in March, includes it when bucketing by Work).
+3. Imported tasks contribute to revenue charts and detail table but not to Hours Over Time or the header "X hrs" chip.
+4. With 25 vehicles in scope, vehicle chart shows 19 bars + 1 gray "Others (6 vehicles)" bar; clicking Others drills to those 6 vehicles' tasks.
+5. Status filter toggles still affect chart contents; bucketing toggle is orthogonal.
 
-## Out of scope for Phase 6
+## Out of scope (unchanged from spec)
 
-URL params, CSV export, click-through, bucketing toggle, Revenue Mix card, Top-20 Others bar, hours-chart imported filter — those land in Phases 7–9.
+CSV export, click-through to editor, URL persistence, Revenue Mix card — Phases 8–9.

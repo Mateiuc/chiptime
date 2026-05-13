@@ -131,7 +131,7 @@ export interface RenderBillOptions {
 
 // Layout constants — used by both measure and draw passes.
 const COL1_X = 20;
-const COL2_X = 130;
+const COL2_X = 150;
 const COL3_X = 190.9;
 const COL1_WIDTH = COL2_X - COL1_X - 4;
 const TABLE_TOP = 66;
@@ -202,10 +202,11 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     [] as NonNullable<Task['sessions'][number]['parts']>,
   );
   allParts.forEach((part) => {
+    const condition = (part.description || '').trim();
     flowRows.push({
       kind: 'part',
       name: stripDiacritics(part.name),
-      description: part.description ? stripDiacritics(part.description) : null,
+      description: condition ? stripDiacritics(condition) : null,
       quantity: `${part.quantity}`,
       amount: formatCurrency(part.price * part.quantity),
     });
@@ -277,8 +278,8 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     d.setFont('helvetica', 'bold');
     d.setTextColor(0, 0, 0);
     d.text('DESCRIPTION', 25, top + 6);
-    d.text('TIME', COL2_X - 1, top + 6);
-    d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
+    d.text('TIME', COL2_X, top + 6, { align: 'right' });
+    d.text('AMOUNT', COL3_X, top + 6, { align: 'right' });
     d.setLineWidth(0.3);
     d.setDrawColor(255, 0, 0);
     d.line(20, top + 8, 195.9, top + 8);
@@ -295,7 +296,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       m.wrappedDesc.forEach((line, i) => {
         doc.text(line, COL1_X + 2, startY + i * ROW_LINE_HEIGHT);
       });
-      doc.text(r.time, COL2_X + 2, startY);
+      doc.text(r.time, COL2_X, startY, { align: 'right' });
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     } else if (r.kind === 'option') {
       doc.text(r.label, COL1_X + 2, startY);
@@ -312,7 +313,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(0, 0, 0);
       }
-      doc.text(r.quantity, COL2_X + 2, startY);
+      doc.text(r.quantity, COL2_X, startY, { align: 'right' });
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     }
     cursor.yPos = startY + m.height;
@@ -351,7 +352,9 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     }
 
     // Repeat the column header on every page.
-    drawTableHeader(doc, safeTop(page.role));
+    if (page.rows.length > 0) {
+      drawTableHeader(doc, safeTop(page.role));
+    }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
 

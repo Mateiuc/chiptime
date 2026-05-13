@@ -225,6 +225,37 @@ export const SettingsDialog = ({
   const billedTasksByClient = groupTasksByClient(billedTasks);
   const paidTasksByClient = groupTasksByClient(paidTasks);
 
+  // Default: collapse all client groups when entering the view
+  useEffect(() => {
+    if (currentView === 'billed') {
+      setCollapsedBilledClients(new Set(Object.keys(billedTasksByClient)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
+  useEffect(() => {
+    if (currentView === 'paid') {
+      setCollapsedPaidClients(new Set(Object.keys(paidTasksByClient)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
+
+  const toggleClientCollapse = (which: 'billed' | 'paid', clientId: string) => {
+    const setter = which === 'billed' ? setCollapsedBilledClients : setCollapsedPaidClients;
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId); else next.add(clientId);
+      return next;
+    });
+  };
+  const toggleAllCollapse = (which: 'billed' | 'paid') => {
+    const map = which === 'billed' ? billedTasksByClient : paidTasksByClient;
+    const current = which === 'billed' ? collapsedBilledClients : collapsedPaidClients;
+    const setter = which === 'billed' ? setCollapsedBilledClients : setCollapsedPaidClients;
+    const allKeys = Object.keys(map);
+    const allCollapsed = allKeys.every(k => current.has(k));
+    setter(allCollapsed ? new Set() : new Set(allKeys));
+  };
+
   const getDialogTitle = () => {
     switch (currentView) {
       case 'menu':

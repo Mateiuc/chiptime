@@ -17,18 +17,21 @@ export type Database = {
       app_sync: {
         Row: {
           data: Json
+          data_version: number
           sync_id: string
           updated_at: string
           workspace_id: string | null
         }
         Insert: {
           data?: Json
+          data_version?: number
           sync_id: string
           updated_at?: string
           workspace_id?: string | null
         }
         Update: {
           data?: Json
+          data_version?: number
           sync_id?: string
           updated_at?: string
           workspace_id?: string | null

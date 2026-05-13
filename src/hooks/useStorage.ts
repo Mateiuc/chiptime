@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { appSyncService, SyncData } from '@/services/appSyncService';
+import { appSyncService, SyncData, VersionConflictError } from '@/services/appSyncService';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 // Pending retry timer (used only when an immediate push fails)
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -13,32 +14,155 @@ export const setCloudPushEnabled = (enabled: boolean) => {
   console.log('[CloudSync] Push enabled:', enabled);
 };
 
+/**
+ * Caller declares which entity ids it just touched. Used to drive merge
+ * direction on a VersionConflictError: local wins for these ids, remote
+ * wins for everything else.
+ */
+export interface ChangedIds {
+  clients?: string[];
+  vehicles?: string[];
+  tasks?: string[];
+  settingsChanged?: boolean;
+}
+
+const byId = <T extends { id: string }>(arr: T[]): Map<string, T> => {
+  const m = new Map<string, T>();
+  for (const x of arr || []) if (x && x.id) m.set(x.id, x);
+  return m;
+};
+
+/**
+ * 3-way merge: for any id in `changedIds.<entity>`, take local. For all
+ * other ids, take remote. Returns the merged snapshot AND a flag noting
+ * whether any "real" overlap occurred (someone else also edited an id we
+ * just edited) so the caller can warn the user.
+ */
+function mergeOnConflict(
+  local: SyncData,
+  remote: SyncData,
+  changed: ChangedIds | undefined
+): { merged: SyncData; overlapped: boolean } {
+  const ch = changed || {};
+  const stringify = (x: any) => JSON.stringify(x);
+  let overlapped = false;
+
+  const mergeArr = <T extends { id: string }>(
+    localArr: T[],
+    remoteArr: T[],
+    changedIds: string[] | undefined
+  ): T[] => {
+    const localMap = byId(localArr);
+    const remoteMap = byId(remoteArr);
+    const result: T[] = [];
+    const taken = new Set<string>();
+    const changedSet = new Set(changedIds || []);
+
+    // Start from remote (server is the base for items we didn't touch).
+    for (const [id, rItem] of remoteMap) {
+      if (changedSet.has(id)) {
+        const lItem = localMap.get(id);
+        if (lItem) {
+          // Real overlap if remote also drifted from our local copy.
+          if (stringify(lItem) !== stringify(rItem)) overlapped = true;
+          result.push(lItem);
+        }
+        // If id is in changedSet but no local item, we just deleted it — skip.
+      } else {
+        result.push(rItem);
+      }
+      taken.add(id);
+    }
+    // Locals we touched that aren't on remote (newly added).
+    for (const [id, lItem] of localMap) {
+      if (!taken.has(id) && changedSet.has(id)) result.push(lItem);
+    }
+    return result;
+  };
+
+  const merged: SyncData = {
+    clients: mergeArr(local.clients, remote.clients, ch.clients),
+    vehicles: mergeArr(local.vehicles, remote.vehicles, ch.vehicles),
+    tasks: mergeArr(local.tasks, remote.tasks, ch.tasks),
+    settings: ch.settingsChanged ? local.settings : (remote.settings || local.settings),
+  };
+  if (ch.settingsChanged && stringify(local.settings) !== stringify(remote.settings)) {
+    overlapped = true;
+  }
+  return { merged, overlapped };
+}
+
+async function readLocalSnapshot(): Promise<SyncData> {
+  const [clients, vehicles, tasks, settings] = await Promise.all([
+    capacitorStorage.getClients(),
+    capacitorStorage.getVehicles(),
+    capacitorStorage.getTasks(),
+    capacitorStorage.getSettings(),
+  ]);
+  return { clients, vehicles, tasks, settings };
+}
+
+async function writeLocalSnapshot(snap: SyncData): Promise<void> {
+  await Promise.all([
+    capacitorStorage.setClients(snap.clients),
+    capacitorStorage.setVehicles(snap.vehicles),
+    capacitorStorage.setTasks(snap.tasks),
+    capacitorStorage.setSettings(snap.settings),
+  ]);
+}
+
 // Push the freshest local snapshot to the cloud immediately (awaitable).
 // Used after every add/edit/delete/start/pause/resume/stop so local + cloud
-// stay in lockstep. On transient failure we schedule ONE retry ~5s later.
-const immediatePushToCloud = async () => {
+// stay in lockstep. On version conflict, reconcile + retry once. On
+// transient failure we schedule ONE retry ~5s later.
+const immediatePushToCloud = async (changed?: ChangedIds, retryDepth = 0) => {
   if (!cloudPushEnabled) return;
   // Cancel any pending retry — we're about to push fresh data anyway.
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   try {
-    const [clients, vehicles, tasks, settings] = await Promise.all([
-      capacitorStorage.getClients(),
-      capacitorStorage.getVehicles(),
-      capacitorStorage.getTasks(),
-      capacitorStorage.getSettings(),
-    ]);
+    const local = await readLocalSnapshot();
     // Don't push empty snapshots — prevents wiping cloud data
-    if (clients.length === 0 && vehicles.length === 0 && tasks.length === 0) {
+    if (local.clients.length === 0 && local.vehicles.length === 0 && local.tasks.length === 0) {
       console.log('[CloudSync] Skipped push — snapshot is empty');
       return;
     }
-    await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
+    await appSyncService.pushToCloud(local);
   } catch (err) {
+    if (err instanceof VersionConflictError) {
+      if (retryDepth >= 1) {
+        console.error('[CloudSync] Conflict persisted after retry — surfacing to user');
+        toast({
+          variant: 'destructive',
+          title: 'Sync conflict',
+          description: 'Please reload to see latest data.',
+          duration: 10000,
+        });
+        return;
+      }
+      const local = await readLocalSnapshot();
+      const { merged, overlapped } = mergeOnConflict(local, err.remoteData, changed);
+      await writeLocalSnapshot(merged);
+      // Notify any cloud-pull listeners so React state can be re-hydrated
+      // from the merged snapshot we just persisted.
+      cloudSyncEvents.triggerPull();
+      if (overlapped) {
+        toast({
+          variant: 'destructive',
+          title: 'Conflicting edits reconciled',
+          description: 'Your changes conflicted with a recent sync. Some fields may have been overwritten — please reload if anything looks wrong.',
+          duration: 8000,
+        });
+      }
+      // Retry the push with the merged snapshot. lastKnownVersion is now
+      // the freshly-pulled remote version, so the conditional update will
+      // succeed (unless yet another concurrent write landed).
+      return immediatePushToCloud(changed, retryDepth + 1);
+    }
     console.error('[CloudSync] Immediate push failed, will retry in 5s:', err);
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(() => {
       pushTimer = null;
-      immediatePushToCloud().catch(e =>
+      immediatePushToCloud(changed).catch(e =>
         console.error('[CloudSync] Retry push failed:', e)
       );
     }, 5000);
@@ -48,17 +172,44 @@ const immediatePushToCloud = async () => {
 // For desktop: push current React state directly (passed by caller)
 export const pushNow = async (snapshot?: SyncData): Promise<void> => {
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
-  if (snapshot) {
-    await appSyncService.pushToCloud(snapshot);
-  } else {
-    // Fallback: read from storage
-    const [clients, vehicles, tasks, settings] = await Promise.all([
-      capacitorStorage.getClients(),
-      capacitorStorage.getVehicles(),
-      capacitorStorage.getTasks(),
-      capacitorStorage.getSettings(),
-    ]);
-    await appSyncService.pushToCloud({ clients, vehicles, tasks, settings });
+  const snap = snapshot || (await readLocalSnapshot());
+  try {
+    await appSyncService.pushToCloud(snap);
+  } catch (err) {
+    if (err instanceof VersionConflictError) {
+      // Desktop snapshot doesn't track changedIds — treat the entire
+      // snapshot as "local wins" and warn the user.
+      const allChanged: ChangedIds = {
+        clients: snap.clients.map(c => c.id),
+        vehicles: snap.vehicles.map(v => v.id),
+        tasks: snap.tasks.map(t => t.id),
+        settingsChanged: true,
+      };
+      const { merged, overlapped } = mergeOnConflict(snap, err.remoteData, allChanged);
+      await writeLocalSnapshot(merged);
+      cloudSyncEvents.triggerPull();
+      if (overlapped) {
+        toast({
+          variant: 'destructive',
+          title: 'Conflicting edits reconciled',
+          description: 'Some fields may have been overwritten by another device. Please reload if anything looks wrong.',
+          duration: 8000,
+        });
+      }
+      try {
+        await appSyncService.pushToCloud(merged);
+      } catch (err2) {
+        console.error('[CloudSync] pushNow retry failed:', err2);
+        toast({
+          variant: 'destructive',
+          title: 'Sync conflict',
+          description: 'Please reload to see latest data.',
+          duration: 10000,
+        });
+      }
+      return;
+    }
+    throw err;
   }
 };
 
@@ -120,11 +271,11 @@ export const useClients = () => {
     loadClients();
   }, []);
 
-  const setClients = async (clients: Client[]) => {
+  const setClients = async (clients: Client[], changedIds?: string[]) => {
     try {
       await capacitorStorage.setClients(clients);
       setClientsState(clients);
-      await immediatePushToCloud();
+      await immediatePushToCloud({ clients: changedIds });
     } catch (error) {
       console.error('Failed to save clients:', error);
     }
@@ -132,17 +283,17 @@ export const useClients = () => {
 
   const addClient = async (client: Client) => {
     const updated = [...clients, client];
-    await setClients(updated);
+    await setClients(updated, [client.id]);
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
     const updated = clients.map(c => c.id === id ? { ...c, ...updates } : c);
-    await setClients(updated);
+    await setClients(updated, [id]);
   };
 
   const deleteClient = async (id: string) => {
     const updated = clients.filter(c => c.id !== id);
-    await setClients(updated);
+    await setClients(updated, [id]);
   };
 
   const replaceAll = (newClients: Client[]) => {
@@ -171,11 +322,11 @@ export const useVehicles = () => {
     loadVehicles();
   }, []);
 
-  const setVehicles = async (vehicles: Vehicle[]) => {
+  const setVehicles = async (vehicles: Vehicle[], changedIds?: string[]) => {
     try {
       await capacitorStorage.setVehicles(vehicles);
       setVehiclesState(vehicles);
-      await immediatePushToCloud();
+      await immediatePushToCloud({ vehicles: changedIds });
     } catch (error) {
       console.error('Failed to save vehicles:', error);
     }
@@ -183,17 +334,17 @@ export const useVehicles = () => {
 
   const addVehicle = async (vehicle: Vehicle) => {
     const updated = [...vehicles, vehicle];
-    await setVehicles(updated);
+    await setVehicles(updated, [vehicle.id]);
   };
 
   const updateVehicle = async (id: string, updates: Partial<Vehicle>) => {
     const updated = vehicles.map(v => v.id === id ? { ...v, ...updates } : v);
-    await setVehicles(updated);
+    await setVehicles(updated, [id]);
   };
 
   const deleteVehicle = async (id: string) => {
     const updated = vehicles.filter(v => v.id !== id);
-    await setVehicles(updated);
+    await setVehicles(updated, [id]);
   };
 
   const replaceAll = (newVehicles: Vehicle[]) => {
@@ -222,11 +373,11 @@ export const useTasks = () => {
     loadTasks();
   }, []);
 
-  const setTasks = async (newTasks: Task[]) => {
+  const setTasks = async (newTasks: Task[], changedIds?: string[]) => {
     try {
       await capacitorStorage.setTasks(newTasks);
       setTasksState(newTasks);
-      await immediatePushToCloud();
+      await immediatePushToCloud({ tasks: changedIds });
     } catch (error) {
       console.error('Failed to save tasks:', error);
     }
@@ -235,19 +386,19 @@ export const useTasks = () => {
   const addTask = async (task: Task) => {
     const currentTasks = await capacitorStorage.getTasks();
     const updated = [...currentTasks, task];
-    await setTasks(updated);
+    await setTasks(updated, [task.id]);
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     const currentTasks = await capacitorStorage.getTasks();
     const updated = currentTasks.map(t => t.id === id ? { ...t, ...updates } : t);
-    await setTasks(updated);
+    await setTasks(updated, [id]);
   };
 
   const deleteTask = async (id: string) => {
     const currentTasks = await capacitorStorage.getTasks();
     const updated = currentTasks.filter(t => t.id !== id);
-    await setTasks(updated);
+    await setTasks(updated, [id]);
   };
 
   const batchUpdateTasks = async (updates: Array<{ id: string; updates: Partial<Task> }>) => {
@@ -256,7 +407,7 @@ export const useTasks = () => {
       const update = updates.find(u => u.id === task.id);
       return update ? { ...task, ...update.updates } : task;
     });
-    await setTasks(updated);
+    await setTasks(updated, updates.map(u => u.id));
   };
 
   const replaceAll = (newTasks: Task[]) => {
@@ -289,7 +440,7 @@ export const useSettings = () => {
     try {
       await capacitorStorage.setSettings(settings);
       setSettingsState(settings);
-      await immediatePushToCloud();
+      await immediatePushToCloud({ settingsChanged: true });
     } catch (error) {
       console.error('Failed to save settings:', error);
     }

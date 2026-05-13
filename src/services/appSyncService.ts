@@ -11,6 +11,65 @@ export interface SyncData {
   settings: Settings;
 }
 
+/**
+ * Thrown when the cloud row's `data_version` no longer matches the version
+ * we believed the local snapshot was based on. The caller (useStorage hook)
+ * is responsible for fetching `remoteData`, merging with local, and retrying.
+ */
+export class VersionConflictError extends Error {
+  remoteData: SyncData;
+  remoteVersion: number;
+  remoteUpdatedAt: string;
+  constructor(remoteData: SyncData, remoteVersion: number, remoteUpdatedAt: string) {
+    super('app_sync version conflict');
+    this.name = 'VersionConflictError';
+    this.remoteData = remoteData;
+    this.remoteVersion = remoteVersion;
+    this.remoteUpdatedAt = remoteUpdatedAt;
+  }
+}
+
+const isObj = (x: any) => x && typeof x === 'object' && !Array.isArray(x);
+
+function normalizeRaw(raw: any): SyncData {
+  return {
+    ...(raw || {}),
+    tasks: Array.isArray(raw?.tasks) ? raw.tasks.filter((t: any) => isObj(t) && t.id) : [],
+    clients: Array.isArray(raw?.clients) ? raw.clients.filter((c: any) => isObj(c) && c.id) : [],
+    vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles.filter((v: any) => isObj(v) && v.id) : [],
+    settings: raw?.settings || { defaultHourlyRate: 75 },
+  };
+}
+
+function sanitizeForCloud(data: SyncData): SyncData {
+  return {
+    ...data,
+    // SECURITY: Strip per-client access codes before syncing. They live only
+    // in the cloud `client_portals` table (server-validated) and on each
+    // device locally. They must never be uploaded to a JSON sync blob.
+    clients: (data.clients || []).map((c: any) => {
+      const { accessCode: _omit, ...rest } = c || {};
+      return rest;
+    }),
+    // SECURITY: Strip third-party API keys (Gemini/Grok/OCR Space) before
+    // syncing. These are device-local OCR credentials and must never be
+    // synced to the cloud or shared across workspace members.
+    settings: (() => {
+      const s: any = { ...(data.settings || {}) };
+      delete s.googleApiKey;
+      delete s.grokApiKey;
+      delete s.ocrSpaceApiKey;
+      return s;
+    })(),
+  };
+}
+
+// In-memory cache of the latest server data_version we successfully read or
+// wrote. Used as the `expectedVersion` for the next conditional update.
+// Module-local; reset on full reload (which is fine — pushToCloud will
+// re-seed it via getRemoteVersion).
+let lastKnownVersion: number | null = null;
+
 export const appSyncService = {
   getWorkspaceId(): string | null {
     return localStorage.getItem(LOCAL_WORKSPACE_KEY);
@@ -19,6 +78,9 @@ export const appSyncService = {
   setWorkspaceId(id: string | null) {
     if (id) localStorage.setItem(LOCAL_WORKSPACE_KEY, id);
     else localStorage.removeItem(LOCAL_WORKSPACE_KEY);
+    // New workspace context — drop the cached version so the next push
+    // re-fetches from the new row.
+    lastKnownVersion = null;
   },
 
   getLocalUpdatedAt(): string | null {
@@ -26,63 +88,140 @@ export const appSyncService = {
   },
 
   setLocalUpdatedAt(ts: string) {
-    localStorage.setItem(LOCAL_UPDATED_AT_KEY, ts);
+    try {
+      localStorage.setItem(LOCAL_UPDATED_AT_KEY, ts);
+    } catch (e) {
+      // Safari private mode / quota exceeded — non-fatal.
+      console.warn('[AppSync] Failed to persist updated_at:', e);
+    }
   },
 
-  async pushToCloud(data: SyncData): Promise<void> {
+  getLastKnownVersion(): number | null {
+    return lastKnownVersion;
+  },
+
+  /**
+   * Lightweight version-only fetch for the post-deploy bootstrap path —
+   * avoids pulling the whole data blob just to seed `lastKnownVersion`.
+   */
+  async getRemoteVersion(): Promise<number | null> {
+    const workspaceId = this.getWorkspaceId();
+    if (!workspaceId) return null;
+    const { data, error } = await supabase
+      .from('app_sync')
+      .select('data_version')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+    if (error) {
+      console.error('[AppSync] getRemoteVersion failed:', error);
+      return null;
+    }
+    if (!data) return null;
+    const v = Number((data as any).data_version ?? 0);
+    return Number.isFinite(v) ? v : 0;
+  },
+
+  /**
+   * Pushes `data` to the cloud using optimistic concurrency.
+   * On version mismatch throws `VersionConflictError` carrying the fresh
+   * remote payload + version so the caller can reconcile and retry.
+   */
+  async pushToCloud(data: SyncData): Promise<{ version: number; updatedAt: string } | void> {
     const workspaceId = this.getWorkspaceId();
     if (!workspaceId) {
       console.warn('[AppSync] Skipped push — no workspace');
       return;
     }
+    const sanitized = sanitizeForCloud(data);
+
+    // Seed `lastKnownVersion` if this is a fresh tab / post-deploy push.
+    if (lastKnownVersion === null) {
+      lastKnownVersion = await this.getRemoteVersion();
+    }
+
+    // Case A: row exists — conditional UPDATE on data_version.
+    if (lastKnownVersion !== null) {
+      const { data: updated, error } = await supabase
+        .from('app_sync')
+        .update({
+          data: sanitized as any,
+          data_version: lastKnownVersion + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('workspace_id', workspaceId)
+        .eq('data_version', lastKnownVersion)
+        .select('data_version, updated_at')
+        .maybeSingle();
+
+      if (error) {
+        console.error('[AppSync] Conditional update failed:', error);
+        throw error;
+      }
+
+      if (updated) {
+        const newVersion = Number((updated as any).data_version);
+        const newUpdatedAt = String((updated as any).updated_at);
+        lastKnownVersion = newVersion;
+        this.setLocalUpdatedAt(newUpdatedAt);
+        console.log('[AppSync] Pushed v' + newVersion + ' at', newUpdatedAt);
+        return { version: newVersion, updatedAt: newUpdatedAt };
+      }
+
+      // 0 rows updated → either version mismatch, or row vanished.
+      const fresh = await this.pullFromCloud();
+      if (fresh) {
+        throw new VersionConflictError(fresh.data, fresh.version, fresh.updatedAt);
+      }
+      // Row truly missing — fall through to insert path.
+      lastKnownVersion = null;
+    }
+
+    // Case B: no row yet — insert a fresh one at version 1.
     const now = new Date().toISOString();
-
-    // SECURITY: Strip per-client access codes before syncing. They live only
-    // in the cloud `client_portals` table (server-validated) and on each
-    // device locally. They must never be uploaded to a JSON sync blob.
-    const sanitized: SyncData = {
-      ...data,
-      clients: (data.clients || []).map((c: any) => {
-        const { accessCode: _omit, ...rest } = c || {};
-        return rest;
-      }),
-      // SECURITY: Strip third-party API keys (Gemini/Grok/OCR Space) before
-      // syncing. These are device-local OCR credentials and must never be
-      // synced to the cloud or shared across workspace members.
-      settings: (() => {
-        const s: any = { ...(data.settings || {}) };
-        delete s.googleApiKey;
-        delete s.grokApiKey;
-        delete s.ocrSpaceApiKey;
-        return s;
-      })(),
-    };
-
-    const { error } = await supabase
+    const { data: inserted, error: insertErr } = await supabase
       .from('app_sync')
-      .upsert({
+      .insert({
         sync_id: workspaceId,
         workspace_id: workspaceId,
         data: sanitized as any,
+        data_version: 1,
         updated_at: now,
-      }, { onConflict: 'sync_id' });
+      })
+      .select('data_version, updated_at')
+      .maybeSingle();
 
-    if (error) {
-      console.error('[AppSync] Push failed:', error);
-      throw error;
+    if (insertErr) {
+      // Unique-violation (someone else inserted concurrently) — re-seed
+      // and let the caller retry on the next mutation.
+      const code = (insertErr as any).code;
+      if (code === '23505') {
+        lastKnownVersion = await this.getRemoteVersion();
+        const fresh = await this.pullFromCloud();
+        if (fresh) {
+          throw new VersionConflictError(fresh.data, fresh.version, fresh.updatedAt);
+        }
+      }
+      console.error('[AppSync] Insert failed:', insertErr);
+      throw insertErr;
     }
 
-    this.setLocalUpdatedAt(now);
-    console.log('[AppSync] Pushed to cloud at', now);
+    if (inserted) {
+      const newVersion = Number((inserted as any).data_version);
+      const newUpdatedAt = String((inserted as any).updated_at);
+      lastKnownVersion = newVersion;
+      this.setLocalUpdatedAt(newUpdatedAt);
+      console.log('[AppSync] Inserted v' + newVersion + ' at', newUpdatedAt);
+      return { version: newVersion, updatedAt: newUpdatedAt };
+    }
   },
 
-  async pullFromCloud(): Promise<{ data: SyncData; updatedAt: string } | null> {
+  async pullFromCloud(): Promise<{ data: SyncData; updatedAt: string; version: number } | null> {
     const workspaceId = this.getWorkspaceId();
     if (!workspaceId) return null;
 
     const { data, error } = await supabase
       .from('app_sync')
-      .select('data, updated_at')
+      .select('data, updated_at, data_version')
       .eq('workspace_id', workspaceId)
       .maybeSingle();
 
@@ -96,17 +235,11 @@ export const appSyncService = {
       return null;
     }
 
-    const raw = (data.data || {}) as any;
-    const isObj = (x: any) => x && typeof x === 'object' && !Array.isArray(x);
-    const syncData: SyncData = {
-      ...raw,
-      tasks: Array.isArray(raw.tasks) ? raw.tasks.filter((t: any) => isObj(t) && t.id) : [],
-      clients: Array.isArray(raw.clients) ? raw.clients.filter((c: any) => isObj(c) && c.id) : [],
-      vehicles: Array.isArray(raw.vehicles) ? raw.vehicles.filter((v: any) => isObj(v) && v.id) : [],
-      settings: raw.settings || { defaultHourlyRate: 75 },
-    };
-    console.log('[AppSync] Pulled from cloud, updated_at:', data.updated_at);
-    return { data: syncData, updatedAt: data.updated_at };
+    const syncData = normalizeRaw((data as any).data || {});
+    const version = Number((data as any).data_version ?? 0);
+    lastKnownVersion = version;
+    console.log('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);
+    return { data: syncData, updatedAt: data.updated_at, version };
   },
 
   async getRemoteUpdatedAt(): Promise<string | null> {

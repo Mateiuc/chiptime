@@ -187,6 +187,7 @@ export const appSyncService = {
         const newVersion = Number((updated as any).data_version);
         const newUpdatedAt = String((updated as any).updated_at);
         lastKnownVersion = newVersion;
+        baseSnapshot = cloneSnap(sanitized);
         this.setLocalUpdatedAt(newUpdatedAt);
         console.log('[AppSync] Pushed v' + newVersion + ' at', newUpdatedAt);
         return { version: newVersion, updatedAt: newUpdatedAt };

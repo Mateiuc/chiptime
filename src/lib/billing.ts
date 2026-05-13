@@ -37,6 +37,17 @@ export interface VehicleTotal {
 
 const num = (v: any): number => (typeof v === 'number' && isFinite(v) ? v : 0);
 
+/**
+ * Round a dollar amount up to the next whole dollar (billing-conservative).
+ * Negatives and non-finite values clamp to 0. Centralizes the rounding rule
+ * so display-layer formatters (formatCurrency) can stay pure.
+ */
+export function ceilDollars(amount: number): number {
+  if (!isFinite(amount)) return 0;
+  if (amount <= 0) return 0;
+  return Math.ceil(amount);
+}
+
 export function resolveRates(client: Client | null | undefined, settings: Settings) {
   return {
     hourly: num(client?.hourlyRate) || num(settings.defaultHourlyRate),

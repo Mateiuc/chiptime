@@ -13,15 +13,7 @@ import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
 import { EditTaskDialog } from './EditTaskDialog';
 import { getVehicleColorScheme, VehicleColorScheme } from '@/lib/vehicleColors';
-// Bill background asset is loaded from the shared layout helper.
-import {
-  paintBillBackground,
-  ensureRoom,
-  ensureDecorativeFinalPage,
-  CONTENT_TOP,
-  TOTAL_BLOCK_Y,
-  type BillLayoutCursor,
-} from '@/lib/billPdfLayout';
+import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';

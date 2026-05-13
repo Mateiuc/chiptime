@@ -74,6 +74,7 @@ beforeEach(() => {
   toastMock.mockClear();
   pushSpy.mockReset();
   pullSpy.mockReset();
+  baseSnap = null;
   vi.resetModules();
 });
 

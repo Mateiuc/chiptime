@@ -133,7 +133,11 @@ export interface RenderBillOptions {
 const COL1_X = 20;
 const COL2_X = 150;
 const COL3_X = 190.9;
-const COL1_WIDTH = COL2_X - COL1_X - 4;
+const TIME_COL_WIDTH = 14; // mm — reserved width for right-aligned TIME values
+const COL1_WIDTH = COL2_X - COL1_X - TIME_COL_WIDTH - 2; // = 114
+const TOTALS_ANCHOR_Y = 240;       // mm — bottom-right anchor on last/single page
+const TOTALS_LABEL_X = 130;        // mm — totals labels start
+const TOTALS_VALUE_X = COL3_X;     // mm — totals values right-align
 const TABLE_TOP = 66;
 const ROW_LINE_HEIGHT = 6;
 const ROW_VPAD = 2;
@@ -362,16 +366,16 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     for (const m of page.rows) drawMeasured(m);
 
     if (page.totalsHere) {
-      cursor.yPos += TOTALS_GAP;
-      let yPos = cursor.yPos;
-      const totalX = COL3_X - 45;
+      // Anchor totals to bottom-right of last/single page (do NOT advance content cursor).
+      let yPos = TOTALS_ANCHOR_Y;
+      const totalX = TOTALS_LABEL_X;
 
       if (extraLines > 0) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
         doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), COL3_X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
         yPos += 7;
         if (showDiscount) {
           doc.setFontSize(11);
@@ -380,7 +384,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
             ? `Discount (${vehicle?.discountValue}%):`
             : 'Discount:';
           doc.text(dLabel, totalX, yPos);
-          doc.text(`-${formatCurrency(totals.laborDiscount)}`, COL3_X + 2, yPos, { align: 'right' });
+          doc.text(`-${formatCurrency(totals.laborDiscount)}`, TOTALS_VALUE_X + 2, yPos, { align: 'right' });
           doc.setTextColor(0, 0, 0);
           yPos += 7;
         }
@@ -388,20 +392,20 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
           doc.setFontSize(11);
           doc.setTextColor(220, 38, 38);
           doc.text('Deposit:', totalX, yPos);
-          doc.text(`-${formatCurrency(deposit)}`, COL3_X + 2, yPos, { align: 'right' });
+          doc.text(`-${formatCurrency(deposit)}`, TOTALS_VALUE_X + 2, yPos, { align: 'right' });
           doc.setTextColor(0, 0, 0);
           yPos += 8;
         }
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.text('TOTAL:', totalX, yPos);
-        doc.text(formatCurrency(Math.max(0, totals.totalCost - deposit)), COL3_X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(Math.max(0, totals.totalCost - deposit)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
       } else {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
         doc.text('TOTAL:', totalX, yPos);
-        doc.text(formatCurrency(totals.totalCost), COL3_X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(totals.totalCost), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
       }
 
       // Generated-at timestamp at the very bottom of the totals page.

@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       }
 
       // Code provided but incorrect — track failures in a 30-min window.
-      if (code !== data.access_code) {
+      if (!constantTimeEqual(code, data.access_code)) {
         const WINDOW_MS = 30 * 60 * 1000
         const LOCK_MS = 60 * 60 * 1000
         const MAX_ATTEMPTS = 3

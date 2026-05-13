@@ -126,6 +126,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [rptShowActive, setRptShowActive] = useState(true);
   const [sortField, setSortField] = useState<'date' | 'cost' | 'client' | 'status'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [bucketMode, setBucketMode] = useState<'work' | 'created'>('work');
 
   const [drillRevTime, setDrillRevTime] = useState<DrillState | null>(null);
   const [drillClient, setDrillClient] = useState<DrillState | null>(null);
@@ -138,9 +139,29 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setRptClient('all'); setRptVehicle('all');
     setRptDateFrom(undefined); setRptDateTo(undefined);
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
+    setBucketMode('work');
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
+
+  const getTaskBucketDate = (task: Task): Date => {
+    if (bucketMode === 'work') {
+      let earliest: number | null = null;
+      for (const s of task.sessions || []) {
+        const candidates: any[] = [s.createdAt, ...(s.periods || []).map(p => p.startTime)];
+        for (const c of candidates) {
+          const t = new Date(c).getTime();
+          if (!isFinite(t)) continue;
+          if (earliest === null || t < earliest) earliest = t;
+        }
+      }
+      return new Date(earliest ?? task.createdAt);
+    }
+    return new Date(task.createdAt);
+  };
+
+  const monthKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
@@ -177,7 +198,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return tasks.filter(t => {
       if (rptClient !== 'all' && t.clientId !== rptClient) return false;
       if (rptVehicle !== 'all' && t.vehicleId !== rptVehicle) return false;
-      const d = new Date(t.createdAt);
+      const d = getTaskBucketDate(t);
       if (rptDateFrom && d < rptDateFrom) return false;
       if (rptDateTo) {
         const endOfDay = new Date(rptDateTo);
@@ -190,19 +211,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       if (['pending', 'in-progress', 'paused'].includes(t.status) && !rptShowActive) return false;
       return true;
     });
-  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive, bucketMode]);
 
   const revenueOverTime = useMemo(() => {
-    const monthMap: Record<string, number> = {};
+    const map: Record<string, number> = {};
     filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
+      const key = monthKey(getTaskBucketDate(t));
+      map[key] = (map[key] || 0) + getTaskCost(t);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const revenueByClient = useMemo(() => {
     const map: Record<string, { clientId: string; name: string; revenue: number }> = {};
@@ -217,7 +237,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .sort((a, b) => b.revenue - a.revenue);
   }, [filteredTasks, clients]);
 
-  const revenueByVehicle = useMemo(() => {
+  const revenueByVehicleFull = useMemo(() => {
     const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
       const v = vehicles.find(v => v.id === t.vehicleId);
@@ -227,9 +247,24 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     });
     return Object.values(map)
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 20);
+      .sort((a, b) => b.revenue - a.revenue);
   }, [filteredTasks, vehicles]);
+
+  const othersVehicleIds = useMemo(
+    () => revenueByVehicleFull.length > 20 ? revenueByVehicleFull.slice(19).map(r => r.vehicleId) : [],
+    [revenueByVehicleFull]
+  );
+
+  const revenueByVehicle = useMemo(() => {
+    if (revenueByVehicleFull.length <= 20) return revenueByVehicleFull;
+    const top = revenueByVehicleFull.slice(0, 19);
+    const rest = revenueByVehicleFull.slice(19);
+    const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
+    return [
+      ...top,
+      { vehicleId: '__others__', label: `Others (${rest.length} vehicles)`, revenue: othersRevenue },
+    ];
+  }, [revenueByVehicleFull]);
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
@@ -242,30 +277,30 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     }));
   }, [filteredTasks]);
 
+  const isImported = (t: Task) => t.importedSalary != null && t.importedSalary > 0;
+
   const hoursOverTime = useMemo(() => {
-    const monthMap: Record<string, number> = {};
-    filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthMap[key] = (monthMap[key] || 0) + getTaskSeconds(t);
+    const map: Record<string, number> = {};
+    filteredTasks.filter(t => !isImported(t)).forEach(t => {
+      const key = monthKey(getTaskBucketDate(t));
+      map[key] = (map[key] || 0) + getTaskSeconds(t);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, seconds]) => ({ month, hours: Math.round((seconds / 3600) * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const carsOverTime = useMemo(() => {
-    const monthMap: Record<string, Set<string>> = {};
+    const map: Record<string, Set<string>> = {};
     filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthMap[key]) monthMap[key] = new Set();
-      monthMap[key].add(t.vehicleId);
+      const key = monthKey(getTaskBucketDate(t));
+      if (!map[key]) map[key] = new Set();
+      map[key].add(t.vehicleId);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, set]) => ({ month, cars: set.size }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const detailData = useMemo(() => {
     const data = filteredTasks.map(toDrillRow);
@@ -283,14 +318,14 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   }, [filteredTasks, clients, vehicles, sortField, sortDir]);
 
   const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
+  const totalHours = useMemo(
+    () => filteredTasks.filter(t => !isImported(t)).reduce((s, t) => s + getTaskSeconds(t), 0) / 3600,
+    [filteredTasks]
+  );
   const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status !== 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
 
   const drillRowsForMonth = (month: string) =>
-    filteredTasks.filter(t => {
-      const d = new Date(t.createdAt);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === month;
-    }).map(toDrillRow);
+    filteredTasks.filter(t => monthKey(getTaskBucketDate(t)) === month).map(toDrillRow);
 
   const handleRevTimeClick = (e: any) => {
     const month = e?.activeLabel; if (!month) return;
@@ -304,6 +339,11 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const handleVehicleClick = (e: any) => {
     const p = e?.activePayload?.[0]?.payload;
     if (!p?.vehicleId) return;
+    if (p.vehicleId === '__others__') {
+      const ids = new Set(othersVehicleIds);
+      setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => ids.has(t.vehicleId)).map(toDrillRow) });
+      return;
+    }
     setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => t.vehicleId === p.vehicleId).map(toDrillRow) });
   };
   const handleStatusClick = (e: any) => {
@@ -373,6 +413,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
               className={cn("h-8 text-xs", rptShowBilled && "bg-purple-600 hover:bg-purple-700")}>Billed</Button>
             <Button size="sm" variant={rptShowPaid ? 'default' : 'outline'} onClick={() => setRptShowPaid(!rptShowPaid)}
               className={cn("h-8 text-xs", rptShowPaid && "bg-emerald-600 hover:bg-emerald-700")}>Paid</Button>
+          </div>
+          <div className="flex items-center rounded-md border h-8 overflow-hidden" title="Bucket monthly charts by work date or task created date">
+            <button
+              type="button"
+              onClick={() => setBucketMode('work')}
+              className={cn("px-2 text-xs h-full", bucketMode === 'work' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+            >Work date</button>
+            <button
+              type="button"
+              onClick={() => setBucketMode('created')}
+              className={cn("px-2 text-xs h-full border-l", bucketMode === 'created' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
+            >Created date</button>
           </div>
           <DatePicker value={rptDateFrom} onChange={setRptDateFrom} label="From" />
           <DatePicker value={rptDateTo} onChange={setRptDateTo} label="To" />
@@ -460,7 +512,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                     <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
-                      {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
+                      {revenueByVehicle.map((entry, i) => <Cell key={i} fill={entry.vehicleId === '__others__' ? '#94a3b8' : CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

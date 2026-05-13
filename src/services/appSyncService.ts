@@ -265,6 +265,7 @@ export const appSyncService = {
     const syncData = normalizeRaw((data as any).data || {});
     const version = Number((data as any).data_version ?? 0);
     lastKnownVersion = version;
+    baseSnapshot = cloneSnap(syncData);
     console.log('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);
     return { data: syncData, updatedAt: data.updated_at, version };
   },

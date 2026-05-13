@@ -277,30 +277,30 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     }));
   }, [filteredTasks]);
 
+  const isImported = (t: Task) => t.importedSalary != null && t.importedSalary > 0;
+
   const hoursOverTime = useMemo(() => {
-    const monthMap: Record<string, number> = {};
-    filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthMap[key] = (monthMap[key] || 0) + getTaskSeconds(t);
+    const map: Record<string, number> = {};
+    filteredTasks.filter(t => !isImported(t)).forEach(t => {
+      const key = monthKey(getTaskBucketDate(t));
+      map[key] = (map[key] || 0) + getTaskSeconds(t);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, seconds]) => ({ month, hours: Math.round((seconds / 3600) * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const carsOverTime = useMemo(() => {
-    const monthMap: Record<string, Set<string>> = {};
+    const map: Record<string, Set<string>> = {};
     filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthMap[key]) monthMap[key] = new Set();
-      monthMap[key].add(t.vehicleId);
+      const key = monthKey(getTaskBucketDate(t));
+      if (!map[key]) map[key] = new Set();
+      map[key].add(t.vehicleId);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, set]) => ({ month, cars: set.size }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const detailData = useMemo(() => {
     const data = filteredTasks.map(toDrillRow);
@@ -318,14 +318,14 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   }, [filteredTasks, clients, vehicles, sortField, sortDir]);
 
   const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
+  const totalHours = useMemo(
+    () => filteredTasks.filter(t => !isImported(t)).reduce((s, t) => s + getTaskSeconds(t), 0) / 3600,
+    [filteredTasks]
+  );
   const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status !== 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
 
   const drillRowsForMonth = (month: string) =>
-    filteredTasks.filter(t => {
-      const d = new Date(t.createdAt);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === month;
-    }).map(toDrillRow);
+    filteredTasks.filter(t => monthKey(getTaskBucketDate(t)) === month).map(toDrillRow);
 
   const handleRevTimeClick = (e: any) => {
     const month = e?.activeLabel; if (!month) return;

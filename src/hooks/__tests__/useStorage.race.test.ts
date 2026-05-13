@@ -246,6 +246,7 @@ describe("useStorage reconciliation", () => {
     expect(ids).toEqual(["A", "B", "C", "D"]);
     const a = store.tasks.find((t) => t.id === "A")!;
     expect(a.customerName).toBe("A-local");
+  });
 
   it("G2 — local and remote edit different ids → silent merge", async () => {
     const { VersionConflictError } = await import("@/services/appSyncService");

@@ -29,6 +29,8 @@ vi.mock("@/lib/capacitorStorage", () => ({
 // Programmable appSyncService that preserves the real VersionConflictError class
 const pushSpy = vi.fn();
 const pullSpy = vi.fn();
+let baseSnap: any = null;
+const setBase = (s: any) => { baseSnap = s; };
 vi.mock("@/services/appSyncService", async () => {
   const actual = await vi.importActual<any>("@/services/appSyncService");
   return {
@@ -37,6 +39,7 @@ vi.mock("@/services/appSyncService", async () => {
       pushToCloud: (...a: any[]) => pushSpy(...a),
       pullFromCloud: (...a: any[]) => pullSpy(...a),
       getWorkspaceId: () => "ws-test",
+      getBaseSnapshot: () => baseSnap,
       setLocalUpdatedAt: () => {},
     },
   };

@@ -712,7 +712,7 @@ h+='<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0">';
 var safePhotos=ss.ph.map(function(u){return safeUrl(u,false)}).filter(function(u){return !!u});ss.ph.forEach(function(url,pi){var safe=safeUrl(url,false);if(!safe){h+='<div style="width:80px;height:60px;background:#1e293b;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px">no img</div>';return}h+='<img src="'+esc(safe)+'" data-photos=\\''+esc(JSON.stringify(safePhotos))+'\\' data-idx="'+pi+'" class="lb-thumb" style="width:80px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer" loading="lazy">'});
 h+='</div>';
 }
-if(ss.dpdf){h+='<a href="'+esc(ss.dpdf)+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#34d399;font-weight:600;margin-top:4px;text-decoration:none">📄 View Diagnostic Report ↗</a>'}
+if(ss.dpdf){var sd=safeUrl(ss.dpdf,false);if(sd)h+='<a href="'+esc(sd)+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#34d399;font-weight:600;margin-top:4px;text-decoration:none">📄 View Diagnostic Report ↗</a>'}
 if(ss.p.length>0){
 h+='<div class="parts"><div class="parts-title">🔧 Parts</div><table><tr><th>Part</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr>';
 ss.p.forEach(function(p){h+='<tr><td>'+esc(p.n)+'</td><td class="text-center">'+p.q+'</td><td class="text-right">'+fmt(p.pr)+'</td><td class="text-right"><b>'+fmt(p.pr*p.q)+'</b></td></tr>'});

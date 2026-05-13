@@ -161,7 +161,8 @@ const immediatePushToCloud = async (changed?: ChangedIds, retryDepth = 0) => {
         return;
       }
       const local = await readLocalSnapshot();
-      const { merged, overlapped } = mergeOnConflict(local, err.remoteData, changed);
+      const base = appSyncService.getBaseSnapshot();
+      const { merged, overlapped } = mergeOnConflict(local, err.remoteData, base, changed);
       await writeLocalSnapshot(merged);
       // Notify any cloud-pull listeners so React state can be re-hydrated
       // from the merged snapshot we just persisted.

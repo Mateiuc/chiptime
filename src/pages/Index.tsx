@@ -14,7 +14,7 @@ import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
-import { migratePhotosToFilesystem } from '@/lib/photoMigration';
+import { migratePhotosToFilesystem, reconcileCloudPhotos } from '@/lib/photoMigration';
 import { photoStorageService } from '@/services/photoStorageService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { contactsService } from '@/services/contactsService';
@@ -59,6 +59,14 @@ const Index = () => {
       if (photoMigration.migrated) {
         console.log(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
       }
+
+      // Reconcile any photos that have local files but never got cloudPath persisted
+      // (rescues photos lost to the upload race condition).
+      reconcileCloudPhotos().then(({ uploaded, failed }) => {
+        if (uploaded > 0 || failed > 0) {
+          console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
+        }
+      });
     };
     performMigration();
   }, [toast]);

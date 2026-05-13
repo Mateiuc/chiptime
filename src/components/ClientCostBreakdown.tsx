@@ -63,7 +63,23 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         {photoUrls.map((url, i) => (
           <button key={i} onClick={() => openLightbox(i)}
             className="flex-shrink-0 rounded-md overflow-hidden border border-border hover:border-primary transition-colors">
-            <img src={url} alt={`Session photo ${i + 1}`} className="w-20 h-16 md:w-32 md:h-24 object-cover" loading="lazy" />
+            <img
+              src={url}
+              alt={`Session photo ${i + 1}`}
+              className="w-20 h-16 md:w-32 md:h-24 object-cover bg-muted"
+              loading="lazy"
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.style.display = 'none';
+                const parent = img.parentElement;
+                if (parent && !parent.querySelector('.photo-fallback')) {
+                  const ph = document.createElement('div');
+                  ph.className = 'photo-fallback w-20 h-16 md:w-32 md:h-24 flex items-center justify-center bg-muted text-[10px] text-muted-foreground text-center px-1';
+                  ph.textContent = 'Photo unavailable';
+                  parent.appendChild(ph);
+                }
+              }}
+            />
           </button>
         ))}
       </div>
@@ -73,7 +89,17 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
             <button onClick={() => setLightboxOpen(false)} className="absolute top-3 right-3 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-1.5"><X className="h-5 w-5" /></button>
             <div className="absolute top-3 left-3 z-20 text-white/70 text-sm bg-black/50 rounded-full px-3 py-1">{lightboxIndex + 1} / {photoUrls.length}</div>
             {photoUrls.length > 1 && <button onClick={goPrev} className="absolute left-2 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-2"><ChevronLeft className="h-6 w-6" /></button>}
-            <img src={photoUrls[lightboxIndex]} alt={`Photo ${lightboxIndex + 1}`} className="max-w-full max-h-[85vh] object-contain rounded-md" />
+            <img
+              src={photoUrls[lightboxIndex]}
+              alt={`Photo ${lightboxIndex + 1}`}
+              className="max-w-full max-h-[85vh] object-contain rounded-md"
+              onError={(e) => {
+                const div = document.createElement('div');
+                div.className = 'text-white/70 text-sm px-6 py-12 bg-black/50 rounded-md';
+                div.textContent = 'Photo unavailable';
+                e.currentTarget.replaceWith(div);
+              }}
+            />
             {photoUrls.length > 1 && <button onClick={goNext} className="absolute right-2 z-20 text-white/70 hover:text-white bg-black/50 rounded-full p-2"><ChevronRight className="h-6 w-6" /></button>}
           </div>
         </div>,

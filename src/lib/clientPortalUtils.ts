@@ -269,8 +269,20 @@ export function calculateClientCosts(
           parts: session.parts || [],
           partsCost: sessionPartsCost,
           status: task.status,
-          photoUrls: (session.photos || [])
-            .map(p => p.cloudPath || p.cloudUrl)
+        photoUrls: (session.photos || [])
+            .map(p => {
+              if (p.cloudPath) return p.cloudPath;
+              // Derive a storage path from a legacy public/signed cloud URL,
+              // e.g. .../session-photos/<taskId>/<photoId>.jpg
+              if (p.cloudUrl) {
+                const m = p.cloudUrl.match(/\/session-photos\/([^?#]+)/);
+                if (m) {
+                  try { return decodeURIComponent(m[1]); } catch { return m[1]; }
+                }
+                return p.cloudUrl;
+              }
+              return undefined;
+            })
             .filter((u): u is string => !!u),
           diagnosticPdfUrl: showDiagnostic ? (task.diagnosticPdfPath || task.diagnosticPdfUrl) : undefined,
           periods: session.periods.map(p => ({ start: new Date(p.startTime), end: new Date(p.endTime) })),

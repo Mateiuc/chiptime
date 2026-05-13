@@ -1,63 +1,98 @@
-## Bill PDF — polish + column rebalance
+# Photos visibility fix — revised plan (v2)
 
-**File:** `src/lib/billPdfRenderer.ts` only.
+## 1. `supabase/functions/sign-photo-urls/index.ts` — strict per-path ownership
 
-### 1. Trim part description
-In the `flowRows.push({ kind: 'part', ... })` loop, normalize the description:
-```ts
-const condition = (part.description || '').trim();
-flowRows.push({
-  kind: 'part',
-  name: stripDiacritics(part.name),
-  description: condition ? stripDiacritics(condition) : null,
-  ...
-});
+Replace the current "starts with `${wsId}/`" filter with a per-path ownership check that handles both prefixed and legacy paths.
+
+Resolve caller's workspace (already done): `wsId = user_primary_workspace(auth.uid())`.
+
+For each requested path:
+
+- **Prefixed** `wsId2/taskId/photoId.jpg` (3 segments, ends `.jpg`): reject unless `wsId2 === wsId`. Validate each segment with `/^[a-zA-Z0-9._-]+$/`, no `..`, no `//`.
+- **Legacy** `taskId/photoId.jpg` (2 segments, ends `.jpg`): validate segments. Verify the caller's workspace owns the task by querying `app_sync` with the service-role client:
+  ```sql
+  select 1 from app_sync
+   where workspace_id = $1
+     and data @? format('$.tasks[*] ? (@.id == "%s")', $2)::jsonpath
+   limit 1
+  ```
+  Cache `taskId → boolean` per request so a batch of N photos from one task does one lookup.
+- **Anything else**: silently drop (no information leak).
+
+Survivors go to `storage.createSignedUrls`.
+
+## 2. `src/lib/clientPortalUtils.ts` — emit canonical paths, not URLs
+
+In the photoUrls/`n` builder (~line 273), prefer `cloudPath`; if absent, derive a path from `cloudUrl` via the `/session-photos/(.+)$` regex (minus query). Emit `{ path?, url? }` objects so the portal can sign before rendering. Update the portal payload type.
+
+## 3. Portal sign step (server-side, recommended)
+
+Add signing to the existing `get-portal` edge function: it already validates the PIN and knows the portal's workspace, so after building the payload it can:
+
+- Collect every photo `path` across all sessions.
+- Apply the same per-path ownership rules as fix #1, scoped to the portal's workspace.
+- Call `storage.createSignedUrls` once.
+- Replace each photo's `url` with the signed URL; keep the original `cloudUrl` only as last-resort fallback.
+
+This avoids exposing any new authenticated surface to anonymous portal viewers.
+
+## 4. `src/components/ClientCostBreakdown.tsx` — visible failures
+
+Add `onError` on each `<img>` to swap to a placeholder (image-broken icon + "Photo unavailable" caption). Apply to both the gallery thumbnails and the lightbox.
+
+## 5. `src/components/TaskCard.tsx` capture flow — fix the race
+
+In the fire-and-forget `.then()` at lines 618–629:
+- Re-fetch tasks via `capacitorStorage.getTasks()` inside the handler.
+- Find the photo by `photoId` in the fresh task and merge `cloudUrl` + `cloudPath` onto it.
+- Persist via `onUpdateTask`.
+
+Also add a one-shot startup reconciler (native only) in `App.tsx` or `photoMigration.ts`: scan tasks for photos with `filePath` but no `cloudPath`, load the local file via `photoStorageService.loadPhoto`, re-run `uploadPhotoToCloud` (idempotent — bucket upsert is on), and persist `cloudPath`. This rescues photos still trapped on the device.
+
+## 6. Universal cloudPath backfill (all workspaces, all tasks)
+
+One-time SQL migration that walks every `app_sync` row and writes `cloudPath = '<taskId>/<photoId>.jpg'` onto every photo that has `filePath` but no `cloudPath`. Unconditional — orphans are handled by fix #4's `onError` UI.
+
+Sketch:
+
+```sql
+-- Update every app_sync row in place by remapping the photos arrays.
+update public.app_sync as a
+   set data = jsonb_set(a.data, '{tasks}',
+     (select jsonb_agg(
+        case when t ? 'sessions' then jsonb_set(t, '{sessions}',
+          (select jsonb_agg(
+             case when s ? 'photos' then jsonb_set(s, '{photos}',
+               (select jsonb_agg(
+                  case
+                    when (p ? 'filePath') and not (p ? 'cloudPath')
+                    then p || jsonb_build_object(
+                      'cloudPath',
+                      (t->>'id') || '/' || (p->>'id') || '.jpg')
+                    else p
+                  end)
+                from jsonb_array_elements(s->'photos') p))
+             else s end)
+           from jsonb_array_elements(t->'sessions') s))
+        else t end)
+      from jsonb_array_elements(a.data->'tasks') t))
+ where a.data ? 'tasks';
 ```
-Fixes `"Alternator (Used )"` → `"Alternator (Used)"`.
 
-### 2. Suppress empty header on totals-only last page
-In the page draw loop, gate the header call:
-```ts
-if (page.rows.length > 0) {
-  drawTableHeader(doc, safeTop(page.role));
-}
-```
-On a totals-only `last` page the DESCRIPTION/TIME/AMOUNT band is skipped; totals draw at the same `cursor.yPos = pageStartY(page.role)` baseline as today (the `HEADER_BAND` reservation is preserved, so totals position is unchanged).
+Run in a transaction. Report counts via a follow-up `SELECT` over the same shape (count of photos where `cloudPath` is set, count where `filePath` is set, count where `cloudPath` exists but `filePath` exists — proxy for newly-backfilled).
 
-### 3. Rebalance columns — wider DESCRIPTION, TIME paired with AMOUNT
-Update the layout constants at the top of the file:
-```ts
-const COL1_X = 20;    // unchanged — DESCRIPTION left edge
-const COL2_X = 150;   // was 130 — TIME (now right-aligned, paired with AMOUNT)
-const COL3_X = 190.9; // unchanged — AMOUNT right edge
-const COL1_WIDTH = COL2_X - COL1_X - 4;  // recomputes to 126mm (was 106mm)
-```
+This must be a **`supabase--insert`** call (data update, not schema), per the data-vs-migration rule.
 
-**Header** (`drawTableHeader`): right-align TIME at `COL2_X`:
-```ts
-d.text('TIME', COL2_X, top + 6, { align: 'right' });
-d.text('AMOUNT', COL3_X, top + 6, { align: 'right' });
-```
-DESCRIPTION label stays left-aligned at `25`. Underline `d.line(20, top + 8, 195.9, top + 8)` unchanged.
+## Verification
 
-**Data rows** (`drawMeasured`):
-- Session: render `r.time` right-aligned at `COL2_X` instead of `doc.text(r.time, COL2_X + 2, startY)`.
-- Part: render `r.quantity` right-aligned at `COL2_X` (keeps quantity visually paired with amount, matches new header).
-- AMOUNT rendering at `COL3_X + 2` right-aligned is unchanged in all branches.
+- Deploy `sign-photo-urls`. Curl with: valid prefixed path, legacy path the caller owns, legacy path the caller does NOT own (drop), traversal attempt (drop).
+- Run the backfill; report `before/after` photo counts where `cloudPath` is set.
+- Open the Valy client portal — all 7 photos render. Open another client portal with photos — should also render.
+- Regenerate the Mercedes bill PDF — all 7 photos appear.
+- On a phone build, capture a new photo: confirm `cloudPath` lands on the photo without race-clobber.
 
-**Measure**: `COL1_WIDTH` constant recomputes automatically — `splitTextToSize` for session descriptions now wraps at ~126mm, dropping line counts on long descriptions and pulling content onto fewer pages. No simulator change needed.
+## Out of scope
 
-### 4. Pagination
-No code change. Existing single → first+last → first+middle+last simulator handles preference. Wider DESCRIPTION naturally collapses Mercedes from 3 → 2 pages when possible.
-
-### Out of scope
-Session row spacing, part inline-render styling, totals block layout, page-role simulator, safe areas, background templates.
-
-### Verification
-1. `bunx tsc --noEmit`.
-2. Regenerate Mercedes GLS bill; confirm:
-   - "Alternator (Used)" with no trailing space.
-   - Long session descriptions wrap to fewer lines.
-   - TIME values (e.g. "18:18") right-aligned at 150mm, AMOUNT at 190.9mm — small visible gap, paired.
-   - Totals-only last page: no column header band at top.
-   - Page count 2 if content fits.
+- Migrating bucket files to the prefixed `wsId/taskId/photoId.jpg` layout (ownership check covers it).
+- Changing the bucket from private to public.
+- Lightbox UX beyond the broken-image fallback.

@@ -278,8 +278,8 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     d.setFont('helvetica', 'bold');
     d.setTextColor(0, 0, 0);
     d.text('DESCRIPTION', 25, top + 6);
-    d.text('TIME', COL2_X - 1, top + 6);
-    d.text('AMOUNT', 190.9, top + 6, { align: 'right' });
+    d.text('TIME', COL2_X, top + 6, { align: 'right' });
+    d.text('AMOUNT', COL3_X, top + 6, { align: 'right' });
     d.setLineWidth(0.3);
     d.setDrawColor(255, 0, 0);
     d.line(20, top + 8, 195.9, top + 8);

@@ -117,6 +117,15 @@ export const appSyncService = {
   },
 
   /**
+   * Last server snapshot we observed (via pull or successful push).
+   * Consumed by useStorage.mergeOnConflict for 3-way diffing. Returns
+   * `null` before the first pull/push of a session.
+   */
+  getBaseSnapshot(): SyncData | null {
+    return baseSnapshot;
+  },
+
+  /**
    * Lightweight version-only fetch for the post-deploy bootstrap path —
    * avoids pulling the whole data blob just to seed `lastKnownVersion`.
    */

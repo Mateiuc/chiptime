@@ -138,8 +138,6 @@ const TABLE_TOP = 66;
 const ROW_LINE_HEIGHT = 6;
 const ROW_VPAD = 2;
 const ROW_GAP = 2;
-const PART_LABEL_TO_DESC = 4;   // baseline gap from part label to first italic line
-const PART_DESC_EXTRA_PAD = 2;  // padding before italic block (was 4)
 const PART_ROW_GAP = 0;         // overrides ROW_GAP for inter-part spacing
 const ORPHAN_TOLERANCE = 8; // mm
 
@@ -170,15 +168,9 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
   if (row.kind === 'option') {
     return { row, wrappedDesc: [row.label], wrappedPartDesc: [], height: ROW_LINE_HEIGHT + ROW_VPAD + ROW_GAP };
   }
-  // part
-  let wrappedPartDesc: string[] = [];
-  let extra = 0;
-  if (row.description) {
-    wrappedPartDesc = doc.splitTextToSize(row.description, COL1_WIDTH - 2) as string[];
-    extra = PART_DESC_EXTRA_PAD + wrappedPartDesc.length * 5;
-  }
-  const height = ROW_LINE_HEIGHT + ROW_VPAD + extra + PART_ROW_GAP;
-  return { row, wrappedDesc: [row.name], wrappedPartDesc, height };
+  // part — uniform single-line height; condition renders inline
+  const height = ROW_LINE_HEIGHT + ROW_VPAD + PART_ROW_GAP;
+  return { row, wrappedDesc: [row.name], wrappedPartDesc: [], height };
 }
 
 export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
@@ -310,22 +302,18 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     } else {
       doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
       doc.text(r.name, COL1_X + 2, startY);
-      doc.text(r.quantity, COL2_X + 2, startY);
-      doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
-      if (m.wrappedPartDesc.length > 0) {
-        let y = startY + PART_LABEL_TO_DESC;
-        doc.setFontSize(9);
+      if (r.description) {
+        const nameWidth = doc.getTextWidth(r.name);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 100, 100);
-        m.wrappedPartDesc.forEach((line) => {
-          doc.text(line, COL1_X + 4, y);
-          y += 5;
-        });
-        doc.setTextColor(0, 0, 0);
+        doc.text(` (${r.description})`, COL1_X + 2 + nameWidth, startY);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
       }
+      doc.text(r.quantity, COL2_X + 2, startY);
+      doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     }
     cursor.yPos = startY + m.height;
   };

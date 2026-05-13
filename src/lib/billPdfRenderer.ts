@@ -13,13 +13,9 @@ import { stripDiacritics } from '@/lib/pdfUtils';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
-  ensureRoom,
-  ensureDecorativeFinalPage,
+  safeTop,
   safeBottom,
-  CONTENT_TOP,
-  TOTAL_BLOCK_Y,
-  SAFE_BOTTOM_CLEAN,
-  type BillLayoutCursor,
+  type PageRole,
 } from '@/lib/billPdfLayout';
 
 export interface RendererSettings {
@@ -231,40 +227,56 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
   const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
   const totalsHeight = 9 /* subtotal */ + (showDiscount ? 7 : 0) + (showDeposit ? 8 : 0) + 10 /* TOTAL */;
 
-  // Decide page-1 background: does the entire bill fit on a single decorative page?
-  const startY = TABLE_TOP + 16;
-  const totalContentHeight = measured.reduce((s, m) => s + m.height, 0) + 4 /* gap */ + totalsHeight;
-  const fitsOnePage = startY + totalContentHeight <= safeBottom('decorative');
-  const page1Mode = fitsOnePage ? 'decorative' : 'clean';
+  // ----- Pass A: simulate page sequence -----
+  const HEADER_BAND = 16; // space for the DESC/TIME/AMOUNT header below safeTop
+  const TOTALS_GAP = 4;
 
-  // ----- Render -----
-  paintBillBackground(doc, page1Mode);
+  const pageStartY = (role: PageRole) => safeTop(role) + HEADER_BAND;
 
-  // Header block.
-  doc.setFontSize(17);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(128, 0, 128);
-  doc.text('Bill to:', 20, 48.5);
+  type PlannedPage = { role: PageRole; rows: MeasuredRow[]; totalsHere: boolean };
+  const plan: PlannedPage[] = [];
 
-  const billedDateStr = (opts.billedDate ?? new Date()).toLocaleDateString('en-US');
-  doc.text(`Billed on ${billedDateStr}`, 195.9, 58.5, { align: 'right' });
+  const totalContentHeight = measured.reduce((s, m) => s + m.height, 0) + TOTALS_GAP + totalsHeight;
+  const fitsSingle = pageStartY('single') + totalContentHeight <= safeBottom('single');
 
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-
-  let clientLine = client?.companyName || client?.name || 'N/A';
-  if (client?.companyName) {
-    const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
-    if (addrParts.length > 0) clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
+  if (fitsSingle) {
+    plan.push({ role: 'single', rows: measured.slice(), totalsHere: true });
+  } else {
+    let current: PlannedPage = { role: 'first', rows: [], totalsHere: false };
+    let y = pageStartY('first');
+    for (let i = 0; i < measured.length; i++) {
+      const m = measured[i];
+      const isLast = i === measured.length - 1;
+      const overflow = y + m.height - safeBottom(current.role);
+      if (overflow > 0) {
+        const allowOrphan =
+          isLast &&
+          current.role !== 'first' &&
+          overflow <= ORPHAN_TOLERANCE;
+        if (!allowOrphan) {
+          plan.push(current);
+          current = { role: 'middle', rows: [], totalsHere: false };
+          y = pageStartY('middle');
+        }
+      }
+      current.rows.push(m);
+      y += m.height;
+    }
+    // Decide whether the trailing page can host the totals when re-typed as 'last'.
+    const trailingStartY = pageStartY(current.role);
+    const trailingUsedHeight = current.rows.reduce((s, m) => s + m.height, 0);
+    const yAfterRows = trailingStartY + trailingUsedHeight;
+    if (yAfterRows + TOTALS_GAP + totalsHeight <= safeBottom('last')) {
+      current.role = 'last';
+      current.totalsHere = true;
+      plan.push(current);
+    } else {
+      plan.push(current);
+      plan.push({ role: 'last', rows: [], totalsHere: true });
+    }
   }
-  doc.text(stripDiacritics(clientLine), 20, 53);
 
-  const vehicleLabel = [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(' ');
-  const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
-  const fullVehicleInfo = vehicleLabel ? `${vehicleLabel} ${vinInfo}` : 'Vehicle Info Not Available';
-  doc.text(stripDiacritics(fullVehicleInfo), 20, 58.5);
-
+  // ----- Pass B: draw -----
   const drawTableHeader = (d: jsPDF, top: number) => {
     d.setFontSize(16);
     d.setFont('helvetica', 'bold');
@@ -278,22 +290,9 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     d.setFontSize(11);
     d.setFont('helvetica', 'normal');
   };
-  drawTableHeader(doc, TABLE_TOP);
 
-  const cursor: BillLayoutCursor = {
-    doc,
-    yPos: TABLE_TOP + 16,
-    bgMode: page1Mode,
-    drawContinuationHeader: (d) => {
-      drawTableHeader(d, CONTENT_TOP - 6);
-      cursor.yPos = CONTENT_TOP + 10;
-    },
-  };
+  const cursor = { yPos: 0 };
 
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-
-  // Single drawRow used for all measured rows.
   const drawMeasured = (m: MeasuredRow) => {
     const startY = cursor.yPos;
     const r = m.row;
@@ -328,76 +327,96 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     cursor.yPos = startY + m.height;
   };
 
-  // Flow loop with orphan-row prevention.
-  for (let i = 0; i < measured.length; i++) {
-    const m = measured[i];
-    const remaining = measured.length - i; // including current
-    const overflow = cursor.yPos + m.height - safeBottom(cursor.bgMode);
+  for (let pageIdx = 0; pageIdx < plan.length; pageIdx++) {
+    const page = plan[pageIdx];
+    if (pageIdx > 0) doc.addPage();
+    paintBillBackground(doc, page.role);
 
-    if (overflow > 0) {
-      // Orphan rule: if this is the very last row AND it would overflow by
-      // ≤ ORPHAN_TOLERANCE on a non-decorative page, draw it inline rather
-      // than open a near-empty new page.
-      const isLast = remaining === 1;
-      const allowRelax = isLast && cursor.bgMode === 'clean' && overflow <= ORPHAN_TOLERANCE;
-      if (!allowRelax) {
-        cursor.yPos = ensureRoom(cursor, m.height);
+    // First-page header block (Bill to / billed-on / client / vehicle).
+    if (pageIdx === 0 && (page.role === 'single' || page.role === 'first')) {
+      doc.setFontSize(17);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(128, 0, 128);
+      doc.text('Bill to:', 20, 48.5);
+
+      const billedDateStr = (opts.billedDate ?? new Date()).toLocaleDateString('en-US');
+      doc.text(`Billed on ${billedDateStr}`, 195.9, 58.5, { align: 'right' });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+
+      let clientLine = client?.companyName || client?.name || 'N/A';
+      if (client?.companyName) {
+        const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
+        if (addrParts.length > 0) clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
       }
+      doc.text(stripDiacritics(clientLine), 20, 53);
+
+      const vehicleLabel = [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(' ');
+      const vinInfo = vehicle?.vin ? `(VIN: ${vehicle.vin})` : '';
+      const fullVehicleInfo = vehicleLabel ? `${vehicleLabel} ${vinInfo}` : 'Vehicle Info Not Available';
+      doc.text(stripDiacritics(fullVehicleInfo), 20, 58.5);
     }
-    drawMeasured(m);
+
+    // Repeat the column header on every page.
+    drawTableHeader(doc, safeTop(page.role));
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+
+    cursor.yPos = pageStartY(page.role);
+    for (const m of page.rows) drawMeasured(m);
+
+    if (page.totalsHere) {
+      cursor.yPos += TOTALS_GAP;
+      let yPos = cursor.yPos;
+      const totalX = COL3_X - 45;
+
+      if (extraLines > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Subtotal:', totalX, yPos);
+        doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), COL3_X + 2, yPos, { align: 'right' });
+        yPos += 7;
+        if (showDiscount) {
+          doc.setFontSize(11);
+          doc.setTextColor(22, 163, 74);
+          const dLabel = vehicle?.discountType === 'percent'
+            ? `Discount (${vehicle?.discountValue}%):`
+            : 'Discount:';
+          doc.text(dLabel, totalX, yPos);
+          doc.text(`-${formatCurrency(totals.laborDiscount)}`, COL3_X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 7;
+        }
+        if (showDeposit) {
+          doc.setFontSize(11);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Deposit:', totalX, yPos);
+          doc.text(`-${formatCurrency(deposit)}`, COL3_X + 2, yPos, { align: 'right' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 8;
+        }
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL:', totalX, yPos);
+        doc.text(formatCurrency(Math.max(0, totals.totalCost - deposit)), COL3_X + 2, yPos, { align: 'right' });
+      } else {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('TOTAL:', totalX, yPos);
+        doc.text(formatCurrency(totals.totalCost), COL3_X + 2, yPos, { align: 'right' });
+      }
+
+      // Generated-at timestamp at the very bottom of the totals page.
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated: ${formatTimestamp(new Date())}`, 107.95, 277.4, { align: 'center' });
+    }
   }
-
-  // Gap before totals.
-  cursor.yPos += 4;
-
-  // Totals block — try to keep on current decorative page; else new page.
-  const newPage = ensureDecorativeFinalPage(cursor, totalsHeight);
-  const totalX = COL3_X - 45;
-  let yPos = newPage ? (TOTAL_BLOCK_Y - 7 * extraLines) : cursor.yPos;
-
-  if (extraLines > 0) {
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Subtotal:', totalX, yPos);
-    doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), COL3_X + 2, yPos, { align: 'right' });
-    yPos += 7;
-    if (showDiscount) {
-      doc.setFontSize(11);
-      doc.setTextColor(22, 163, 74);
-      const dLabel = vehicle?.discountType === 'percent'
-        ? `Discount (${vehicle?.discountValue}%):`
-        : 'Discount:';
-      doc.text(dLabel, totalX, yPos);
-      doc.text(`-${formatCurrency(totals.laborDiscount)}`, COL3_X + 2, yPos, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
-      yPos += 7;
-    }
-    if (showDeposit) {
-      doc.setFontSize(11);
-      doc.setTextColor(220, 38, 38);
-      doc.text('Deposit:', totalX, yPos);
-      doc.text(`-${formatCurrency(deposit)}`, COL3_X + 2, yPos, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
-      yPos += 8;
-    }
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', totalX, yPos);
-    doc.text(formatCurrency(Math.max(0, totals.totalCost - deposit)), COL3_X + 2, yPos, { align: 'right' });
-  } else {
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('TOTAL:', totalX, yPos);
-    doc.text(formatCurrency(totals.totalCost), COL3_X + 2, yPos, { align: 'right' });
-  }
-
-  // Generated-at timestamp at the very bottom of the totals page.
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Generated: ${formatTimestamp(new Date())}`, 107.95, 277.4, { align: 'center' });
 
   // Photo pages.
   await renderPhotoPages(doc, task);
@@ -510,11 +529,13 @@ async function renderPhotoPages(doc: jsPDF, task: Task): Promise<void> {
   console.info(`[bill] photos: ${ok.length} ok, ${failed} failed of ${resolved.length}`);
   if (ok.length === 0) return; // omit entire section
 
-  // Render: clean background, two-column grid, anchored below header.
+  // Render: middle-page background (logo only), two-column grid.
+  const PHOTO_TOP = safeTop('middle');
+  const PHOTO_BOTTOM = safeBottom('middle');
   doc.addPage();
-  paintBillBackground(doc, 'clean');
+  paintBillBackground(doc, 'middle');
 
-  let y = CONTENT_TOP;
+  let y = PHOTO_TOP;
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(128, 0, 128);
@@ -530,10 +551,10 @@ async function renderPhotoPages(doc: jsPDF, task: Task): Promise<void> {
   let colIdx = 0;
 
   for (const item of ok) {
-    if (y + captionHeight + colHeight > SAFE_BOTTOM_CLEAN) {
+    if (y + captionHeight + colHeight > PHOTO_BOTTOM) {
       doc.addPage();
-      paintBillBackground(doc, 'clean');
-      y = CONTENT_TOP;
+      paintBillBackground(doc, 'middle');
+      y = PHOTO_TOP;
       colIdx = 0;
     }
     const x = colX[colIdx];

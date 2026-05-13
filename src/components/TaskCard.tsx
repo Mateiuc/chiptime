@@ -711,26 +711,33 @@ export const TaskCard = ({
   const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
   let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
   let minHourCount = 0, cloningCount = 0, programmingCount = 0, addKeyCount = 0, allKeysLostCount = 0;
-  (task.sessions || []).forEach(session => {
-    session.periods.forEach(period => {
-      if (period.chargeMinimumHour && period.duration < 3600) {
-        baseLabor += Math.ceil(hourlyRate);
+  // Phase 2: imported (XLS) tasks lock labor to importedSalary; per-session
+  // breakdown is suppressed so the displayed total matches computeTaskTotal.
+  const isImported = task.importedSalary != null && task.importedSalary > 0;
+  if (isImported) {
+    baseLabor = task.importedSalary as number;
+  } else {
+    (task.sessions || []).forEach(session => {
+      session.periods.forEach(period => {
+        if (period.chargeMinimumHour && period.duration < 3600) {
+          baseLabor += Math.ceil(hourlyRate);
+          minHourCount++;
+        } else {
+          baseLabor += calcPeriodCost(period.duration, hourlyRate);
+        }
+      });
+      const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
+      if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
+        totalMinHourAdj += Math.ceil(((3600 - sessionDur) / 3600) * hourlyRate);
         minHourCount++;
-      } else {
-        baseLabor += calcPeriodCost(period.duration, hourlyRate);
       }
+      if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
+      if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
+      if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
+      if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
     });
-    const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
-    const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-    if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
-      totalMinHourAdj += Math.ceil(((3600 - sessionDur) / 3600) * hourlyRate);
-      minHourCount++;
-    }
-    if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
-    if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
-    if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
-    if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
-  });
+  }
   const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
   // Phase 1: ignore task.billedAmount / task.importedSalary entirely.
   // Total = live labor + services + parts, with per-vehicle discount on labor.

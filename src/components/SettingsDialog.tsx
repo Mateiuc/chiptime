@@ -13,6 +13,7 @@ import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/x
 import { useNotifications } from '@/hooks/useNotifications';
 import { Switch } from '@/components/ui/switch';
 import { ManageClientsDialog } from './ManageClientsDialog';
+import { computeTaskTotal } from '@/lib/billing';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { BackupView } from './BackupView';
 import { cn } from '@/lib/utils';

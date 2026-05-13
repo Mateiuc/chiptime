@@ -12,7 +12,7 @@ export const formatCurrency = (amount: number): string => {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(Math.ceil(amount));
+  }).format(amount);
 };
 
 // Cost for a single period: round to nearest minute, then round up to dollar

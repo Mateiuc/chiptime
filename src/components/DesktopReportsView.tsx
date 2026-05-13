@@ -198,7 +198,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return tasks.filter(t => {
       if (rptClient !== 'all' && t.clientId !== rptClient) return false;
       if (rptVehicle !== 'all' && t.vehicleId !== rptVehicle) return false;
-      const d = new Date(t.createdAt);
+      const d = getTaskBucketDate(t);
       if (rptDateFrom && d < rptDateFrom) return false;
       if (rptDateTo) {
         const endOfDay = new Date(rptDateTo);
@@ -211,19 +211,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       if (['pending', 'in-progress', 'paused'].includes(t.status) && !rptShowActive) return false;
       return true;
     });
-  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive, bucketMode]);
 
   const revenueOverTime = useMemo(() => {
-    const monthMap: Record<string, number> = {};
+    const map: Record<string, number> = {};
     filteredTasks.forEach(t => {
-      const d = new Date(t.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
+      const key = monthKey(getTaskBucketDate(t));
+      map[key] = (map[key] || 0) + getTaskCost(t);
     });
-    return Object.entries(monthMap)
+    return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, bucketMode]);
 
   const revenueByClient = useMemo(() => {
     const map: Record<string, { clientId: string; name: string; revenue: number }> = {};

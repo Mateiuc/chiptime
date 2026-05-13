@@ -63,7 +63,23 @@ const PhotoGallery = ({ photoUrls }: { photoUrls: string[] }) => {
         {photoUrls.map((url, i) => (
           <button key={i} onClick={() => openLightbox(i)}
             className="flex-shrink-0 rounded-md overflow-hidden border border-border hover:border-primary transition-colors">
-            <img src={url} alt={`Session photo ${i + 1}`} className="w-20 h-16 md:w-32 md:h-24 object-cover" loading="lazy" />
+            <img
+              src={url}
+              alt={`Session photo ${i + 1}`}
+              className="w-20 h-16 md:w-32 md:h-24 object-cover bg-muted"
+              loading="lazy"
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.style.display = 'none';
+                const parent = img.parentElement;
+                if (parent && !parent.querySelector('.photo-fallback')) {
+                  const ph = document.createElement('div');
+                  ph.className = 'photo-fallback w-20 h-16 md:w-32 md:h-24 flex items-center justify-center bg-muted text-[10px] text-muted-foreground text-center px-1';
+                  ph.textContent = 'Photo unavailable';
+                  parent.appendChild(ph);
+                }
+              }}
+            />
           </button>
         ))}
       </div>

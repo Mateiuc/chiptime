@@ -729,6 +729,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
               <Button
                 variant={torchOn ? "default" : "outline"}
                 size="icon"
+                aria-label={torchOn ? "Turn flashlight off" : "Turn flashlight on"}
                 onClick={toggleTorch}
                 className={`h-10 w-10 rounded-full ${torchOn ? 'bg-yellow-500 hover:bg-yellow-600 border-yellow-600' : 'bg-background/70 backdrop-blur'}`}
               >
@@ -766,6 +767,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
               <Button
                 variant="outline"
                 size="icon"
+                aria-label="Toggle debug mode"
                 onClick={() => setDebugMode(!debugMode)}
                 className="h-7 w-7"
               >

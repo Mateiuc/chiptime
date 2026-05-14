@@ -283,7 +283,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
                 <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={li.amount || ''}
                   onChange={e => updateLineItem(li.id, 'amount', parseFloat(e.target.value) || 0)} />
                 {lineItems.length > 1 && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
+                  <Button variant="ghost" size="icon" aria-label="Remove line item" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 )}
@@ -321,7 +321,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
                   onChange={e => updatePart(p.id, 'quantity', parseInt(e.target.value) || 0)} />
                 <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={p.price || ''}
                   onChange={e => updatePart(p.id, 'price', parseFloat(e.target.value) || 0)} />
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removePart(p.id)}>
+                <Button variant="ghost" size="icon" aria-label="Remove part" className="h-8 w-8 shrink-0" onClick={() => removePart(p.id)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>

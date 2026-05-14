@@ -649,7 +649,7 @@ export const EditTaskDialog = ({
                        aria-label="Apply all keys lost rate to this session">
                         <KeyRound className="h-3 w-3" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
+                      <Button variant="ghost" size="icon" aria-label="Delete session" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -687,7 +687,7 @@ export const EditTaskDialog = ({
                               <Flag className="h-2.5 w-2.5" fill={period.chargeMinimumHour ? 'currentColor' : 'none'} />
                               Min 1hr
                             </button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                            <Button variant="ghost" size="icon" aria-label="Delete period" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -764,7 +764,7 @@ export const EditTaskDialog = ({
                               className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
                             >Client</button>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete part" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -930,7 +930,7 @@ export const EditTaskDialog = ({
                      aria-label="Apply all keys lost rate to this session">
                       <KeyRound className="h-4 w-4" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                    <Button variant="ghost" size="icon" aria-label="Delete session" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -986,7 +986,7 @@ export const EditTaskDialog = ({
                           <span className="text-sm font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full shrink-0">
                             {formatDuration(period.duration)}
                           </span>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete period" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1051,7 +1051,7 @@ export const EditTaskDialog = ({
                                   className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
                                 >Client</button>
                               </div>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
+                              <Button variant="ghost" size="icon" aria-label="Delete part" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>

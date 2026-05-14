@@ -268,6 +268,7 @@ export const SettingsDialog = ({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Back to settings menu"
                 onClick={() => setCurrentView('menu')}
                 className="h-8 w-8"
               >
@@ -469,6 +470,7 @@ export const SettingsDialog = ({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove payment method"
                       className="h-10 w-10 text-destructive"
                       onClick={() => setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))}
                     >

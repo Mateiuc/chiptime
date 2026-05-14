@@ -127,10 +127,10 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(inv.code); toast({ title: 'Copied' }); }}>
+                      <Button size="icon" variant="ghost" aria-label="Copy invite code" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(inv.code); toast({ title: 'Copied' }); }}>
                         <Copy className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteInvite(inv.id)}>
+                      <Button size="icon" variant="ghost" aria-label="Delete invite" className="h-7 w-7 text-destructive" onClick={() => deleteInvite(inv.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>

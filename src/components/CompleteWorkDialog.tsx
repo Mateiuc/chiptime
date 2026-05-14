@@ -228,6 +228,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Remove part"
                               onClick={() => handleRemovePart(index)}
                               className="hover:bg-destructive/10"
                             >

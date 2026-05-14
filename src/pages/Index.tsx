@@ -739,10 +739,10 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />
-            <Button variant="default" size="icon" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
+            <Button variant="default" size="icon" aria-label="Add vehicle" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
               <Plus className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="h-8 w-8">
+            <Button variant="ghost" size="icon" aria-label="Open settings" onClick={() => setShowSettings(true)} className="h-8 w-8">
               <SettingsIcon className="h-4 w-4" />
             </Button>
           </div>

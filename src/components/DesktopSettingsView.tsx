@@ -219,7 +219,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
                     className="h-9"
                   />
                 </div>
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive shrink-0"
+                <Button variant="ghost" size="icon" aria-label="Remove payment method" className="h-9 w-9 text-destructive hover:text-destructive shrink-0"
                   onClick={() => setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))}>
                   <Trash2 className="h-4 w-4" />
                 </Button>

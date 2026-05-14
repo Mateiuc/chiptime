@@ -21,6 +21,7 @@ import { Settings } from '@/types';
 import { formatCurrency } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
 import invoiceBackground from '@/assets/invoice-background.jpg';
+import { LETTER_WIDTH_MM, LETTER_HEIGHT_MM } from '@/lib/billPdfLayout';
 
 interface LineItem {
   id: string;

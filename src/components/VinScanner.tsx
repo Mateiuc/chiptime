@@ -347,6 +347,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
   const captureSingleFrame = async (provider?: 'gemini' | 'grok' | 'ocrspace' | 'tesseract') => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    if (!video || !canvas) return;
     const context = canvas.getContext('2d');
 
     if (!context || !containerRef.current || !guideRef.current) return;
@@ -510,6 +511,10 @@ const VinScanner: React.FC<VinScannerProps> = ({
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    if (!video || !canvas) {
+      setIsScanning(false);
+      return;
+    }
     const context = canvas.getContext('2d');
     let attempts = 0;
 

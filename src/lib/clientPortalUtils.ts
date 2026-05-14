@@ -2,7 +2,9 @@ import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod } from '@/types'
 import { calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 
-export const PORTAL_BASE_URL = 'https://chiptime.chipplc.one';
+export const PORTAL_BASE_URL =
+  (import.meta.env.VITE_PORTAL_BASE_URL as string | undefined) ||
+  'https://chiptime.chipplc.one';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SessionCostDetail {

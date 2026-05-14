@@ -1,5 +1,6 @@
 import { Task, WorkSession, WorkPeriod, Part } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -535,7 +536,7 @@ export const EditTaskDialog = ({
   // Shared footer
   const renderFooter = (desktop: boolean) => (
     <DialogFooter className={`${desktop ? 'px-6 py-4' : 'px-4 py-3'} border-t bg-card/80 backdrop-blur-sm flex justify-center items-center gap-3`}>
-      {onDelete && !showDeleteConfirm && (
+      {onDelete && (
         <Button
           variant="destructive"
           size={desktop ? "default" : "sm"}
@@ -544,13 +545,6 @@ export const EditTaskDialog = ({
         >
           {!desktop ? <><span className="text-xs">Delete</span><span className="text-xs">Car</span></> : "Delete Car"}
         </Button>
-      )}
-      {onDelete && showDeleteConfirm && (
-        <div className="flex gap-2 items-center justify-center">
-          <span className="text-sm text-destructive font-medium">Delete this car?</span>
-          <Button variant="destructive" size="sm" onClick={() => { onDelete(task.id); onOpenChange(false); }}>Yes</Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>No</Button>
-        </div>
       )}
       {!showDeleteConfirm && (
         <>

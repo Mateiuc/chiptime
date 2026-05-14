@@ -88,10 +88,7 @@ export function computeBillTotals(
   (task.sessions || []).forEach((session) => {
     const d = computeSessionLaborDetails(session, client ?? null, settingsForBilling);
     baseLabor += d.baseLabor;
-    if (session.periods.some(p => p.chargeMinimumHour && p.duration < 3600)) {
-      // count one min-hour bump per flagged short period
-      minHourCount += session.periods.filter(p => p.chargeMinimumHour && p.duration < 3600).length;
-    }
+    minHourCount += (session.periods || []).filter(p => p.chargeMinimumHour && p.duration < 3600).length;
     if (d.minHourAdj > 0) {
       totalMinHourAdj += d.minHourAdj;
       minHourCount++;

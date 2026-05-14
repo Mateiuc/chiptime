@@ -1,68 +1,72 @@
-# P0 #7 — Fire-and-forget `.catch` Sweep
+# P1 Hygiene Batch
 
-## Audit findings
+Knock out 10 P1 audit items in one focused pass. No behavior changes; readability, safety, and quieter prod logs.
 
-Searching `src/` for `.then(` without `.catch` and reviewing the 7 known sites turned up the following landscape. Most "known" sites already have a `.catch`, but they only call `console.warn` with no user-visible toast — which is the actual bug the audit is targeting. A few new sites surfaced too.
+## Items & Approach
 
-| # | File | Line | Current state | Action |
-|---|------|------|---------------|--------|
-| 1 | `src/components/TaskCard.tsx` | 619 | `.catch(console.warn)` only | Upgrade to `console.error` + destructive toast |
-| 2 | `src/pages/Index.tsx` | 65 | **No `.catch` at all** (`reconcileCloudPhotos`) | Add `.catch` with `console.error` (silent — background reconcile, toast would be noisy on every cold start with a flaky network) |
-| 3 | `src/pages/Index.tsx` | 377 | `.catch(console.warn)` portal sync | Upgrade to `console.error` + toast |
-| 4 | `src/pages/Index.tsx` | 486 | same | same |
-| 5 | `src/pages/Index.tsx` | 505 | same | same |
-| 6 | `src/pages/DesktopDashboard.tsx` | 426 | same | same |
-| 7 | `src/pages/DesktopDashboard.tsx` | 439 | same | same |
-| 8 | `src/contexts/AuthContext.tsx` | 91 | **No `.catch`** on `supabase.auth.getSession()` — failure leaves `loading=true` forever | Add `.catch` that logs + calls `setLoading(false)` so UI unblocks; no toast (auth surfaces its own errors) |
+### #9 — Stale @deprecated comment (`src/types/index.ts:102`)
+Rewrite `WorkSession.chargeMinimumHour` JSDoc to: "Legacy: superseded by `Period.chargeMinimumHour`. Keep for XML import compatibility; new code should use the per-period flag."
 
-Other `.then` matches found by ripgrep are not bugs:
-- `src/test/mockSupabase.ts:77,79` — test scaffolding
-- `src/lib/clientPortalUtils.ts:680` — runs inside the injected portal HTML; already has its own `.catch(pinFail)`
+### #10 — Lying comment (`src/components/TaskCard.tsx:735`)
+Replace with: "Phase 2: importedSalary short-circuits computeTaskTotal; render via amber Imported badge when present."
 
-No bare promise-returning calls used as statements were found beyond these. No async functions called without `await` in sync handlers were found beyond these.
+### #11 — Null-guard strict-mode TS errors
+- `DesktopClientsView.tsx:187` — guard `selectedClient` (3 sites) with early returns or optional chaining as appropriate.
+- `VinScanner.tsx` — guard `canvas`, `video`, `context` refs (13 sites). Add `if (!canvas || !video) return;` and `if (!ctx) return;` at the top of each handler.
+- Do NOT touch global `tsconfig.strict`.
 
-## Pattern
-
+### #13 — `pluralize()` helper
+New file: `src/lib/pluralize.ts`
 ```ts
-somethingAsync()
-  .then(result => { /* existing */ })
-  .catch(err => {
-    console.error('[Component] Failed to <op>:', err);
-    toast({
-      variant: 'destructive',
-      title: '<title>',
-      description: '<actionable message>',
-    });
-  });
+export function pluralize(n: number, singular: string, plural?: string): string {
+  return n === 1 ? `${n} ${singular}` : `${n} ${plural || singular + 's'}`;
+}
 ```
+Apply at: `DesktopReportsView.tsx:265`, `DesktopDashboard.tsx:964/1344`, `photoMigration.ts:102/162`, plus a `rg` sweep for any other "${n} vehicles/photos/clients/tasks/items" patterns.
 
-## Per-site messages
+### #14 — Customer → Client
+Replace 'Customer' fallback strings in `TaskCard.tsx:355, :369` and any other UI string occurrences. Keep XML field names (wire format) untouched. `rg -n "Customer" src/` to enumerate; classify each before edit.
 
-- **TaskCard.tsx:619** — title `Photo upload failed`, desc `The photo was saved locally but couldn't reach the cloud. It will retry on next sync.`
-- **Index.tsx:65** — log only, no toast. Reason: this runs once on mount inside `performMigration`; failure is benign (next sync will retry) and a toast on every cold-start network blip would train users to ignore them. Flagged per the prompt's "rare, benign" guidance.
-- **Index.tsx:377 / 486 / 505** and **DesktopDashboard.tsx:426 / 439** — all five are `syncPortalToCloud` calls. Title `Portal sync failed`, desc `Couldn't update the client portal. Your local changes are safe and will retry on next sync.` Tailor the verb (status change vs. complete-work) only if the existing wording differs meaningfully — they are all status-flip syncs, so one message fits.
-- **AuthContext.tsx:91** — `console.error('[Auth] Failed to fetch existing session:', err)` and call `setLoading(false)` in the catch so the app doesn't hang. No toast; auth UI handles user-facing messaging.
+### #15 — Bill vs Invoice
+Add header doc-comment block to both:
+- `src/lib/billPdfRenderer.ts` — "Bill: customer-facing receipt with company decoration."
+- `src/components/DesktopInvoiceView.tsx` — "Invoice: formal accounting document for records."
+Audit `rg -n "Invoice|Bill" src/` for UI strings; fix any toast/button mismatches (e.g. `TaskCard.tsx:485` "Invoice saved as..." → "Bill saved as...").
 
-## Imports
+### #16 — Env-ize hardcoded URLs (`src/lib/clientPortalUtils.ts`)
+- L5: `https://chiptime.chipplc.one` → `import.meta.env.VITE_PORTAL_BASE_URL ?? 'https://chiptime.chipplc.one'`.
+- L819, L860: replace `https://${projectId}.supabase.co/functions/v1/get-portal` with `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-portal`.
+- Document `VITE_PORTAL_BASE_URL` in README (and `.env.example` if present).
 
-- `Index.tsx`, `DesktopDashboard.tsx` — `toast` already imported (used elsewhere). Verify and reuse.
-- `TaskCard.tsx` — already imports `toast`.
-- `AuthContext.tsx` — no toast needed.
+### #17 — localStorage try/catch (`src/services/appSyncService.ts:29`)
+Wrap synchronous localStorage write in try/catch; `console.warn` on failure, do not throw.
 
-## Out of scope
+### #19 — DEV-only logger (Option A)
+New file: `src/lib/devLog.ts`
+```ts
+export const dlog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) console.log(...args);
+};
+```
+Replace `console.log` (NOT `.error`/`.warn`) at the listed call sites in:
+`appSyncService.ts`, `useStorage.ts`, `Index.tsx`, `photoMigration.ts`, `cloudSyncService.ts`, `contactsService.ts`. Sweep each file with `rg -n "console.log"` to catch all sites.
 
-- No conversion of fire-and-forget to `await` — the portal-sync chains are intentionally non-blocking so the UI status flip stays instant. Keeping them async is correct.
-- No changes to `clientPortalUtils.ts` injected-script `.then` (different runtime, already handled).
+### #22 — AlertDialog for EditTaskDialog delete (`EditTaskDialog.tsx:538–555`)
+Replace inline Yes/No toggle with `<AlertDialog>` matching the pattern in `ManageClientsDialog.tsx:888, 925`.
+
+### #23 — aria-labels on icon buttons
+Sweep `rg -n 'size="icon"' src/` for every `<Button size="icon">` instance. Add `aria-label` describing the action. Confirmed sites include `Index.tsx:715, :718`; expect 30–60 total.
+
+## Out of Scope
+#12 dead code, #18 pushTimer singleton, #20 PDF magic numbers, #21 (already done), #24 (already done).
 
 ## Verification
+- `bunx tsc --noEmit` clean
+- `bunx tsc --strict --noEmit` confirms #11 sites fixed (informational only)
+- `bunx vitest run` — 38/38 pass
+- `rg -n "\\b1 (vehicles|photos|clients|tasks)\\b"` returns nothing
+- `rg -nw "Customer" src/` returns only XML field names
+- `bun run build` succeeds; spot-check bundle for `console.log` from gated sites
 
-1. `bunx tsc --noEmit` — expect no new errors.
-2. `bunx vitest run` — 38 tests still pass (no logic changes, only error paths).
-3. Smoke test: stub `photoStorageService.uploadPhotoToCloud` to reject in dev. Confirm console shows `[TaskCard] Failed to upload photo to cloud:` and the destructive toast appears with the photo-upload message; rest of the UI continues working.
-
-## Deliverable summary
-
-- Files modified: `src/components/TaskCard.tsx`, `src/pages/Index.tsx`, `src/pages/DesktopDashboard.tsx`, `src/contexts/AuthContext.tsx` (4 files).
-- Catches added/upgraded: 8 total — 6 toast upgrades (1 TaskCard + 3 Index + 2 DesktopDashboard), 2 new catches (Index reconcileCloudPhotos log-only, AuthContext getSession log + unblock loading).
-- Conversions to `await`: none (portal syncs intentionally non-blocking; documented above).
-- Smoke-test result reported after implementation.
+## Deliverable
+Files modified count per item, new helper file locations (`src/lib/pluralize.ts`, `src/lib/devLog.ts`), env var deploy notes (`VITE_PORTAL_BASE_URL`), test output.

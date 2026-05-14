@@ -25,6 +25,10 @@ import {
   paintBillBackground,
   safeTop,
   safeBottom,
+  RIGHT_MARGIN_MM,
+  LEFT_MARGIN_MM,
+  PAGE_CENTER_X_MM,
+  PAGE_H,
   type PageRole,
 } from '@/lib/billPdfLayout';
 
@@ -296,7 +300,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     d.text('AMOUNT', COL3_X, top + 6, { align: 'right' });
     d.setLineWidth(0.3);
     d.setDrawColor(255, 0, 0);
-    d.line(20, top + 8, 195.9, top + 8);
+    d.line(LEFT_MARGIN_MM, top + 8, RIGHT_MARGIN_MM, top + 8);
     d.setFontSize(11);
     d.setFont('helvetica', 'normal');
   };
@@ -346,7 +350,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text('Bill to:', 20, 48.5);
 
       const billedDateStr = (opts.billedDate ?? new Date()).toLocaleDateString('en-US');
-      doc.text(`Billed on ${billedDateStr}`, 195.9, 58.5, { align: 'right' });
+      doc.text(`Billed on ${billedDateStr}`, RIGHT_MARGIN_MM, 58.5, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
@@ -422,7 +426,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text(`Generated: ${formatTimestamp(new Date())}`, 107.95, 277.4, { align: 'center' });
+      doc.text(`Generated: ${formatTimestamp(new Date())}`, PAGE_CENTER_X_MM, PAGE_H - 2, { align: 'center' });
     }
   }
 

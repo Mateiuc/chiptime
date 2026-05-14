@@ -1,3 +1,15 @@
+/**
+ * Desktop Invoice view.
+ *
+ * "Invoice" here = formal accounting document for the shop's records.
+ * Manual line-item entry, no client/vehicle decoration, no photos. The PDF
+ * is intended for the shop's books, not as a customer-facing receipt.
+ *
+ * The customer-facing decorated document is the "Bill" — see
+ * `src/lib/billPdfRenderer.ts`. Keep these two concepts distinct: any
+ * UI string here should say "Invoice", any UI string in the bill flow
+ * should say "Bill".
+ */
 import { useState } from 'react';
 import { Plus, Trash2, FileDown, Bold, Italic, Underline } from 'lucide-react';
 import { Button } from '@/components/ui/button';

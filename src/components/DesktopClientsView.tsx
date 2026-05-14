@@ -84,9 +84,14 @@ export const DesktopClientsView = ({
     clientTasks.forEach(task => {
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const baseCost = (sessionDuration / 3600) * rate;
+        // P0 #3 fix: respect per-period flags before applying session-level bump.
+        const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
+        const baseCost = session.periods.reduce((s, p) => {
+          if (p.chargeMinimumHour && p.duration < 3600) return s + rate;
+          return s + (p.duration / 3600) * rate;
+        }, 0);
         let minAdj = 0, cloneCost = 0, progCost = 0, akCost = 0, aklCost = 0;
-        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
+        if (!hasPeriodFlags && session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
         if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
         if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
         if (session.isAddKey && addKeyRate > 0) akCost = addKeyRate;

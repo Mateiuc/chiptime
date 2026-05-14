@@ -37,6 +37,17 @@ export interface VehicleTotal {
 
 const num = (v: any): number => (typeof v === 'number' && isFinite(v) ? v : 0);
 
+/**
+ * Round a dollar amount up to the next whole dollar (billing-conservative).
+ * Negatives and non-finite values clamp to 0. Centralizes the rounding rule
+ * so display-layer formatters (formatCurrency) can stay pure.
+ */
+export function ceilDollars(amount: number): number {
+  if (!isFinite(amount)) return 0;
+  if (amount <= 0) return 0;
+  return Math.ceil(amount);
+}
+
 export function resolveRates(client: Client | null | undefined, settings: Settings) {
   return {
     hourly: num(client?.hourlyRate) || num(settings.defaultHourlyRate),
@@ -122,9 +133,16 @@ export interface TaskTotalAllocated {
 
 /**
  * Per-task total with the vehicle-level discount allocated proportionally
- * across all tasks belonging to the same vehicle. The sum of `discount`
- * across a vehicle's tasks equals the vehicle's discount within float
- * rounding, so summing per-task totals matches `computeVehicleTotal`.
+ * across all tasks belonging to the same vehicle.
+ *
+ * Each per-task `discount` is ceiled to a whole dollar via `ceilDollars`.
+ * Because every share is rounded up, the sum of per-task discounts may
+ * exceed the vehicle's raw discount by up to (taskCount - 1) dollars —
+ * intentional billing-conservative bias. This means summing per-task
+ * `total` across a vehicle's tasks may be a few dollars LESS than
+ * `computeVehicleTotal.total`. UI surfaces should rely on
+ * `computeVehicleTotal` for rollups and `computeTaskTotalAllocated` for
+ * per-task display rows; do not double-aggregate.
  */
 export function computeTaskTotalAllocated(
   task: Task,
@@ -141,7 +159,7 @@ export function computeTaskTotalAllocated(
   }, 0);
   const vehicleDiscount = applyLaborDiscount(vehiclePool, vehicle || undefined).discount;
   const share = vehiclePool > 0 ? taskPool / vehiclePool : 0;
-  const taskDiscount = vehicleDiscount * share;
+  const taskDiscount = ceilDollars(vehicleDiscount * share);
   return {
     labor: t.labor,
     services: t.services,
@@ -166,7 +184,28 @@ export function computeVehicleTotal(
     services += t.services;
     parts += t.parts;
   }
-  const { discount } = applyLaborDiscount(labor + services, vehicle || undefined);
+  const rawDiscount = applyLaborDiscount(labor + services, vehicle || undefined).discount;
+  const discount = ceilDollars(rawDiscount);
   const total = Math.max(0, labor + services - discount) + parts;
   return { labor, services, parts, discount, total };
+}
+
+/**
+ * Lightweight preview helper for the SettingsDialog rate calculator.
+ * Mirrors `computeSessionLabor` but takes raw inputs (no full WorkSession).
+ */
+export function previewSessionLabor(
+  durationSec: number,
+  hourly: number,
+  opts: { sessionMinHour?: boolean; periodMinHour?: boolean } = {}
+): number {
+  const { sessionMinHour = false, periodMinHour = false } = opts;
+  if (periodMinHour && durationSec < 3600) {
+    return ceilDollars(hourly);
+  }
+  const base = Math.ceil((Math.round(durationSec / 60) / 60) * hourly);
+  if (!periodMinHour && sessionMinHour && durationSec < 3600) {
+    return base + Math.ceil(((3600 - durationSec) / 3600) * hourly);
+  }
+  return base;
 }

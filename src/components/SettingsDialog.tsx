@@ -13,6 +13,7 @@ import { exportToXML, downloadXML, parseXMLFile, validateXMLData } from '@/lib/x
 import { useNotifications } from '@/hooks/useNotifications';
 import { Switch } from '@/components/ui/switch';
 import { ManageClientsDialog } from './ManageClientsDialog';
+import { computeTaskTotal } from '@/lib/billing';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { BackupView } from './BackupView';
 import { cn } from '@/lib/utils';
@@ -195,31 +196,11 @@ export const SettingsDialog = ({
   };
 
   const calculateClientTotalCost = (clientTasks: Task[], clientId: string) => {
-    const client = clients.find(c => c.id === clientId);
-    const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    
-    return clientTasks.reduce((total, task) => {
-      // Labor cost - per session
-      const laborCost = (task.sessions || []).reduce((sessionTotal, session) => {
-        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const effectiveTime = (session.chargeMinimumHour && sessionDuration < 3600) ? 3600 : sessionDuration;
-        let sessionCost = (effectiveTime / 3600) * hourlyRate;
-        if (session.isCloning && cloningRate > 0) sessionCost += cloningRate;
-        if (session.isProgramming && programmingRate > 0) sessionCost += programmingRate;
-        return sessionTotal + sessionCost;
-      }, 0);
-      
-      // Parts cost
-      const partsCost = (task.sessions || []).reduce((sessionTotal, session) => {
-        return sessionTotal + (session.parts || []).reduce((sum, part) => 
-          sum + part.price * part.quantity, 0
-        );
-      }, 0);
-      
-      return total + laborCost + partsCost;
-    }, 0);
+    const client = clients.find(c => c.id === clientId) || null;
+    return clientTasks.reduce(
+      (total, task) => total + computeTaskTotal(task, client, settings).total,
+      0,
+    );
   };
 
   const billedTasksByClient = groupTasksByClient(billedTasks);

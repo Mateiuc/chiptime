@@ -569,9 +569,33 @@ export const EditTaskDialog = ({
     </DialogFooter>
   );
 
+  // Shared confirmation dialog (mounts in a portal — placement is cosmetic).
+  const deleteAlert = onDelete ? (
+    <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialogContent className="w-[90vw] max-w-sm p-4 rounded-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-base">Delete Car</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm">
+            Delete this car? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-row gap-2">
+          <AlertDialogCancel className="m-0">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => { onDelete(task.id); setShowDeleteConfirm(false); onOpenChange(false); }}
+            className="m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  ) : null;
+
   // ============ MOBILE LAYOUT ============
   if (isMobile) {
     return (
+      <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col inset-0">
           <DialogHeader className={`px-4 py-3 border-b ${colorScheme.gradient}`}>
@@ -770,11 +794,14 @@ export const EditTaskDialog = ({
           {renderFooter(false)}
         </DialogContent>
       </Dialog>
+      {deleteAlert}
+      </>
     );
   }
 
   // ============ DESKTOP LAYOUT ============
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="inset-0 w-full h-full max-w-none max-h-none p-0 rounded-none border-none flex flex-col overflow-hidden">
         {/* Colorful header */}

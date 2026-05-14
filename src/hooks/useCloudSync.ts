@@ -184,7 +184,7 @@ export function useCloudSync(): UseCloudSyncResult {
       // Reload page to reflect restored data
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, RESTORE_RELOAD_DELAY_MS);
     } else {
       toast({
         title: 'Restore Failed',

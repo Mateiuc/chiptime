@@ -187,7 +187,7 @@ const DesktopDashboard = () => {
       if (!cancelled) setPhotoSignedUrls(merged);
     };
     refresh();
-    const id = setInterval(refresh, 50 * 60 * 1000);
+    const id = setInterval(refresh, PHOTO_URL_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [tasks]);
 

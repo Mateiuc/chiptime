@@ -27,7 +27,7 @@ const ClientPortal = () => {
 
   useEffect(() => {
     if (!lockedUntil) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(Date.now()), LOCKOUT_TICK_MS);
     return () => clearInterval(t);
   }, [lockedUntil]);
 

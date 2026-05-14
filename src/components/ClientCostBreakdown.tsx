@@ -475,7 +475,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                     {vehicleDeposits > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Vehicle Deposits:</span><span className="font-semibold">-{formatCurrency(vehicleDeposits)}</span></div>}
                     {clientDeposit > 0 && <div className={`flex justify-between text-sm ${depositColor}`}><span>Client Deposit:</span><span className="font-semibold">-{formatCurrency(clientDeposit)}</span></div>}
                     {!isPaid && totalDeposits > 0 && (
-                      <div className="flex justify-between text-lg font-bold text-orange-500"><span>BALANCE DUE:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
+                      <div className="flex justify-between text-lg font-bold text-orange-500"><span>Balance due:</span><span>{formatCurrency(Math.max(0, grandTotal - totalDeposits))}</span></div>
                     )}
                   </>
                 );

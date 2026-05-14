@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Client, Vehicle, Task, Settings } from '@/types';
+import { dlog } from '@/lib/devLog';
 
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
 const LOCAL_WORKSPACE_KEY = 'app_sync_workspace_id';

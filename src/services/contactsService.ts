@@ -1,5 +1,6 @@
 import { Contacts } from '@capacitor-community/contacts';
 import { Capacitor } from '@capacitor/core';
+import { dlog } from '@/lib/devLog';
 
 export interface PhoneNumber {
   number: string;

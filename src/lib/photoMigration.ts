@@ -2,6 +2,8 @@ import { Task, SessionPhoto } from '@/types';
 import { photoStorageService } from '@/services/photoStorageService';
 import { indexedDB } from '@/lib/indexedDB';
 import { capacitorStorage } from '@/lib/capacitorStorage';
+import { dlog } from '@/lib/devLog';
+import { pluralize } from '@/lib/pluralize';
 
 /**
  * Migrates existing photos from base64 storage in tasks to filesystem storage.

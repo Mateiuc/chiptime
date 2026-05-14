@@ -4,6 +4,7 @@ import { appSyncService, SyncData, VersionConflictError } from '@/services/appSy
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { dlog } from '@/lib/devLog';
 
 // Pending retry timer (used only when an immediate push fails)
 let pushTimer: ReturnType<typeof setTimeout> | null = null;

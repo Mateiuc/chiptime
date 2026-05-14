@@ -15,6 +15,7 @@ import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { pluralize } from '@/lib/pluralize';
 
 interface ManageClientsDialogProps {
   open: boolean;

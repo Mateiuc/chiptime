@@ -16,10 +16,11 @@
  */
 
 import jsPDF from 'jspdf';
-import type { Task, Client, Vehicle, SessionPhoto } from '@/types';
+import type { Task, Client, Vehicle, SessionPhoto, Settings as SettingsType } from '@/types';
 import { calcPeriodCost, formatCurrency } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { stripDiacritics } from '@/lib/pdfUtils';
+import { computeSessionLaborDetails } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
@@ -67,10 +68,6 @@ export function computeBillTotals(
   settings: RendererSettings,
 ): BillTotals {
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-  const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-  const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-  const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
 
   let baseLabor = 0;
   let totalMinHourAdj = 0;
@@ -84,25 +81,25 @@ export function computeBillTotals(
   let addKeyCount = 0;
   let allKeysLostCount = 0;
 
+  // Build a SettingsType-shaped value so computeSessionLaborDetails picks up
+  // every fallback rate (RendererSettings is a structural subset).
+  const settingsForBilling = settings as unknown as SettingsType;
+
   (task.sessions || []).forEach((session) => {
-    session.periods.forEach((period) => {
-      if (period.chargeMinimumHour && period.duration < 3600) {
-        baseLabor += Math.ceil(hourlyRate);
-        minHourCount++;
-      } else {
-        baseLabor += calcPeriodCost(period.duration, hourlyRate);
-      }
-    });
-    const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
-    const hasPeriodFlags = session.periods.some((p) => p.chargeMinimumHour);
-    if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
-      totalMinHourAdj += Math.ceil(((3600 - sessionDur) / 3600) * hourlyRate);
+    const d = computeSessionLaborDetails(session, client ?? null, settingsForBilling);
+    baseLabor += d.baseLabor;
+    if (session.periods.some(p => p.chargeMinimumHour && p.duration < 3600)) {
+      // count one min-hour bump per flagged short period
+      minHourCount += session.periods.filter(p => p.chargeMinimumHour && p.duration < 3600).length;
+    }
+    if (d.minHourAdj > 0) {
+      totalMinHourAdj += d.minHourAdj;
       minHourCount++;
     }
-    if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
-    if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
-    if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
-    if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
+    if (d.cloning > 0) { totalCloning += d.cloning; cloningCount++; }
+    if (d.programming > 0) { totalProgramming += d.programming; programmingCount++; }
+    if (d.addKey > 0) { totalAddKey += d.addKey; addKeyCount++; }
+    if (d.allKeysLost > 0) { totalAllKeysLost += d.allKeysLost; allKeysLostCount++; }
   });
 
   const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;

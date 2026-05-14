@@ -236,10 +236,6 @@ export function calculateClientCosts(
           (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
           0
         );
-        const sessionPartsCost = (session.parts || []).reduce(
-          (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
-          0
-        );
 
         const sessionDiscount = 0;
         unbilledLabor += laborCost;

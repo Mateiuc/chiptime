@@ -1083,5 +1083,7 @@ export const EditTaskDialog = ({
         {renderFooter(true)}
       </DialogContent>
     </Dialog>
+    {deleteAlert}
+    </>
   );
 };

@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/ratelimit.ts'
 
 // Constant-time string compare to avoid leaking access-code prefixes via
 // response-time differences. Length check is acceptable here — portal
@@ -17,9 +14,16 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const pre = handlePreflight(req)
+  if (pre) return pre
+
+  // Per-IP throttle runs BEFORE auth/PIN checks so an attacker can't
+  // exhaust the bucket without revealing per-PIN bits. Per-portal lockout
+  // (failed_attempts) below is the inner ring.
+  const rl = await checkRateLimit(req, 'get-portal', { windowSec: 60, maxRequests: 30 })
+  if (rl) return rl
+
+  const cors = corsHeaders(req)
 
   try {
     const url = new URL(req.url)
@@ -30,7 +34,7 @@ Deno.serve(async (req) => {
     if (!id) {
       return new Response(JSON.stringify({ error: 'Missing id parameter' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -50,14 +54,14 @@ Deno.serve(async (req) => {
       console.error('Portal lookup error:', error)
       return new Response(JSON.stringify({ error: 'Database error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     if (!data) {
       return new Response(JSON.stringify({ error: 'Portal not found' }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -74,7 +78,7 @@ Deno.serve(async (req) => {
           locked: isLocked,
           lockedUntil: isLocked ? new Date(lockedUntilMs).toISOString() : null,
         }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...cors, 'Content-Type': 'application/json' },
         })
       }
 
@@ -90,7 +94,7 @@ Deno.serve(async (req) => {
         }), {
           status: 429,
           headers: {
-            ...corsHeaders,
+            ...cors,
             'Content-Type': 'application/json',
             'Retry-After': String(retryAfterSeconds),
           },
@@ -127,7 +131,7 @@ Deno.serve(async (req) => {
           }), {
             status: 429,
             headers: {
-              ...corsHeaders,
+              ...cors,
               'Content-Type': 'application/json',
               'Retry-After': String(retryAfterSeconds),
             },
@@ -148,7 +152,7 @@ Deno.serve(async (req) => {
           attemptsRemaining: MAX_ATTEMPTS - newCount,
         }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...cors, 'Content-Type': 'application/json' },
         })
       }
 
@@ -173,13 +177,13 @@ Deno.serve(async (req) => {
       clientName: data.client_name,
       requiresCode: false,
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('get-portal error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

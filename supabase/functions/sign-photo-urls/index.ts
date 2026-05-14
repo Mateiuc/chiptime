@@ -1,23 +1,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/ratelimit.ts'
 
 const SAFE_SEGMENT = /^[a-zA-Z0-9._-]+$/
 const isSafeSegment = (s: string) => SAFE_SEGMENT.test(s)
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const pre = handlePreflight(req)
+  if (pre) return pre
+  const rl = await checkRateLimit(req, 'sign-photo-urls', { windowSec: 60, maxRequests: 120 })
+  if (rl) return rl
+  const cors = corsHeaders(req)
 
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -31,19 +30,19 @@ Deno.serve(async (req) => {
     )
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     const { paths, expiresIn } = await req.json().catch(() => ({}))
     if (!Array.isArray(paths) || paths.length === 0) {
       return new Response(JSON.stringify({ urls: {} }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     if (paths.length > 200) {
       return new Response(JSON.stringify({ error: 'Too many paths (max 200)' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -54,7 +53,7 @@ Deno.serve(async (req) => {
     )
     if (wsErr || !wsId) {
       return new Response(JSON.stringify({ error: 'No workspace for user' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -99,7 +98,7 @@ Deno.serve(async (req) => {
     const urls: Record<string, string> = {}
     if (safePaths.length === 0) {
       return new Response(JSON.stringify({ urls }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -111,7 +110,7 @@ Deno.serve(async (req) => {
     if (error) {
       console.error('createSignedUrls error:', error)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -120,12 +119,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ urls }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('sign-photo-urls error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

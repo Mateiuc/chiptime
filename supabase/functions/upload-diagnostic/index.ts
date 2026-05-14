@@ -1,20 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/ratelimit.ts'
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const pre = handlePreflight(req)
+  if (pre) return pre
+  const rl = await checkRateLimit(req, 'upload-diagnostic', { windowSec: 60, maxRequests: 60 })
+  if (rl) return rl
+  const cors = corsHeaders(req)
 
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -26,7 +25,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -36,7 +35,7 @@ Deno.serve(async (req) => {
     if (!base64 || !pathPrefix) {
       return new Response(JSON.stringify({ error: 'Missing required fields (base64 and taskId or vehicleId)' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -49,13 +48,13 @@ Deno.serve(async (req) => {
     if (wsErr || !wsId) {
       return new Response(JSON.stringify({ error: 'No workspace for user' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     if (!/^[a-zA-Z0-9._-]+$/.test(String(pathPrefix))) {
       return new Response(JSON.stringify({ error: 'Invalid id' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -80,7 +79,7 @@ Deno.serve(async (req) => {
       console.error('Upload error:', error)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -95,18 +94,18 @@ Deno.serve(async (req) => {
       console.error('Sign error:', signErr)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     return new Response(JSON.stringify({ url: signed.signedUrl, path: filePath }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('upload-diagnostic error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

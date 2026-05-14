@@ -85,6 +85,27 @@ export type Database = {
           },
         ]
       }
+      rate_limit_buckets: {
+        Row: {
+          bucket_key: string
+          count: number
+          ip: string
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          ip: string
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          ip?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       workspace_invites: {
         Row: {
           code: string
@@ -188,6 +209,13 @@ export type Database = {
     }
     Functions: {
       claim_unclaimed_workspace: { Args: never; Returns: string }
+      consume_rate_limit: {
+        Args: { _ip: string; _key: string; _max: number; _window_sec: number }
+        Returns: {
+          allowed: boolean
+          retry_after: number
+        }[]
+      }
       create_workspace: { Args: { _name: string }; Returns: string }
       is_workspace_admin: {
         Args: { _user_id: string; _workspace_id: string }

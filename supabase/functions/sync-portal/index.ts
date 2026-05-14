@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/ratelimit.ts'
 
 function generateId(length = 8): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -17,9 +14,11 @@ function generateId(length = 8): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const pre = handlePreflight(req)
+  if (pre) return pre
+  const rl = await checkRateLimit(req, 'sync-portal', { windowSec: 60, maxRequests: 60 })
+  if (rl) return rl
+  const cors = corsHeaders(req)
 
   try {
     // ---- Authenticate caller ----
@@ -27,7 +26,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     const token = authHeader.replace('Bearer ', '')
@@ -43,7 +42,7 @@ Deno.serve(async (req) => {
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     const userId = userData.user.id
@@ -53,7 +52,7 @@ Deno.serve(async (req) => {
     if (!clientLocalId || !clientName) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -68,7 +67,7 @@ Deno.serve(async (req) => {
     if (wsErr || !ws) {
       return new Response(JSON.stringify({ error: 'No workspace for user' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     const workspaceId = ws.workspace_id
@@ -99,18 +98,18 @@ Deno.serve(async (req) => {
       console.error('Upsert error:', error)
       return new Response(JSON.stringify({ error: 'Database error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     return new Response(JSON.stringify({ id: portalId, access_code: accessCode || null }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('sync-portal error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

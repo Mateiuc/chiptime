@@ -8,6 +8,9 @@ import { ClientCostBreakdown } from '@/components/ClientCostBreakdown';
 import { ClientCostSummary, decodeClientData, checkPortalAccess, fetchPortalWithCode } from '@/lib/clientPortalUtils';
 import { Lock, Wrench, Shield, Clock } from 'lucide-react';
 
+/** Tick interval for the PIN-lockout countdown (1s). */
+const LOCKOUT_TICK_MS = 1000;
+
 const ClientPortal = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -27,7 +30,7 @@ const ClientPortal = () => {
 
   useEffect(() => {
     if (!lockedUntil) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(Date.now()), LOCKOUT_TICK_MS);
     return () => clearInterval(t);
   }, [lockedUntil]);
 

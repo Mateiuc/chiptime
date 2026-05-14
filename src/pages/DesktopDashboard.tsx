@@ -40,6 +40,10 @@ import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
 
+/** Background re-sign cadence for photo signed URLs (50 minutes — well
+ *  inside the 60-minute Supabase signed-URL TTL). */
+const PHOTO_URL_REFRESH_MS = 50 * 60 * 1000;
+
 const statusMatches = (status: string, filter: FilterType): boolean => {
   switch (filter) {
     case 'all': return true;
@@ -187,7 +191,7 @@ const DesktopDashboard = () => {
       if (!cancelled) setPhotoSignedUrls(merged);
     };
     refresh();
-    const id = setInterval(refresh, 50 * 60 * 1000);
+    const id = setInterval(refresh, PHOTO_URL_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [tasks]);
 

@@ -20,6 +20,27 @@ export interface SessionLabor {
   total: number;     // labor + services
 }
 
+/**
+ * Granular per-session breakdown used by the bill renderer and the client
+ * portal cost calculator. `labor` (= baseLabor + minHourAdj) and `services`
+ * match `computeSessionLabor`'s output; the additional fields expose each
+ * billable component so callers can render itemised rows or counters.
+ */
+export interface SessionLaborDetails {
+  baseLabor: number;
+  minHourAdj: number;
+  cloning: number;
+  programming: number;
+  addKey: number;
+  allKeysLost: number;
+  /** baseLabor + minHourAdj */
+  labor: number;
+  /** cloning + programming + addKey + allKeysLost */
+  services: number;
+  /** labor + services */
+  total: number;
+}
+
 export interface TaskTotal {
   labor: number;
   services: number;
@@ -63,6 +84,20 @@ export function computeSessionLabor(
   client: Client | null | undefined,
   settings: Settings
 ): SessionLabor {
+  const d = computeSessionLaborDetails(session, client, settings);
+  return { labor: d.labor, services: d.services, total: d.total };
+}
+
+/**
+ * Per-session labor breakdown — single source of truth for the per-period
+ * min-hour rule and the per-service charges. `computeSessionLabor` is a thin
+ * wrapper for callers that don't need the breakdown.
+ */
+export function computeSessionLaborDetails(
+  session: WorkSession,
+  client: Client | null | undefined,
+  settings: Settings
+): SessionLaborDetails {
   const r = resolveRates(client, settings);
 
   // Per-period cost — preserves existing min-hour rule per period.
@@ -80,15 +115,18 @@ export function computeSessionLabor(
     ? Math.ceil(((3600 - sessionDur) / 3600) * r.hourly)
     : 0;
 
+  const cloning = (session.isCloning && r.cloning > 0) ? r.cloning : 0;
+  const programming = (session.isProgramming && r.programming > 0) ? r.programming : 0;
+  const addKey = (session.isAddKey && r.addKey > 0) ? r.addKey : 0;
+  const allKeysLost = (session.isAllKeysLost && r.allKeysLost > 0) ? r.allKeysLost : 0;
+
   const labor = baseLabor + minHourAdj;
+  const services = cloning + programming + addKey + allKeysLost;
 
-  let services = 0;
-  if (session.isCloning && r.cloning > 0) services += r.cloning;
-  if (session.isProgramming && r.programming > 0) services += r.programming;
-  if (session.isAddKey && r.addKey > 0) services += r.addKey;
-  if (session.isAllKeysLost && r.allKeysLost > 0) services += r.allKeysLost;
-
-  return { labor, services, total: labor + services };
+  return {
+    baseLabor, minHourAdj, cloning, programming, addKey, allKeysLost,
+    labor, services, total: labor + services,
+  };
 }
 
 export function computeSessionParts(session: WorkSession): number {

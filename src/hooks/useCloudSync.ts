@@ -32,6 +32,10 @@ const DEFAULT_SETTINGS: CloudSyncSettings = {
   autoSyncOnChange: false,
 };
 
+/** Delay before reloading the page after a successful Google Drive restore,
+ *  giving the toast a moment to render. */
+const RESTORE_RELOAD_DELAY_MS = 1500;
+
 export function useCloudSync(): UseCloudSyncResult {
   const { toast } = useNotifications();
   const [state, setState] = useState<CloudSyncState>({
@@ -184,7 +188,7 @@ export function useCloudSync(): UseCloudSyncResult {
       // Reload page to reflect restored data
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, RESTORE_RELOAD_DELAY_MS);
     } else {
       toast({
         title: 'Restore Failed',

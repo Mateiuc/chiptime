@@ -16,15 +16,20 @@
  */
 
 import jsPDF from 'jspdf';
-import type { Task, Client, Vehicle, SessionPhoto } from '@/types';
-import { calcPeriodCost, formatCurrency } from '@/lib/formatTime';
+import type { Task, Client, Vehicle, SessionPhoto, Settings as SettingsType } from '@/types';
+import { formatCurrency } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { stripDiacritics } from '@/lib/pdfUtils';
+import { computeSessionLaborDetails } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
   safeTop,
   safeBottom,
+  RIGHT_MARGIN_MM,
+  LEFT_MARGIN_MM,
+  PAGE_CENTER_X_MM,
+  PAGE_H,
   type PageRole,
 } from '@/lib/billPdfLayout';
 
@@ -63,10 +68,6 @@ export function computeBillTotals(
   settings: RendererSettings,
 ): BillTotals {
   const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-  const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-  const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-  const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
 
   let baseLabor = 0;
   let totalMinHourAdj = 0;
@@ -80,25 +81,22 @@ export function computeBillTotals(
   let addKeyCount = 0;
   let allKeysLostCount = 0;
 
+  // Build a SettingsType-shaped value so computeSessionLaborDetails picks up
+  // every fallback rate (RendererSettings is a structural subset).
+  const settingsForBilling = settings as unknown as SettingsType;
+
   (task.sessions || []).forEach((session) => {
-    session.periods.forEach((period) => {
-      if (period.chargeMinimumHour && period.duration < 3600) {
-        baseLabor += Math.ceil(hourlyRate);
-        minHourCount++;
-      } else {
-        baseLabor += calcPeriodCost(period.duration, hourlyRate);
-      }
-    });
-    const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
-    const hasPeriodFlags = session.periods.some((p) => p.chargeMinimumHour);
-    if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
-      totalMinHourAdj += Math.ceil(((3600 - sessionDur) / 3600) * hourlyRate);
+    const d = computeSessionLaborDetails(session, client ?? null, settingsForBilling);
+    baseLabor += d.baseLabor;
+    minHourCount += (session.periods || []).filter(p => p.chargeMinimumHour && p.duration < 3600).length;
+    if (d.minHourAdj > 0) {
+      totalMinHourAdj += d.minHourAdj;
       minHourCount++;
     }
-    if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
-    if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
-    if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
-    if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
+    if (d.cloning > 0) { totalCloning += d.cloning; cloningCount++; }
+    if (d.programming > 0) { totalProgramming += d.programming; programmingCount++; }
+    if (d.addKey > 0) { totalAddKey += d.addKey; addKeyCount++; }
+    if (d.allKeysLost > 0) { totalAllKeysLost += d.allKeysLost; allKeysLostCount++; }
   });
 
   const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
@@ -296,7 +294,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     d.text('AMOUNT', COL3_X, top + 6, { align: 'right' });
     d.setLineWidth(0.3);
     d.setDrawColor(255, 0, 0);
-    d.line(20, top + 8, 195.9, top + 8);
+    d.line(LEFT_MARGIN_MM, top + 8, RIGHT_MARGIN_MM, top + 8);
     d.setFontSize(11);
     d.setFont('helvetica', 'normal');
   };
@@ -346,7 +344,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text('Bill to:', 20, 48.5);
 
       const billedDateStr = (opts.billedDate ?? new Date()).toLocaleDateString('en-US');
-      doc.text(`Billed on ${billedDateStr}`, 195.9, 58.5, { align: 'right' });
+      doc.text(`Billed on ${billedDateStr}`, RIGHT_MARGIN_MM, 58.5, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
@@ -422,7 +420,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text(`Generated: ${formatTimestamp(new Date())}`, 107.95, 277.4, { align: 'center' });
+      doc.text(`Generated: ${formatTimestamp(new Date())}`, PAGE_CENTER_X_MM, PAGE_H - 2, { align: 'center' });
     }
   }
 

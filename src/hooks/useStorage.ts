@@ -4,6 +4,7 @@ import { appSyncService, SyncData, VersionConflictError } from '@/services/appSy
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { dlog } from '@/lib/devLog';
 
 // Pending retry timer (used only when an immediate push fails)
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -11,7 +12,7 @@ let cloudPushEnabled = true;
 
 export const setCloudPushEnabled = (enabled: boolean) => {
   cloudPushEnabled = enabled;
-  console.log('[CloudSync] Push enabled:', enabled);
+  dlog('[CloudSync] Push enabled:', enabled);
 };
 
 /**
@@ -144,7 +145,7 @@ const immediatePushToCloud = async (changed?: ChangedIds, retryDepth = 0) => {
     const local = await readLocalSnapshot();
     // Don't push empty snapshots — prevents wiping cloud data
     if (local.clients.length === 0 && local.vehicles.length === 0 && local.tasks.length === 0) {
-      console.log('[CloudSync] Skipped push — snapshot is empty');
+      dlog('[CloudSync] Skipped push — snapshot is empty');
       return;
     }
     await appSyncService.pushToCloud(local);
@@ -501,7 +502,7 @@ export const useCloudSync = (deps: {
         if (d.settings) deps.settings.replaceAll(d.settings);
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
-        console.log('[CloudSync] Applied remote data');
+        dlog('[CloudSync] Applied remote data');
         return true;
       }
       return false;
@@ -537,7 +538,7 @@ export const useCloudSync = (deps: {
           localTasks.length === 0;
 
         if (localEmpty) {
-          console.log('[CloudSync] Local empty — forcing pull from cloud');
+          dlog('[CloudSync] Local empty — forcing pull from cloud');
           const pulled = await pullAndApply();
           if (!pulled) syncedForWorkspace.current = null;
           return;
@@ -545,7 +546,7 @@ export const useCloudSync = (deps: {
 
         // Desktop mode (push disabled): always pull, never seed
         if (!cloudPushEnabled) {
-          console.log('[CloudSync] Desktop mode — forcing pull');
+          dlog('[CloudSync] Desktop mode — forcing pull');
           const pulled = await pullAndApply();
           if (!pulled) syncedForWorkspace.current = null;
           return;
@@ -562,7 +563,7 @@ export const useCloudSync = (deps: {
             tasks: localTasks,
             settings: localSettings,
           });
-          console.log('[CloudSync] Seeded cloud with local data');
+          dlog('[CloudSync] Seeded cloud with local data');
         }
       } catch (err) {
         console.error('[CloudSync] Mount sync failed:', err);

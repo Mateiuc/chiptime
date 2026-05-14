@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Client, Vehicle, Task, Settings } from '@/types';
+import { dlog } from '@/lib/devLog';
 
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
 const LOCAL_WORKSPACE_KEY = 'app_sync_workspace_id';
@@ -189,7 +190,7 @@ export const appSyncService = {
         lastKnownVersion = newVersion;
         baseSnapshot = cloneSnap(sanitized);
         this.setLocalUpdatedAt(newUpdatedAt);
-        console.log('[AppSync] Pushed v' + newVersion + ' at', newUpdatedAt);
+        dlog('[AppSync] Pushed v' + newVersion + ' at', newUpdatedAt);
         return { version: newVersion, updatedAt: newUpdatedAt };
       }
 
@@ -237,7 +238,7 @@ export const appSyncService = {
       lastKnownVersion = newVersion;
       baseSnapshot = cloneSnap(sanitized);
       this.setLocalUpdatedAt(newUpdatedAt);
-      console.log('[AppSync] Inserted v' + newVersion + ' at', newUpdatedAt);
+      dlog('[AppSync] Inserted v' + newVersion + ' at', newUpdatedAt);
       return { version: newVersion, updatedAt: newUpdatedAt };
     }
   },
@@ -258,7 +259,7 @@ export const appSyncService = {
     }
 
     if (!data) {
-      console.log('[AppSync] No remote data found for workspace:', workspaceId);
+      dlog('[AppSync] No remote data found for workspace:', workspaceId);
       return null;
     }
 
@@ -266,7 +267,7 @@ export const appSyncService = {
     const version = Number((data as any).data_version ?? 0);
     lastKnownVersion = version;
     baseSnapshot = cloneSnap(syncData);
-    console.log('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);
+    dlog('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);
     return { data: syncData, updatedAt: data.updated_at, version };
   },
 

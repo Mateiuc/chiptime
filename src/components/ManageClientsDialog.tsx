@@ -15,6 +15,7 @@ import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { pluralize } from '@/lib/pluralize';
 
 interface ManageClientsDialogProps {
   open: boolean;
@@ -495,6 +496,7 @@ export const ManageClientsDialog = ({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Close"
                 onClick={() => onOpenChange(false)}
                 className="h-8 w-8 hover:bg-primary/10"
               >
@@ -903,7 +905,7 @@ export const ManageClientsDialog = ({
                 const clientVehicles = getClientVehicles(deleteClientDialog.clientId);
                 
                 return stats.total > 0
-                  ? `Are you sure you want to delete "${client?.name}" with ${clientVehicles.length} vehicle${clientVehicles.length !== 1 ? 's' : ''} and ${stats.total} task${stats.total !== 1 ? 's' : ''}? This action cannot be undone.`
+                  ? `Are you sure you want to delete "${client?.name}" with ${pluralize(clientVehicles.length, 'vehicle')} and ${pluralize(stats.total, 'task')}? This action cannot be undone.`
                   : `Are you sure you want to delete "${client?.name}"? This action cannot be undone.`;
               })()}
             </AlertDialogDescription>

@@ -230,7 +230,7 @@ export function BackupView({ onBack, googleApiKey }: BackupViewProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={onBack}>
+        <Button variant="ghost" size="icon" aria-label="Back" onClick={onBack}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h2 className="text-2xl font-bold">Backup & Sync</h2>

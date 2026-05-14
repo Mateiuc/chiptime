@@ -1,3 +1,15 @@
+/**
+ * Desktop Invoice view.
+ *
+ * "Invoice" here = formal accounting document for the shop's records.
+ * Manual line-item entry, no client/vehicle decoration, no photos. The PDF
+ * is intended for the shop's books, not as a customer-facing receipt.
+ *
+ * The customer-facing decorated document is the "Bill" — see
+ * `src/lib/billPdfRenderer.ts`. Keep these two concepts distinct: any
+ * UI string here should say "Invoice", any UI string in the bill flow
+ * should say "Bill".
+ */
 import { useState } from 'react';
 import { Plus, Trash2, FileDown, Bold, Italic, Underline } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -271,7 +283,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
                 <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={li.amount || ''}
                   onChange={e => updateLineItem(li.id, 'amount', parseFloat(e.target.value) || 0)} />
                 {lineItems.length > 1 && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
+                  <Button variant="ghost" size="icon" aria-label="Remove line item" className="h-8 w-8 shrink-0" onClick={() => removeLineItem(li.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 )}
@@ -309,7 +321,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
                   onChange={e => updatePart(p.id, 'quantity', parseInt(e.target.value) || 0)} />
                 <Input type="number" placeholder="$" className="w-20 text-xs h-8" value={p.price || ''}
                   onChange={e => updatePart(p.id, 'price', parseFloat(e.target.value) || 0)} />
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removePart(p.id)}>
+                <Button variant="ghost" size="icon" aria-label="Remove part" className="h-8 w-8 shrink-0" onClick={() => removePart(p.id)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>

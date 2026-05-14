@@ -353,7 +353,7 @@ export const TaskCard = ({
             fileName,
             totalCost: displayedTotal,
             vehicleInfo: vehicleInfoStr,
-            clientName: client?.name || 'Customer',
+            clientName: client?.name || 'Client',
             clientPhone: client?.phone,
           };
         } catch (mergeError) {
@@ -367,7 +367,7 @@ export const TaskCard = ({
         fileName,
         totalCost: displayedTotal,
         vehicleInfo: vehicleInfoStr,
-        clientName: client?.name || 'Customer',
+        clientName: client?.name || 'Client',
         clientPhone: client?.phone,
       };
     } catch (error) {
@@ -483,7 +483,7 @@ export const TaskCard = ({
       
       toast({
         title: "Bill Generated",
-        description: `Invoice saved as ${fileName}`
+        description: `Bill saved as ${fileName}`
       });
 
       // Still show share dialog for copy message option
@@ -747,8 +747,9 @@ export const TaskCard = ({
     });
   }
   const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
-  // Phase 1: ignore task.billedAmount / task.importedSalary entirely.
-  // Total = live labor + services + parts, with per-vehicle discount on labor.
+  // Phase 2: importedSalary short-circuits computeTaskTotal (locks task labor
+  // to the imported figure); render via the amber Imported badge when present.
+  // Otherwise total = live labor + services + parts, with per-vehicle discount on labor.
   const partsCost = (task.sessions || []).reduce((total, session) => {
     return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
   }, 0);
@@ -800,7 +801,7 @@ export const TaskCard = ({
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" aria-label="More options" className="h-8 w-8">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

@@ -1,5 +1,6 @@
 import { Task, WorkSession, WorkPeriod, Part } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -535,7 +536,7 @@ export const EditTaskDialog = ({
   // Shared footer
   const renderFooter = (desktop: boolean) => (
     <DialogFooter className={`${desktop ? 'px-6 py-4' : 'px-4 py-3'} border-t bg-card/80 backdrop-blur-sm flex justify-center items-center gap-3`}>
-      {onDelete && !showDeleteConfirm && (
+      {onDelete && (
         <Button
           variant="destructive"
           size={desktop ? "default" : "sm"}
@@ -544,13 +545,6 @@ export const EditTaskDialog = ({
         >
           {!desktop ? <><span className="text-xs">Delete</span><span className="text-xs">Car</span></> : "Delete Car"}
         </Button>
-      )}
-      {onDelete && showDeleteConfirm && (
-        <div className="flex gap-2 items-center justify-center">
-          <span className="text-sm text-destructive font-medium">Delete this car?</span>
-          <Button variant="destructive" size="sm" onClick={() => { onDelete(task.id); onOpenChange(false); }}>Yes</Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>No</Button>
-        </div>
       )}
       {!showDeleteConfirm && (
         <>
@@ -575,9 +569,33 @@ export const EditTaskDialog = ({
     </DialogFooter>
   );
 
+  // Shared confirmation dialog (mounts in a portal — placement is cosmetic).
+  const deleteAlert = onDelete ? (
+    <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialogContent className="w-[90vw] max-w-sm p-4 rounded-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-base">Delete Car</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm">
+            Delete this car? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-row gap-2">
+          <AlertDialogCancel className="m-0">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => { onDelete(task.id); setShowDeleteConfirm(false); onOpenChange(false); }}
+            className="m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  ) : null;
+
   // ============ MOBILE LAYOUT ============
   if (isMobile) {
     return (
+      <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col inset-0">
           <DialogHeader className={`px-4 py-3 border-b ${colorScheme.gradient}`}>
@@ -601,7 +619,7 @@ export const EditTaskDialog = ({
                         className={`h-6 w-6 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
                         onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
                         title="Apply cloning rate to this session"
-                      >
+                       aria-label="Apply cloning rate to this session">
                         <Copy className="h-3 w-3" fill={session.isCloning ? 'currentColor' : 'none'} />
                       </Button>
                       <Button
@@ -610,7 +628,7 @@ export const EditTaskDialog = ({
                         className={`h-6 w-6 ${session.isProgramming ? 'text-primary' : 'text-muted-foreground/40'}`}
                         onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isProgramming: !s.isProgramming } : s))}
                         title="Apply programming rate to this session"
-                      >
+                       aria-label="Apply programming rate to this session">
                         <Cpu className="h-3 w-3" fill={session.isProgramming ? 'currentColor' : 'none'} />
                       </Button>
                       <Button
@@ -619,7 +637,7 @@ export const EditTaskDialog = ({
                         className={`h-6 w-6 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
                         onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
                         title="Apply add key rate to this session"
-                      >
+                       aria-label="Apply add key rate to this session">
                         <Key className="h-3 w-3" fill={session.isAddKey ? 'currentColor' : 'none'} />
                       </Button>
                       <Button
@@ -628,10 +646,10 @@ export const EditTaskDialog = ({
                         className={`h-6 w-6 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
                         onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
                         title="Apply all keys lost rate to this session"
-                      >
+                       aria-label="Apply all keys lost rate to this session">
                         <KeyRound className="h-3 w-3" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
+                      <Button variant="ghost" size="icon" aria-label="Delete session" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -669,7 +687,7 @@ export const EditTaskDialog = ({
                               <Flag className="h-2.5 w-2.5" fill={period.chargeMinimumHour ? 'currentColor' : 'none'} />
                               Min 1hr
                             </button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                            <Button variant="ghost" size="icon" aria-label="Delete period" className="h-6 w-6" onClick={() => handleDeletePeriod(session.id, period.id)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -746,7 +764,7 @@ export const EditTaskDialog = ({
                               className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
                             >Client</button>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete part" className="h-6 w-6 ml-1" onClick={() => handleDeletePart(session.id, partIndex)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -776,11 +794,14 @@ export const EditTaskDialog = ({
           {renderFooter(false)}
         </DialogContent>
       </Dialog>
+      {deleteAlert}
+      </>
     );
   }
 
   // ============ DESKTOP LAYOUT ============
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="inset-0 w-full h-full max-w-none max-h-none p-0 rounded-none border-none flex flex-col overflow-hidden">
         {/* Colorful header */}
@@ -870,7 +891,7 @@ export const EditTaskDialog = ({
                       className={`h-8 w-8 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
                       onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
                       title="Charge minimum 1 hour for this session"
-                    >
+                     aria-label="Charge minimum 1 hour for this session">
                       <Flag className="h-4 w-4" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
                     </Button>
                     <Button
@@ -879,7 +900,7 @@ export const EditTaskDialog = ({
                       className={`h-8 w-8 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
                       onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
                       title="Apply cloning rate to this session"
-                    >
+                     aria-label="Apply cloning rate to this session">
                       <Copy className="h-4 w-4" fill={session.isCloning ? 'currentColor' : 'none'} />
                     </Button>
                     <Button
@@ -888,7 +909,7 @@ export const EditTaskDialog = ({
                       className={`h-8 w-8 ${session.isProgramming ? 'text-primary' : 'text-muted-foreground/40'}`}
                       onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isProgramming: !s.isProgramming } : s))}
                       title="Apply programming rate to this session"
-                    >
+                     aria-label="Apply programming rate to this session">
                       <Cpu className="h-4 w-4" fill={session.isProgramming ? 'currentColor' : 'none'} />
                     </Button>
                     <Button
@@ -897,7 +918,7 @@ export const EditTaskDialog = ({
                       className={`h-8 w-8 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
                       onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
                       title="Apply add key rate to this session"
-                    >
+                     aria-label="Apply add key rate to this session">
                       <Key className="h-4 w-4" fill={session.isAddKey ? 'currentColor' : 'none'} />
                     </Button>
                     <Button
@@ -906,10 +927,10 @@ export const EditTaskDialog = ({
                       className={`h-8 w-8 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
                       onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
                       title="Apply all keys lost rate to this session"
-                    >
+                     aria-label="Apply all keys lost rate to this session">
                       <KeyRound className="h-4 w-4" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                    <Button variant="ghost" size="icon" aria-label="Delete session" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -965,7 +986,7 @@ export const EditTaskDialog = ({
                           <span className="text-sm font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full shrink-0">
                             {formatDuration(period.duration)}
                           </span>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete period" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1030,7 +1051,7 @@ export const EditTaskDialog = ({
                                   className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
                                 >Client</button>
                               </div>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
+                              <Button variant="ghost" size="icon" aria-label="Delete part" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -1062,5 +1083,7 @@ export const EditTaskDialog = ({
         {renderFooter(true)}
       </DialogContent>
     </Dialog>
+    {deleteAlert}
+    </>
   );
 };

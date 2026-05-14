@@ -12,6 +12,7 @@ import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
+import { dlog } from '@/lib/devLog';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
 import { migratePhotosToFilesystem, reconcileCloudPhotos } from '@/lib/photoMigration';
@@ -57,7 +58,7 @@ const Index = () => {
       // Migrate photos to filesystem (runs after storage migration)
       const photoMigration = await migratePhotosToFilesystem();
       if (photoMigration.migrated) {
-        console.log(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
+        dlog(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
       }
 
       // Reconcile any photos that have local files but never got cloudPath persisted
@@ -65,7 +66,7 @@ const Index = () => {
       reconcileCloudPhotos()
         .then(({ uploaded, failed }) => {
           if (uploaded > 0 || failed > 0) {
-            console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
+            dlog(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
           }
         })
         .catch(err => {
@@ -104,7 +105,7 @@ const Index = () => {
   // Client collapse/expand — all collapsed by default. Track expanded set.
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set());
   useEffect(() => {
-    console.log('[Index] mount — expandedClients size:', expandedClients.size);
+    dlog('[Index] mount — expandedClients size:', expandedClients.size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleClientCollapse = (clientId: string) => {
@@ -738,10 +739,10 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />
-            <Button variant="default" size="icon" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
+            <Button variant="default" size="icon" aria-label="Add vehicle" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
               <Plus className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="h-8 w-8">
+            <Button variant="ghost" size="icon" aria-label="Open settings" onClick={() => setShowSettings(true)} className="h-8 w-8">
               <SettingsIcon className="h-4 w-4" />
             </Button>
           </div>

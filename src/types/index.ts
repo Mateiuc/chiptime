@@ -99,7 +99,11 @@ export interface Task {
   createdAt: Date;
   startTime?: Date;
   activeSessionId?: string; // Track which session is currently being worked on
-  chargeMinimumHour?: boolean; // @deprecated - use session.chargeMinimumHour instead
+  /**
+   * Legacy: superseded by `Period.chargeMinimumHour`. Keep for XML import
+   * compatibility; new code should use the per-period flag.
+   */
+  chargeMinimumHour?: boolean;
   importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column — locks task total
   diagnosticPdfUrl?: string; // Last-known signed URL (may expire)
   diagnosticPdfPath?: string; // Storage path in private bucket (canonical)

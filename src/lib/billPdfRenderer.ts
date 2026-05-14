@@ -1,8 +1,18 @@
 /**
  * Shared bill PDF renderer.
  *
- * Single source of truth for the branded bill/invoice PDF. Used by both the
- * mobile TaskCard and the Desktop dashboard.
+ * "Bill" vs "Invoice" — terminology used across this codebase:
+ *   - Bill   = customer-facing receipt with company decoration (logo,
+ *              background art, photos). Generated here, surfaced via the
+ *              mobile TaskCard "Generate Bill" flow and the desktop
+ *              dashboard's bill action. Sent to clients.
+ *   - Invoice = formal accounting document for the shop's records,
+ *               line-item driven, no decoration. See
+ *               `src/components/DesktopInvoiceView.tsx`.
+ *
+ * UI strings ("Bill saved as ...", "Generate Bill") must match the document
+ * type actually rendered. Do not use "Invoice" wording for the output of
+ * this renderer.
  */
 
 import jsPDF from 'jspdf';

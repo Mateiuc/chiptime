@@ -23,6 +23,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
+import { pluralize } from '@/lib/pluralize';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
@@ -263,7 +264,7 @@ const DesktopDashboard = () => {
       }
       await setTasks([...tasks, ...newTasks]);
 
-      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${pluralize(newTasks.length, 'task')} (${pluralize(newVehicles.length, 'new vehicle')})`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });
@@ -1425,7 +1426,7 @@ const DesktopDashboard = () => {
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                 setEditingVehicleId(vehicle.id);
                                 setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '', discountType: vehicle.discountType || 'fixed', discountValue: vehicle.discountValue?.toString() || '' });
-                              }} title="Edit Vehicle">
+                              }} title="Edit Vehicle" aria-label="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               {clients.length > 1 && (
@@ -1441,7 +1442,7 @@ const DesktopDashboard = () => {
                                   ))}
                                 </select>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteVehicleDialog({ open: true, vehicleId: vehicle.id })} title="Delete Vehicle">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteVehicleDialog({ open: true, vehicleId: vehicle.id })} title="Delete Vehicle" aria-label="Delete Vehicle">
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
                             </div>
@@ -1541,7 +1542,7 @@ const DesktopDashboard = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit" aria-label="Edit">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         {task.status === 'completed' && (
@@ -1559,7 +1560,7 @@ const DesktopDashboard = () => {
                                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Re-generate Bill">
                                               <FileText className="h-3.5 w-3.5 mr-1" />Bill
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid" aria-label="Mark Paid">
                                               <DollarSign className="h-3.5 w-3.5" />
                                             </Button>
                                           </>
@@ -1570,14 +1571,14 @@ const DesktopDashboard = () => {
                                           </Button>
                                         )}
                                         {client.portalId && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank')} title="Client Portal">
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank')} title="Client Portal" aria-label="Client Portal">
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'} aria-label={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
                                           <FileUp className={`h-3.5 w-3.5 ${task.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTaskDialog({ open: true, taskId: task.id })} title="Delete">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTaskDialog({ open: true, taskId: task.id })} title="Delete" aria-label="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>
                                       </div>

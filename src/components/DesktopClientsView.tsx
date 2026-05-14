@@ -188,6 +188,7 @@ export const DesktopClientsView = ({
   };
 
   const handleShareLink = async (client: Client) => {
+    if (!selectedClient) return;
     try {
       const result = await syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, selectedClient.portalBgColor || settings.portalBgColor, selectedClient.portalBusinessName || settings.portalBusinessName, selectedClient.portalBgImageUrl || settings.portalBgImageUrl);
       onUpdateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });

@@ -2,6 +2,8 @@ import { Task, SessionPhoto } from '@/types';
 import { photoStorageService } from '@/services/photoStorageService';
 import { indexedDB } from '@/lib/indexedDB';
 import { capacitorStorage } from '@/lib/capacitorStorage';
+import { dlog } from '@/lib/devLog';
+import { pluralize } from '@/lib/pluralize';
 
 /**
  * Migrates existing photos from base64 storage in tasks to filesystem storage.
@@ -48,7 +50,7 @@ export async function migratePhotosToFilesystem(): Promise<{ migrated: boolean; 
                     photo.id
                   );
 
-                  console.log(`[PhotoMigration] Migrated photo ${photo.id} to ${filePath}`);
+                  dlog(`[PhotoMigration] Migrated photo ${photo.id} to ${filePath}`);
 
                   // Return updated photo with filePath, no base64
                   taskModified = true;
@@ -95,11 +97,11 @@ export async function migratePhotosToFilesystem(): Promise<{ migrated: boolean; 
       });
 
       await capacitorStorage.setTasks(mergedTasks);
-      console.log(`[PhotoMigration] Saved ${updatedTasks.length} updated tasks`);
+      dlog(`[PhotoMigration] Saved ${pluralize(updatedTasks.length, 'updated task')}`);
     }
 
     if (needsMigration) {
-      console.log(`[PhotoMigration] Migration complete: ${photoCount} photos migrated`);
+      dlog(`[PhotoMigration] Migration complete: ${pluralize(photoCount, 'photo')} migrated`);
     }
 
     return { migrated: needsMigration, photoCount };
@@ -159,7 +161,7 @@ export async function reconcileCloudPhotos(): Promise<{ uploaded: number; failed
       const current = await capacitorStorage.getTasks();
       const merged = current.map(t => updatedTasks.find(u => u.id === t.id) || t);
       await capacitorStorage.setTasks(merged);
-      console.log(`[PhotoReconciler] Backfilled cloudPath on ${uploaded} photos across ${updatedTasks.length} tasks`);
+      dlog(`[PhotoReconciler] Backfilled cloudPath on ${pluralize(uploaded, 'photo')} across ${pluralize(updatedTasks.length, 'task')}`);
     }
   } catch (e) {
     console.error('[PhotoReconciler] failed:', e);

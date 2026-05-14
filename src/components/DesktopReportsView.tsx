@@ -13,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
+import { pluralize } from '@/lib/pluralize';
 import { formatDuration, formatCurrency } from '@/lib/formatTime';
 import { computeTaskTotalAllocated } from '@/lib/billing';
 import { ImportedBadge } from '@/components/ImportedBadge';
@@ -262,7 +263,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
     return [
       ...top,
-      { vehicleId: '__others__', label: `Others (${rest.length} vehicles)`, revenue: othersRevenue },
+      { vehicleId: '__others__', label: `Others (${pluralize(rest.length, 'vehicle')})`, revenue: othersRevenue },
     ];
   }, [revenueByVehicleFull]);
 

@@ -266,7 +266,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
                   title="Apply cloning rate to this session"
-                >
+                 aria-label="Apply cloning rate to this session">
                   <Copy className="h-3.5 w-3.5" fill={session.isCloning ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -275,7 +275,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isProgramming ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isProgramming: !s.isProgramming } : s))}
                   title="Apply programming rate to this session"
-                >
+                 aria-label="Apply programming rate to this session">
                   <Cpu className="h-3.5 w-3.5" fill={session.isProgramming ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -284,7 +284,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
                   title="Apply add key rate to this session"
-                >
+                 aria-label="Apply add key rate to this session">
                   <Key className="h-3.5 w-3.5" fill={session.isAddKey ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -293,10 +293,10 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
                   title="Apply all keys lost rate to this session"
-                >
+                 aria-label="Apply all keys lost rate to this session">
                   <KeyRound className="h-3.5 w-3.5" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                <Button variant="ghost" size="icon" aria-label="Delete session" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -362,7 +362,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                         <Flag className="h-2.5 w-2.5" fill={period.chargeMinimumHour ? 'currentColor' : 'none'} />
                         Min 1hr
                       </button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
+                      <Button variant="ghost" size="icon" aria-label="Delete period" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeletePeriod(session.id, period.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -418,7 +418,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                               className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${part.providedByClient ? 'bg-green-700 text-white' : 'text-muted-foreground'}`}
                             >Client</button>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete part" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeletePart(session.id, partIndex)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>

@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     if (!id) {
       return new Response(JSON.stringify({ error: 'Missing id parameter' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -54,14 +54,14 @@ Deno.serve(async (req) => {
       console.error('Portal lookup error:', error)
       return new Response(JSON.stringify({ error: 'Database error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     if (!data) {
       return new Response(JSON.stringify({ error: 'Portal not found' }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
           locked: isLocked,
           lockedUntil: isLocked ? new Date(lockedUntilMs).toISOString() : null,
         }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...cors, 'Content-Type': 'application/json' },
         })
       }
 
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
         }), {
           status: 429,
           headers: {
-            ...corsHeaders,
+            ...cors,
             'Content-Type': 'application/json',
             'Retry-After': String(retryAfterSeconds),
           },
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
           }), {
             status: 429,
             headers: {
-              ...corsHeaders,
+              ...cors,
               'Content-Type': 'application/json',
               'Retry-After': String(retryAfterSeconds),
             },
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
           attemptsRemaining: MAX_ATTEMPTS - newCount,
         }), {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...cors, 'Content-Type': 'application/json' },
         })
       }
 
@@ -177,13 +177,13 @@ Deno.serve(async (req) => {
       clientName: data.client_name,
       requiresCode: false,
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('get-portal error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

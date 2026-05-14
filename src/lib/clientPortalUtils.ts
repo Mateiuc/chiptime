@@ -148,7 +148,6 @@ export function calculateClientCosts(
   defaultAddKeyRate?: number,
   defaultAllKeysLostRate?: number
 ): ClientCostSummary {
-  const hourlyRate = client.hourlyRate || defaultHourlyRate;
   // Build a Settings shape so computeSessionLaborDetails resolves rates
   // through the same fallback chain as every other billing surface.
   const settingsForBilling: Settings = {

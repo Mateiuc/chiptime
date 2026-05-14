@@ -903,7 +903,7 @@ export const ManageClientsDialog = ({
                 const clientVehicles = getClientVehicles(deleteClientDialog.clientId);
                 
                 return stats.total > 0
-                  ? `Are you sure you want to delete "${client?.name}" with ${clientVehicles.length} vehicle${clientVehicles.length !== 1 ? 's' : ''} and ${stats.total} task${stats.total !== 1 ? 's' : ''}? This action cannot be undone.`
+                  ? `Are you sure you want to delete "${client?.name}" with ${pluralize(clientVehicles.length, 'vehicle')} and ${pluralize(stats.total, 'task')}? This action cannot be undone.`
                   : `Are you sure you want to delete "${client?.name}"? This action cannot be undone.`;
               })()}
             </AlertDialogDescription>

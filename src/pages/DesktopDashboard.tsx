@@ -23,6 +23,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
+import { pluralize } from '@/lib/pluralize';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
@@ -263,7 +264,7 @@ const DesktopDashboard = () => {
       }
       await setTasks([...tasks, ...newTasks]);
 
-      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${pluralize(newTasks.length, 'task')} (${pluralize(newVehicles.length, 'new vehicle')})`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });

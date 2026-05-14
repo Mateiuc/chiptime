@@ -135,13 +135,14 @@ describe("computeTaskTotal", () => {
 });
 
 describe("computeVehicleTotal & computeTaskTotalAllocated", () => {
-  const vehicle: Vehicle = {
+  const vehicle = {
     id: "v1",
     clientId: "c1",
     make: "X",
+    vin: "VIN",
     discountType: "amount",
     discountValue: 100,
-  } as Vehicle;
+  } as unknown as Vehicle;
 
   it("uneven discount split: each per-task discount is integer; sum may exceed input", () => {
     // Three tasks with labor pools 33/33/34 → discount weights 0.33/0.33/0.34

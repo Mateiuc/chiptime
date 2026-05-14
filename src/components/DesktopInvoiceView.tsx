@@ -97,7 +97,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
 
   const generatePDF = () => {
     const doc = new jsPDF({ format: 'letter' });
-    doc.addImage(invoiceBackground, 'JPEG', 0, 0, 215.9, 279.4);
+    doc.addImage(invoiceBackground, 'JPEG', 0, 0, LETTER_WIDTH_MM, LETTER_HEIGHT_MM);
 
     const col1X = 20;
     const col2X = 130;
@@ -236,8 +236,8 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
 
   // Preview scaling
   const previewW = 500;
-  const previewH = previewW * (279.4 / 215.9);
-  const scale = previewW / 215.9;
+  const previewH = previewW * (LETTER_HEIGHT_MM / LETTER_WIDTH_MM);
+  const scale = previewW / LETTER_WIDTH_MM;
 
   // Preview description max-width mirrors PDF logic
   const previewDescMaxW = getDescWidth() * scale;
@@ -361,12 +361,12 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
               To:
             </span>
             {/* Date — above stars */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 195.9) * scale, top: 51 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ right: (LETTER_WIDTH_MM - 195.9) * scale, top: 51 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
             {/* Due date */}
             {dueDate && (
-              <span className="absolute text-muted-foreground" style={{ right: (215.9 - 195.9) * scale, top: 55 * scale, fontSize: `${9 * scale * 0.35}px` }}>
+              <span className="absolute text-muted-foreground" style={{ right: (LETTER_WIDTH_MM - 195.9) * scale, top: 55 * scale, fontSize: `${9 * scale * 0.35}px` }}>
                 Due: {new Date(dueDate).toLocaleDateString('en-US')}
               </span>
             )}
@@ -388,7 +388,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
               <span className="absolute font-bold" style={{ left: 129 * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>TIME</span>
             )}
             {hasAnyAmount && (
-              <span className="absolute font-bold text-right" style={{ right: (215.9 - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
+              <span className="absolute font-bold text-right" style={{ right: (LETTER_WIDTH_MM - 190.9) * scale, top: 68.5 * scale, fontSize: `${16 * scale * 0.35}px` }}>AMOUNT</span>
             )}
 
             {/* Active line items */}
@@ -417,7 +417,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
                     </span>
                   )}
                   {hasAnyAmount && li.amount > 0 && (
-                    <span className="absolute text-right" style={{ right: (215.9 - 193) * scale, top: yBase * scale }}>
+                    <span className="absolute text-right" style={{ right: (LETTER_WIDTH_MM - 193) * scale, top: yBase * scale }}>
                       {formatCurrency(li.amount)}
                     </span>
                   )}
@@ -426,10 +426,10 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
             })}
 
             {/* Total */}
-            <span className="absolute font-bold" style={{ right: (215.9 - 145.9) * scale, top: 258 * scale, fontSize: `${16 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ right: (LETTER_WIDTH_MM - 145.9) * scale, top: 258 * scale, fontSize: `${16 * scale * 0.35}px` }}>
               TOTAL:
             </span>
-            <span className="absolute font-bold text-right" style={{ right: (215.9 - 193) * scale, top: 258 * scale, fontSize: `${16 * scale * 0.35}px` }}>
+            <span className="absolute font-bold text-right" style={{ right: (LETTER_WIDTH_MM - 193) * scale, top: 258 * scale, fontSize: `${16 * scale * 0.35}px` }}>
               {formatCurrency(grandTotal)}
             </span>
           </div>

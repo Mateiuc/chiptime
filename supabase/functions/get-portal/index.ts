@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/ratelimit.ts'
 
 // Constant-time string compare to avoid leaking access-code prefixes via
 // response-time differences. Length check is acceptable here — portal
@@ -17,9 +14,16 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const pre = handlePreflight(req)
+  if (pre) return pre
+
+  // Per-IP throttle runs BEFORE auth/PIN checks so an attacker can't
+  // exhaust the bucket without revealing per-PIN bits. Per-portal lockout
+  // (failed_attempts) below is the inner ring.
+  const rl = await checkRateLimit(req, 'get-portal', { windowSec: 60, maxRequests: 30 })
+  if (rl) return rl
+
+  const cors = corsHeaders(req)
 
   try {
     const url = new URL(req.url)

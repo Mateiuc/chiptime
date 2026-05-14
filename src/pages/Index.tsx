@@ -12,6 +12,7 @@ import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
+import { dlog } from '@/lib/devLog';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
 import { migratePhotosToFilesystem, reconcileCloudPhotos } from '@/lib/photoMigration';

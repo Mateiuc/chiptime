@@ -384,7 +384,14 @@ const Index = () => {
             updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
           }
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after work completion:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 
@@ -491,7 +498,14 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after mark-billed:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 
@@ -510,7 +524,14 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after mark-paid:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 

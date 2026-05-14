@@ -1,6 +1,6 @@
-import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod } from '@/types';
-import { calcPeriodCost } from '@/lib/formatTime';
+import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod, Settings } from '@/types';
 import { applyLaborDiscount } from '@/lib/discount';
+import { computeSessionLaborDetails } from '@/lib/billing';
 
 export const PORTAL_BASE_URL =
   (import.meta.env.VITE_PORTAL_BASE_URL as string | undefined) ||
@@ -149,10 +149,15 @@ export function calculateClientCosts(
   defaultAllKeysLostRate?: number
 ): ClientCostSummary {
   const hourlyRate = client.hourlyRate || defaultHourlyRate;
-  const cloningRate = client.cloningRate || defaultCloningRate || 0;
-  const programmingRate = client.programmingRate || defaultProgrammingRate || 0;
-  const addKeyRate = client.addKeyRate || defaultAddKeyRate || 0;
-  const allKeysLostRate = client.allKeysLostRate || defaultAllKeysLostRate || 0;
+  // Build a Settings shape so computeSessionLaborDetails resolves rates
+  // through the same fallback chain as every other billing surface.
+  const settingsForBilling: Settings = {
+    defaultHourlyRate,
+    defaultCloningRate,
+    defaultProgrammingRate,
+    defaultAddKeyRate,
+    defaultAllKeysLostRate,
+  };
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
   
   let grandTotalLabor = 0;
@@ -220,20 +225,17 @@ export function calculateClientCosts(
       let diagnosticShown = false;
       task.sessions.forEach((session) => {
         const duration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-        const baseLaborCost = session.periods.reduce((sum, period) => {
-          if (period.chargeMinimumHour && period.duration < 3600) {
-            return sum + Math.ceil(hourlyRate);
-          }
-          return sum + calcPeriodCost(period.duration, hourlyRate);
-        }, 0);
-        const minHourAdj = (!hasPeriodFlags && session.chargeMinimumHour && duration < 3600)
-          ? Math.ceil(((3600 - duration) / 3600) * hourlyRate) : 0;
-        const sessionCloningCost = (session.isCloning && cloningRate > 0) ? cloningRate : 0;
-        const sessionProgrammingCost = (session.isProgramming && programmingRate > 0) ? programmingRate : 0;
-        const sessionAddKeyCost = (session.isAddKey && addKeyRate > 0) ? addKeyRate : 0;
-        const sessionAllKeysLostCost = (session.isAllKeysLost && allKeysLostRate > 0) ? allKeysLostRate : 0;
-        const laborCost = Math.ceil(baseLaborCost + minHourAdj + sessionCloningCost + sessionProgrammingCost + sessionAddKeyCost + sessionAllKeysLostCost);
+        const d = computeSessionLaborDetails(session, client, settingsForBilling);
+        const minHourAdj = d.minHourAdj;
+        const sessionCloningCost = d.cloning;
+        const sessionProgrammingCost = d.programming;
+        const sessionAddKeyCost = d.addKey;
+        const sessionAllKeysLostCost = d.allKeysLost;
+        const laborCost = Math.ceil(d.total);
+        const sessionPartsCost = (session.parts || []).reduce(
+          (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
+          0
+        );
         const sessionPartsCost = (session.parts || []).reduce(
           (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
           0

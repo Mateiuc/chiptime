@@ -23,18 +23,18 @@ export const contactsService = {
   // Pick a single contact using browser's Contact Picker API (PWA)
   async pickContact(): Promise<PhoneContact | null> {
     if (!this.isContactPickerSupported()) {
-      console.log('[Contacts] Contact Picker API not supported in this browser');
+      dlog('[Contacts] Contact Picker API not supported in this browser');
       return null;
     }
 
     try {
-      console.log('[Contacts] Opening browser contact picker...');
+      dlog('[Contacts] Opening browser contact picker...');
       const props = ['name', 'tel'];
       const contacts = await navigator.contacts!.select(props, { multiple: false });
       
       if (contacts.length > 0) {
         const contact = contacts[0];
-        console.log('[Contacts] User selected a contact:', contact.name?.[0]);
+        dlog('[Contacts] User selected a contact:', contact.name?.[0]);
         
         return {
           id: crypto.randomUUID(),
@@ -48,7 +48,7 @@ export const contactsService = {
         };
       }
       
-      console.log('[Contacts] User cancelled contact picker');
+      dlog('[Contacts] User cancelled contact picker');
       return null;
     } catch (error) {
       console.error('[Contacts] Error picking contact:', error);
@@ -58,7 +58,7 @@ export const contactsService = {
 
   async requestPermissions(): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) {
-      console.log('Not running on native platform');
+      dlog('Not running on native platform');
       return false;
     }
 
@@ -88,16 +88,16 @@ export const contactsService = {
   async getAllContacts(): Promise<PhoneContact[]> {
     // Check if running on native platform first
     if (!Capacitor.isNativePlatform()) {
-      console.log('[Contacts] Not running on native platform - contacts unavailable');
+      dlog('[Contacts] Not running on native platform - contacts unavailable');
       return [];
     }
 
     try {
-      console.log('[Contacts] Checking permission status...');
+      dlog('[Contacts] Checking permission status...');
       const hasPermission = await this.checkPermissions();
       
       if (!hasPermission) {
-        console.log('[Contacts] Permission not granted, requesting...');
+        dlog('[Contacts] Permission not granted, requesting...');
         const granted = await this.requestPermissions();
         if (!granted) {
           console.warn(
@@ -111,7 +111,7 @@ export const contactsService = {
         }
       }
 
-      console.log('[Contacts] Permission granted, fetching contacts from device...');
+      dlog('[Contacts] Permission granted, fetching contacts from device...');
       const result = await Contacts.getContacts({
         projection: {
           name: true,
@@ -120,7 +120,7 @@ export const contactsService = {
         }
       });
 
-      console.log(`[Contacts] Successfully fetched ${result.contacts.length} contacts`);
+      dlog(`[Contacts] Successfully fetched ${result.contacts.length} contacts`);
       
       const mappedContacts = result.contacts.map((contact: any) => ({
         id: contact.contactId || Math.random().toString(),
@@ -138,7 +138,7 @@ export const contactsService = {
         c => c.name !== 'Unknown' && c.phoneNumbers.length > 0
       );
       
-      console.log(`[Contacts] Returning ${validContacts.length} valid contacts (with name and phone)`);
+      dlog(`[Contacts] Returning ${validContacts.length} valid contacts (with name and phone)`);
       return validContacts;
     } catch (error: any) {
       console.error('[Contacts] Error fetching contacts:', error);

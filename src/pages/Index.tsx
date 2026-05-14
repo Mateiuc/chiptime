@@ -57,7 +57,7 @@ const Index = () => {
       // Migrate photos to filesystem (runs after storage migration)
       const photoMigration = await migratePhotosToFilesystem();
       if (photoMigration.migrated) {
-        console.log(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
+        dlog(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
       }
 
       // Reconcile any photos that have local files but never got cloudPath persisted
@@ -65,7 +65,7 @@ const Index = () => {
       reconcileCloudPhotos()
         .then(({ uploaded, failed }) => {
           if (uploaded > 0 || failed > 0) {
-            console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
+            dlog(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
           }
         })
         .catch(err => {
@@ -104,7 +104,7 @@ const Index = () => {
   // Client collapse/expand — all collapsed by default. Track expanded set.
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set());
   useEffect(() => {
-    console.log('[Index] mount — expandedClients size:', expandedClients.size);
+    dlog('[Index] mount — expandedClients size:', expandedClients.size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleClientCollapse = (clientId: string) => {

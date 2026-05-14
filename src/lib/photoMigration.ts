@@ -48,7 +48,7 @@ export async function migratePhotosToFilesystem(): Promise<{ migrated: boolean; 
                     photo.id
                   );
 
-                  console.log(`[PhotoMigration] Migrated photo ${photo.id} to ${filePath}`);
+                  dlog(`[PhotoMigration] Migrated photo ${photo.id} to ${filePath}`);
 
                   // Return updated photo with filePath, no base64
                   taskModified = true;
@@ -95,11 +95,11 @@ export async function migratePhotosToFilesystem(): Promise<{ migrated: boolean; 
       });
 
       await capacitorStorage.setTasks(mergedTasks);
-      console.log(`[PhotoMigration] Saved ${updatedTasks.length} updated tasks`);
+      dlog(`[PhotoMigration] Saved ${updatedTasks.length} updated tasks`);
     }
 
     if (needsMigration) {
-      console.log(`[PhotoMigration] Migration complete: ${photoCount} photos migrated`);
+      dlog(`[PhotoMigration] Migration complete: ${photoCount} photos migrated`);
     }
 
     return { migrated: needsMigration, photoCount };
@@ -159,7 +159,7 @@ export async function reconcileCloudPhotos(): Promise<{ uploaded: number; failed
       const current = await capacitorStorage.getTasks();
       const merged = current.map(t => updatedTasks.find(u => u.id === t.id) || t);
       await capacitorStorage.setTasks(merged);
-      console.log(`[PhotoReconciler] Backfilled cloudPath on ${uploaded} photos across ${updatedTasks.length} tasks`);
+      dlog(`[PhotoReconciler] Backfilled cloudPath on ${uploaded} photos across ${updatedTasks.length} tasks`);
     }
   } catch (e) {
     console.error('[PhotoReconciler] failed:', e);

@@ -865,8 +865,8 @@ export async function checkPortalAccess(portalId: string, preview?: boolean): Pr
   locked?: boolean;
   lockedUntil?: string | null;
 }> {
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  let url = `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`;
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
+  let url = `${supabaseUrl}/functions/v1/get-portal?id=${encodeURIComponent(portalId)}`;
   if (preview) url += '&preview=1';
   const resp = await fetch(url, {
     headers: {
@@ -905,9 +905,9 @@ export async function fetchPortalWithCode(portalId: string, code: string): Promi
   data: ClientCostSummary;
   clientName: string;
 }> {
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
   const resp = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/get-portal?id=${encodeURIComponent(portalId)}&code=${encodeURIComponent(code)}`,
+    `${supabaseUrl}/functions/v1/get-portal?id=${encodeURIComponent(portalId)}&code=${encodeURIComponent(code)}`,
     {
       headers: {
         'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,

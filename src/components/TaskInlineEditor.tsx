@@ -266,7 +266,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
                   title="Apply cloning rate to this session"
-                >
+                 aria-label="Apply cloning rate to this session">
                   <Copy className="h-3.5 w-3.5" fill={session.isCloning ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -275,7 +275,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isProgramming ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isProgramming: !s.isProgramming } : s))}
                   title="Apply programming rate to this session"
-                >
+                 aria-label="Apply programming rate to this session">
                   <Cpu className="h-3.5 w-3.5" fill={session.isProgramming ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -284,7 +284,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isAddKey ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAddKey: !s.isAddKey } : s))}
                   title="Apply add key rate to this session"
-                >
+                 aria-label="Apply add key rate to this session">
                   <Key className="h-3.5 w-3.5" fill={session.isAddKey ? 'currentColor' : 'none'} />
                 </Button>
                 <Button
@@ -293,7 +293,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   className={`h-7 w-7 ${session.isAllKeysLost ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isAllKeysLost: !s.isAllKeysLost } : s))}
                   title="Apply all keys lost rate to this session"
-                >
+                 aria-label="Apply all keys lost rate to this session">
                   <KeyRound className="h-3.5 w-3.5" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { dlog } from '@/lib/devLog';
 
@@ -143,7 +144,7 @@ export const appSyncService = {
       return null;
     }
     if (!data) return null;
-    const v = Number((data as any).data_version ?? 0);
+    const v = Number(data.data_version ?? 0);
     return Number.isFinite(v) ? v : 0;
   },
 
@@ -170,7 +171,7 @@ export const appSyncService = {
       const { data: updated, error } = await supabase
         .from('app_sync')
         .update({
-          data: sanitized as any,
+          data: sanitized as unknown as Json,
           data_version: lastKnownVersion + 1,
           updated_at: new Date().toISOString(),
         })
@@ -185,8 +186,8 @@ export const appSyncService = {
       }
 
       if (updated) {
-        const newVersion = Number((updated as any).data_version);
-        const newUpdatedAt = String((updated as any).updated_at);
+        const newVersion = Number(updated.data_version);
+        const newUpdatedAt = String(updated.updated_at);
         lastKnownVersion = newVersion;
         baseSnapshot = cloneSnap(sanitized);
         this.setLocalUpdatedAt(newUpdatedAt);
@@ -210,7 +211,7 @@ export const appSyncService = {
       .insert({
         sync_id: workspaceId,
         workspace_id: workspaceId,
-        data: sanitized as any,
+        data: sanitized as unknown as Json,
         data_version: 1,
         updated_at: now,
       })
@@ -220,7 +221,7 @@ export const appSyncService = {
     if (insertErr) {
       // Unique-violation (someone else inserted concurrently) — re-seed
       // and let the caller retry on the next mutation.
-      const code = (insertErr as any).code;
+      const code = (insertErr as { code?: string }).code;
       if (code === '23505') {
         lastKnownVersion = await this.getRemoteVersion();
         const fresh = await this.pullFromCloud();
@@ -233,8 +234,8 @@ export const appSyncService = {
     }
 
     if (inserted) {
-      const newVersion = Number((inserted as any).data_version);
-      const newUpdatedAt = String((inserted as any).updated_at);
+      const newVersion = Number(inserted.data_version);
+      const newUpdatedAt = String(inserted.updated_at);
       lastKnownVersion = newVersion;
       baseSnapshot = cloneSnap(sanitized);
       this.setLocalUpdatedAt(newUpdatedAt);
@@ -263,8 +264,8 @@ export const appSyncService = {
       return null;
     }
 
-    const syncData = normalizeRaw((data as any).data || {});
-    const version = Number((data as any).data_version ?? 0);
+    const syncData = normalizeRaw(data.data || {});
+    const version = Number(data.data_version ?? 0);
     lastKnownVersion = version;
     baseSnapshot = cloneSnap(syncData);
     dlog('[AppSync] Pulled v' + version + ', updated_at:', data.updated_at);

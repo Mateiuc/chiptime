@@ -21,7 +21,7 @@ import { Settings } from '@/types';
 import { formatCurrency } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
 import invoiceBackground from '@/assets/invoice-background.jpg';
-import { LETTER_WIDTH_MM, LETTER_HEIGHT_MM } from '@/lib/billPdfLayout';
+import { LETTER_WIDTH_MM, LETTER_HEIGHT_MM, RIGHT_MARGIN_MM, PAGE_CENTER_X_MM } from '@/lib/billPdfLayout';
 
 interface LineItem {
   id: string;
@@ -112,13 +112,13 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
 
     // Date at y=55, right-aligned, just above stars
     const billedDate = new Date(invoiceDate).toLocaleDateString('en-US');
-    doc.text(billedDate, 195.9, 55, { align: 'right' });
+    doc.text(billedDate, RIGHT_MARGIN_MM, 55, { align: 'right' });
 
     // Due date at y=59
     if (dueDate) {
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, 195.9, 59, { align: 'right' });
+      doc.text(`Due: ${new Date(dueDate).toLocaleDateString('en-US')}`, RIGHT_MARGIN_MM, 59, { align: 'right' });
     }
 
     // Client info starting at y=48, +4 spacing
@@ -144,7 +144,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
 
     doc.setLineWidth(0.3);
     doc.setDrawColor(255, 0, 0);
-    doc.line(20, tableTop + 8, 195.9, tableTop + 8);
+    doc.line(20, tableTop + 8, RIGHT_MARGIN_MM, tableTop + 8);
 
     let yPos = tableTop + 16;
     doc.setFontSize(11);
@@ -229,7 +229,7 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(ts, 107.95, 277.4, { align: 'center' });
+    doc.text(ts, PAGE_CENTER_X_MM, 277.4, { align: 'center' });
 
     doc.save(`Invoice_${clientName || 'invoice'}.pdf`);
   };
@@ -361,12 +361,12 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
               To:
             </span>
             {/* Date — above stars */}
-            <span className="absolute font-bold" style={{ right: (LETTER_WIDTH_MM - 195.9) * scale, top: 51 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
+            <span className="absolute font-bold" style={{ right: (LETTER_WIDTH_MM - RIGHT_MARGIN_MM) * scale, top: 51 * scale, color: '#800080', fontSize: `${17 * scale * 0.35}px` }}>
               {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-US') : ''}
             </span>
             {/* Due date */}
             {dueDate && (
-              <span className="absolute text-muted-foreground" style={{ right: (LETTER_WIDTH_MM - 195.9) * scale, top: 55 * scale, fontSize: `${9 * scale * 0.35}px` }}>
+              <span className="absolute text-muted-foreground" style={{ right: (LETTER_WIDTH_MM - RIGHT_MARGIN_MM) * scale, top: 55 * scale, fontSize: `${9 * scale * 0.35}px` }}>
                 Due: {new Date(dueDate).toLocaleDateString('en-US')}
               </span>
             )}

@@ -62,11 +62,16 @@ const Index = () => {
 
       // Reconcile any photos that have local files but never got cloudPath persisted
       // (rescues photos lost to the upload race condition).
-      reconcileCloudPhotos().then(({ uploaded, failed }) => {
-        if (uploaded > 0 || failed > 0) {
-          console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
-        }
-      });
+      reconcileCloudPhotos()
+        .then(({ uploaded, failed }) => {
+          if (uploaded > 0 || failed > 0) {
+            console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
+          }
+        })
+        .catch(err => {
+          // Background reconcile — log only, no toast (would fire on every cold-start network blip).
+          console.error('[Index] Failed to reconcile cloud photos on mount:', err);
+        });
     };
     performMigration();
   }, [toast]);

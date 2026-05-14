@@ -636,7 +636,14 @@ export const TaskCard = ({
               console.warn('[TaskCard] Cloud merge failed:', mergeErr);
             }
           })
-          .catch(err => console.warn('[TaskCard] Cloud upload failed:', err));
+          .catch(err => {
+            console.error('[TaskCard] Failed to upload photo to cloud:', err);
+            toast({
+              variant: 'destructive',
+              title: 'Photo upload failed',
+              description: "The photo was saved locally but couldn't reach the cloud. It will retry on next sync.",
+            });
+          });
       }
     } catch (error) {
       // User cancelled or camera error

@@ -424,7 +424,14 @@ const DesktopDashboard = () => {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[DesktopDashboard] Failed to sync portal after mark-billed:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 
@@ -437,7 +444,14 @@ const DesktopDashboard = () => {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[DesktopDashboard] Failed to sync portal after mark-paid:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 

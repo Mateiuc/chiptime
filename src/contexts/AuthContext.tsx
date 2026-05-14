@@ -88,11 +88,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }, 0);
     });
     // 2) Then fetch existing session
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      setSession(existing);
-      setUser(existing?.user ?? null);
-      loadWorkspace(existing?.user?.id ?? null).finally(() => setLoading(false));
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session: existing } }) => {
+        setSession(existing);
+        setUser(existing?.user ?? null);
+        loadWorkspace(existing?.user?.id ?? null).finally(() => setLoading(false));
+      })
+      .catch(err => {
+        // Don't leave the app stuck on a loading splash if auth fetch fails.
+        console.error('[Auth] Failed to fetch existing session:', err);
+        setLoading(false);
+      });
     return () => sub.subscription.unsubscribe();
   }, [loadWorkspace]);
 

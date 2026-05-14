@@ -62,11 +62,16 @@ const Index = () => {
 
       // Reconcile any photos that have local files but never got cloudPath persisted
       // (rescues photos lost to the upload race condition).
-      reconcileCloudPhotos().then(({ uploaded, failed }) => {
-        if (uploaded > 0 || failed > 0) {
-          console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
-        }
-      });
+      reconcileCloudPhotos()
+        .then(({ uploaded, failed }) => {
+          if (uploaded > 0 || failed > 0) {
+            console.log(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
+          }
+        })
+        .catch(err => {
+          // Background reconcile — log only, no toast (would fire on every cold-start network blip).
+          console.error('[Index] Failed to reconcile cloud photos on mount:', err);
+        });
     };
     performMigration();
   }, [toast]);
@@ -379,7 +384,14 @@ const Index = () => {
             updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
           }
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after work completion:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 
@@ -486,7 +498,14 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after mark-billed:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 
@@ -505,7 +524,14 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+        .catch(err => {
+          console.error('[Index] Failed to sync portal after mark-paid:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Portal sync failed',
+            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
+          });
+        });
     }
   };
 

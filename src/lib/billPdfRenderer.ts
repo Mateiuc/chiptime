@@ -17,7 +17,7 @@
 
 import jsPDF from 'jspdf';
 import type { Task, Client, Vehicle, SessionPhoto, Settings as SettingsType } from '@/types';
-import { calcPeriodCost, formatCurrency } from '@/lib/formatTime';
+import { formatCurrency } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { stripDiacritics } from '@/lib/pdfUtils';
 import { computeSessionLaborDetails } from '@/lib/billing';

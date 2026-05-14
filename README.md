@@ -71,3 +71,13 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Environment Variables (Deploy Notes)
+
+The following Vite env vars are read at build time:
+
+- `VITE_PORTAL_BASE_URL` — Public base URL of the client portal (e.g. `https://chiptime.chipplc.one`). Falls back to the production domain if unset.
+- `VITE_SUPABASE_URL` — Supabase project URL. Used for direct calls to `/functions/v1/get-portal`. Auto-managed by Lovable Cloud.
+- `VITE_SUPABASE_PUBLISHABLE_KEY` / `VITE_SUPABASE_PROJECT_ID` — Auto-managed by Lovable Cloud.
+
+Set `VITE_PORTAL_BASE_URL` per environment if the portal is hosted on a non-default domain.

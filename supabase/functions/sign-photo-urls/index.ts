@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -30,19 +30,19 @@ Deno.serve(async (req) => {
     )
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     const { paths, expiresIn } = await req.json().catch(() => ({}))
     if (!Array.isArray(paths) || paths.length === 0) {
       return new Response(JSON.stringify({ urls: {} }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     if (paths.length > 200) {
       return new Response(JSON.stringify({ error: 'Too many paths (max 200)' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     )
     if (wsErr || !wsId) {
       return new Response(JSON.stringify({ error: 'No workspace for user' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     const urls: Record<string, string> = {}
     if (safePaths.length === 0) {
       return new Response(JSON.stringify({ urls }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     if (error) {
       console.error('createSignedUrls error:', error)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -119,12 +119,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ urls }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('sign-photo-urls error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

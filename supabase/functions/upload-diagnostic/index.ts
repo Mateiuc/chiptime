@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     if (!base64 || !pathPrefix) {
       return new Response(JSON.stringify({ error: 'Missing required fields (base64 and taskId or vehicleId)' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -48,13 +48,13 @@ Deno.serve(async (req) => {
     if (wsErr || !wsId) {
       return new Response(JSON.stringify({ error: 'No workspace for user' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
     if (!/^[a-zA-Z0-9._-]+$/.test(String(pathPrefix))) {
       return new Response(JSON.stringify({ error: 'Invalid id' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       console.error('Upload error:', error)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -94,18 +94,18 @@ Deno.serve(async (req) => {
       console.error('Sign error:', signErr)
       return new Response(JSON.stringify({ error: 'Storage error' }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
     return new Response(JSON.stringify({ url: signed.signedUrl, path: filePath }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('upload-diagnostic error:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

@@ -12,10 +12,9 @@ import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
-import { dlog } from '@/lib/devLog';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
-import { migratePhotosToFilesystem, reconcileCloudPhotos } from '@/lib/photoMigration';
+import { migratePhotosToFilesystem } from '@/lib/photoMigration';
 import { photoStorageService } from '@/services/photoStorageService';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { contactsService } from '@/services/contactsService';
@@ -58,21 +57,8 @@ const Index = () => {
       // Migrate photos to filesystem (runs after storage migration)
       const photoMigration = await migratePhotosToFilesystem();
       if (photoMigration.migrated) {
-        dlog(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
+        console.log(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
       }
-
-      // Reconcile any photos that have local files but never got cloudPath persisted
-      // (rescues photos lost to the upload race condition).
-      reconcileCloudPhotos()
-        .then(({ uploaded, failed }) => {
-          if (uploaded > 0 || failed > 0) {
-            dlog(`[Index] Cloud photo reconcile: ${uploaded} uploaded, ${failed} failed`);
-          }
-        })
-        .catch(err => {
-          // Background reconcile — log only, no toast (would fire on every cold-start network blip).
-          console.error('[Index] Failed to reconcile cloud photos on mount:', err);
-        });
     };
     performMigration();
   }, [toast]);
@@ -105,7 +91,7 @@ const Index = () => {
   // Client collapse/expand — all collapsed by default. Track expanded set.
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set());
   useEffect(() => {
-    dlog('[Index] mount — expandedClients size:', expandedClients.size);
+    console.log('[Index] mount — expandedClients size:', expandedClients.size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleClientCollapse = (clientId: string) => {
@@ -385,14 +371,7 @@ const Index = () => {
             updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
           }
         })
-        .catch(err => {
-          console.error('[Index] Failed to sync portal after work completion:', err);
-          toast({
-            variant: 'destructive',
-            title: 'Portal sync failed',
-            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
-          });
-        });
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
 
@@ -499,19 +478,12 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => {
-          console.error('[Index] Failed to sync portal after mark-billed:', err);
-          toast({
-            variant: 'destructive',
-            title: 'Portal sync failed',
-            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
-          });
-        });
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid' });
+    updateTask(taskId, { status: 'paid', paidAt: new Date() });
     toast({ title: 'Payment Recorded' });
 
     // Sync portal so client sees updated status immediately
@@ -525,14 +497,7 @@ const Index = () => {
         .then(result => {
           if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
         })
-        .catch(err => {
-          console.error('[Index] Failed to sync portal after mark-paid:', err);
-          toast({
-            variant: 'destructive',
-            title: 'Portal sync failed',
-            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
-          });
-        });
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
 
@@ -739,10 +704,10 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <CloudSyncIndicator onClick={() => setShowSettings(true)} />
-            <Button variant="default" size="icon" aria-label="Add vehicle" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
+            <Button variant="default" size="icon" onClick={() => setShowAddVehicle(true)} className="h-8 w-8">
               <Plus className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Open settings" onClick={() => setShowSettings(true)} className="h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="h-8 w-8">
               <SettingsIcon className="h-4 w-4" />
             </Button>
           </div>

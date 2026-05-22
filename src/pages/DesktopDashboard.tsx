@@ -23,7 +23,6 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
-import { pluralize } from '@/lib/pluralize';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
@@ -33,16 +32,12 @@ import { getSessionColorScheme } from '@/lib/sessionColors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { PhoneContact } from '@/services/contactsService';
 import jsPDF from 'jspdf';
+import billBackground from '@/assets/bill-background.jpg';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
-import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
-
-/** Background re-sign cadence for photo signed URLs (50 minutes — well
- *  inside the 60-minute Supabase signed-URL TTL). */
-const PHOTO_URL_REFRESH_MS = 50 * 60 * 1000;
 
 const statusMatches = (status: string, filter: FilterType): boolean => {
   switch (filter) {
@@ -191,7 +186,7 @@ const DesktopDashboard = () => {
       if (!cancelled) setPhotoSignedUrls(merged);
     };
     refresh();
-    const id = setInterval(refresh, PHOTO_URL_REFRESH_MS);
+    const id = setInterval(refresh, 50 * 60 * 1000);
     return () => { cancelled = true; clearInterval(id); };
   }, [tasks]);
 
@@ -268,7 +263,7 @@ const DesktopDashboard = () => {
       }
       await setTasks([...tasks, ...newTasks]);
 
-      toast({ title: `Imported ${pluralize(newTasks.length, 'task')} (${pluralize(newVehicles.length, 'new vehicle')})`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName}` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });
@@ -302,40 +297,321 @@ const DesktopDashboard = () => {
   };
 
   // --- Bill PDF generation ---
-  // Desktop bill PDF — thin wrapper around the shared renderer.
-  // Same renderer the mobile TaskCard uses, so layout, photos, totals and
-  // backgrounds stay in sync between platforms.
   const generateBillPdf = async (task: Task, client: Client, vehicle: Vehicle) => {
-    try {
-      const doc = await renderBillPdf({ task, client, vehicle, settings });
-      const fileName = `invoice-${stripDiacritics(client.name)}-${vehicle.vin || 'vehicle'}.pdf`;
+    const rate = client.hourlyRate || settings.defaultHourlyRate;
+    const cloningRate = client.cloningRate || settings.defaultCloningRate || 0;
+    const programmingRate = client.programmingRate || settings.defaultProgrammingRate || 0;
+    const addKeyRate = client.addKeyRate || settings.defaultAddKeyRate || 0;
+    const allKeysLostRate = client.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
+    let baseLab = 0, minHrAdj = 0, cloneTot = 0, progTot = 0, addKeyTot = 0, allKeysLostTot = 0;
+    let minHrCnt = 0, cloneCnt = 0, progCnt = 0, addKeyCnt = 0, allKeysLostCnt = 0;
+    (task.sessions || []).forEach(session => {
+      const dur = session.periods.reduce((sum, p) => sum + p.duration, 0);
+      baseLab += (dur / 3600) * rate;
+      if (session.chargeMinimumHour && dur < 3600) { minHrAdj += ((3600 - dur) / 3600) * rate; minHrCnt++; }
+      if (session.isCloning && cloningRate > 0) { cloneTot += cloningRate; cloneCnt++; }
+      if (session.isProgramming && programmingRate > 0) { progTot += programmingRate; progCnt++; }
+      if (session.isAddKey && addKeyRate > 0) { addKeyTot += addKeyRate; addKeyCnt++; }
+      if (session.isAllKeysLost && allKeysLostRate > 0) { allKeysLostTot += allKeysLostRate; allKeysLostCnt++; }
+    });
+    const laborCost = baseLab + minHrAdj + cloneTot + progTot + addKeyTot + allKeysLostTot;
+    const partsCost = (task.sessions || []).reduce((sum, s) =>
+      sum + (s.parts || []).reduce((ps, p) => ps + (p.price * p.quantity), 0), 0);
+    const { discount: laborDiscount, laborAfter } = applyLaborDiscount(laborCost, vehicle);
+    const total = laborAfter + partsCost;
 
-      // Merge diagnostic PDF if present.
-      if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
-        try {
-          const freshUrl = await resolveDiagnosticPdfUrl({ path: task.diagnosticPdfPath, url: task.diagnosticPdfUrl });
-          if (!freshUrl) throw new Error('Could not resolve diagnostic PDF URL');
-          const billBlob = doc.output('blob');
-          const mergedBlob = await mergePdfs(billBlob, freshUrl);
-          const url = URL.createObjectURL(mergedBlob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          a.click();
-          URL.revokeObjectURL(url);
-          toast({ title: 'Bill PDF Generated', description: 'Includes diagnostic report' });
-          return;
-        } catch (mergeError) {
-          console.warn('Failed to merge diagnostic PDF, saving without it:', mergeError);
+    const doc = new jsPDF({ format: 'letter' });
+    doc.addImage(billBackground, 'JPEG', 0, 0, 215.9, 279.4);
+
+    const col1X = 20;
+    const col2X = 130;
+    const col3X = 190.9;
+
+    // Bill to header
+    doc.setFontSize(17);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(128, 0, 128);
+    doc.text('Bill to:', 20, 48.5);
+
+    // Billed on date (right side)
+    const billedDate = new Date().toLocaleDateString('en-US');
+    doc.text(`Billed on ${billedDate}`, 195.9, 58.5, { align: 'right' });
+
+    // Client name
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    let clientLine = client.companyName || client.name || 'N/A';
+    if (client.companyName) {
+      const addrParts = [client.address, client.city, client.state, client.zip].filter(Boolean);
+      if (addrParts.length > 0) {
+        clientLine = `${client.companyName} - ${addrParts.join(', ')}`;
+      }
+    }
+    doc.text(stripDiacritics(clientLine), 20, 53);
+
+    // Vehicle info
+    const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
+    const vinInfo = vehicle.vin ? `(VIN: ${vehicle.vin})` : '';
+    doc.text(stripDiacritics(`${vehicleLabel} ${vinInfo}`), 20, 58.5);
+
+    // Table headers
+    const tableTop = 66;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DESCRIPTION', 25, tableTop + 6);
+    doc.text('TIME', col2X - 1, tableTop + 6);
+    doc.text('AMOUNT', 190.9, tableTop + 6, { align: 'right' });
+
+    // Red line
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(255, 0, 0);
+    doc.line(20, tableTop + 8, 195.9, tableTop + 8);
+
+    const formatDurationHHMM = (seconds: number): string => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
+
+    // Session rows
+    let yPos = tableTop + 16;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+
+    (task.sessions || []).forEach(session => {
+      const sessionDuration = (session.periods || []).reduce((t, p) => t + p.duration, 0);
+      const sessionCost = (sessionDuration / 3600) * rate;
+      const description = stripDiacritics(session.description || 'Work session');
+      const col1Width = col2X - col1X - 4;
+      const wrapped = doc.splitTextToSize(description, col1Width);
+      const startY = yPos;
+      wrapped.forEach((line: string, i: number) => {
+        doc.text(line, col1X + 2, yPos);
+        if (i < wrapped.length - 1) yPos += 6;
+      });
+      doc.text(formatDurationHHMM(sessionDuration), col2X + 2, startY);
+      doc.text(formatCurrency(sessionCost), col3X + 2, startY, { align: 'right' });
+      yPos += 8;
+    });
+
+    // Billing option line items
+    if (minHrAdj > 0) {
+      doc.text(`Min 1 Hour adjustment (x${minHrCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(minHrAdj), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (cloneTot > 0) {
+      doc.text(`Cloning (x${cloneCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(cloneTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (progTot > 0) {
+      doc.text(`Programming (x${progCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(progTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (addKeyTot > 0) {
+      doc.text(`Add Key (x${addKeyCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(addKeyTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    if (allKeysLostTot > 0) {
+      doc.text(`All Keys Lost (x${allKeysLostCnt})`, col1X + 2, yPos);
+      doc.text(formatCurrency(allKeysLostTot), col3X + 2, yPos, { align: 'right' });
+      yPos += 8;
+    }
+
+    // Parts
+    const allParts = (task.sessions || []).flatMap(s => s.parts || []);
+    if (allParts.length > 0) {
+      doc.setFontSize(11);
+      allParts.forEach(p => {
+        const partY = yPos;
+        doc.setFont('helvetica', 'normal');
+        doc.text(stripDiacritics(p.name), col1X + 2, partY);
+        if (p.description) {
+          yPos += 6;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(100, 100, 100);
+          const col1Width = col2X - col1X - 6;
+          const wrappedDesc = doc.splitTextToSize(stripDiacritics(p.description), col1Width);
+          wrappedDesc.forEach((line: string, i: number) => {
+            doc.text(line, col1X + 4, yPos);
+            if (i < wrappedDesc.length - 1) yPos += 5;
+          });
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+          yPos += 2;
+        }
+        doc.text(`${p.quantity}`, col2X + 2, partY);
+        doc.text(formatCurrency(p.price * p.quantity), col3X + 2, partY, { align: 'right' });
+        yPos += 8;
+      });
+    }
+
+    // Prepaid & Total
+    yPos = 261;
+    const prepaid = vehicle.prepaidAmount || 0;
+    const showDiscount = laborDiscount > 0;
+    const showDeposit = prepaid > 0;
+    const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);
+    yPos = 261 - 7 * extraLines;
+    const totalX = col3X - 45;
+    if (extraLines > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Subtotal:', totalX, yPos);
+      doc.text(formatCurrency(laborCost + partsCost), col3X + 2, yPos, { align: 'right' });
+      yPos += 7;
+      if (showDiscount) {
+        doc.setFontSize(11);
+        doc.setTextColor(22, 163, 74);
+        const dLabel = vehicle.discountType === 'percent' ? `Discount (${vehicle.discountValue}%):` : 'Discount:';
+        doc.text(dLabel, totalX, yPos);
+        doc.text(`-${formatCurrency(laborDiscount)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 7;
+      }
+      if (showDeposit) {
+        doc.setTextColor(200, 0, 0);
+        doc.text('Deposit:', totalX, yPos);
+        doc.text(`-${formatCurrency(prepaid)}`, col3X + 2, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 7;
+      }
+    }
+    const finalTotal = Math.max(0, total - prepaid);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL:', totalX, yPos);
+    doc.text(formatCurrency(finalTotal), col3X + 2, yPos, { align: 'right' });
+
+    // Timestamp
+    const now = new Date();
+    const ts = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getFullYear()).slice(-2)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${ts}`, 107.95, 277.4, { align: 'center' });
+
+    // --- Photos section (port from mobile) ---
+    const allPhotos: Array<{ photo: { cloudUrl?: string; cloudPath?: string; base64?: string }; sessionNum: number }> = [];
+    (task.sessions || []).forEach((session, idx) => {
+      (session.photos || []).forEach(photo => {
+        allPhotos.push({ photo, sessionNum: idx + 1 });
+      });
+    });
+
+    // Pre-mint signed URLs for any cloud photos to avoid expired/public URLs
+    const pdfPaths = Array.from(new Set(
+      allPhotos
+        .map(it => it.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(it.photo.cloudUrl))
+        .filter((p): p is string => !!p)
+    ));
+    const pdfSigned = pdfPaths.length ? await photoStorageService.signPhotoUrls(pdfPaths) : {};
+
+    if (allPhotos.length > 0) {
+      doc.addPage();
+      let photoYPos = 20;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(128, 0, 128);
+      doc.text('Work Photos', 105, photoYPos, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      photoYPos += 15;
+
+      const colWidth = 85;
+      const colHeight = 64;
+      const colX = [15, 110];
+      let colIdx = 0;
+
+      for (const item of allPhotos) {
+        if (colIdx === 0 && photoYPos > 200) {
+          doc.addPage();
+          photoYPos = 20;
+        }
+
+        const x = colX[colIdx];
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Session ${item.sessionNum}`, x, photoYPos);
+
+        let photoBase64: string | undefined = item.photo.base64;
+
+        // Fetch from signed cloud URL
+        if (!photoBase64) {
+          const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+          const fetchUrl = (path && pdfSigned[path]) || (item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/') ? item.photo.cloudUrl : undefined);
+          if (fetchUrl) {
+            try {
+              const response = await fetch(fetchUrl);
+              const blob = await response.blob();
+              photoBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (fetchError) {
+              console.warn('Failed to fetch photo from cloud:', fetchError);
+            }
+          }
+        }
+
+        if (photoBase64) {
+          try {
+            const imgData = `data:image/jpeg;base64,${photoBase64}`;
+            doc.addImage(imgData, 'JPEG', x, photoYPos + 2, colWidth, colHeight);
+          } catch (imgError) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text('(Image could not be loaded)', x, photoYPos + 15);
+          }
+        } else {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          doc.text('(Photo on device only)', x, photoYPos + 15);
+        }
+
+        colIdx++;
+        if (colIdx >= 2) {
+          colIdx = 0;
+          photoYPos += colHeight + 12;
         }
       }
-
-      doc.save(fileName);
-      toast({ title: 'Bill PDF Generated' });
-    } catch (err) {
-      console.error('Bill PDF generation error:', err);
-      toast({ title: 'Bill Generation Failed', description: 'Could not create the bill PDF.', variant: 'destructive' });
+      if (colIdx !== 0) {
+        photoYPos += colHeight + 12;
+      }
     }
+
+    // --- Merge diagnostic PDF if available (task-level) ---
+    if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
+      try {
+        const freshUrl = await resolveDiagnosticPdfUrl({ path: task.diagnosticPdfPath, url: task.diagnosticPdfUrl });
+        if (!freshUrl) throw new Error('Could not resolve diagnostic PDF URL');
+        const billBlob = doc.output('blob');
+        const mergedBlob = await mergePdfs(billBlob, freshUrl);
+        const url = URL.createObjectURL(mergedBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: 'Bill PDF Generated', description: 'Includes diagnostic report' });
+        return;
+      } catch (mergeError) {
+        console.warn('Failed to merge diagnostic PDF, saving without it:', mergeError);
+      }
+    }
+
+    doc.save(`invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`);
+    toast({ title: 'Bill PDF Generated' });
   };
 
   // --- Upload diagnostic PDF for a task ---
@@ -429,19 +705,12 @@ const DesktopDashboard = () => {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
-        .catch(err => {
-          console.error('[DesktopDashboard] Failed to sync portal after mark-billed:', err);
-          toast({
-            variant: 'destructive',
-            title: 'Portal sync failed',
-            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
-          });
-        });
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid' });
+    updateTask(taskId, { status: 'paid', paidAt: new Date() });
     toast({ title: 'Payment Recorded' });
     const task = tasks.find(t => t.id === taskId);
     const client = task ? clients.find(c => c.id === task.clientId) : null;
@@ -449,14 +718,7 @@ const DesktopDashboard = () => {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
         .then(result => { if (!client.portalId) updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode }); })
-        .catch(err => {
-          console.error('[DesktopDashboard] Failed to sync portal after mark-paid:', err);
-          toast({
-            variant: 'destructive',
-            title: 'Portal sync failed',
-            description: "Couldn't update the client portal. Your local changes are safe and will retry on next sync.",
-          });
-        });
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
 
@@ -596,15 +858,9 @@ const DesktopDashboard = () => {
       totalTime += task.totalTime;
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        // Per-period min-hour bumps take precedence; session-level bump only
-        // applies when no period flag is set (P0 #3 fix).
-        const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-        const baseCost = session.periods.reduce((s, p) => {
-          if (p.chargeMinimumHour && p.duration < 3600) return s + hourlyRate;
-          return s + (p.duration / 3600) * hourlyRate;
-        }, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
         let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-        if (!hasPeriodFlags && session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
         if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
         if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
@@ -647,14 +903,9 @@ const DesktopDashboard = () => {
     vehicleTasks.forEach(task => {
       task.sessions.forEach(session => {
         const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        // P0 #3 fix: respect per-period flags before applying session-level bump.
-        const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-        const baseCost = session.periods.reduce((s, p) => {
-          if (p.chargeMinimumHour && p.duration < 3600) return s + hourlyRate;
-          return s + (p.duration / 3600) * hourlyRate;
-        }, 0);
+        const baseCost = (sessionDuration / 3600) * hourlyRate;
         let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-        if (!hasPeriodFlags && session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
+        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
         if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
         if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
         if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
@@ -1430,7 +1681,7 @@ const DesktopDashboard = () => {
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                 setEditingVehicleId(vehicle.id);
                                 setVehicleEditData({ vin: vehicle.vin, make: vehicle.make || '', model: vehicle.model || '', year: vehicle.year?.toString() || '', color: vehicle.color || '', prepaidAmount: vehicle.prepaidAmount?.toString() || '', discountType: vehicle.discountType || 'fixed', discountValue: vehicle.discountValue?.toString() || '' });
-                              }} title="Edit Vehicle" aria-label="Edit Vehicle">
+                              }} title="Edit Vehicle">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               {clients.length > 1 && (
@@ -1446,7 +1697,7 @@ const DesktopDashboard = () => {
                                   ))}
                                 </select>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteVehicleDialog({ open: true, vehicleId: vehicle.id })} title="Delete Vehicle" aria-label="Delete Vehicle">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteVehicleDialog({ open: true, vehicleId: vehicle.id })} title="Delete Vehicle">
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
                             </div>
@@ -1546,7 +1797,7 @@ const DesktopDashboard = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit" aria-label="Edit">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         {task.status === 'completed' && (
@@ -1564,7 +1815,7 @@ const DesktopDashboard = () => {
                                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handlePreviewBill(task)} title="Re-generate Bill">
                                               <FileText className="h-3.5 w-3.5 mr-1" />Bill
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid" aria-label="Mark Paid">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMarkPaid(task.id)} title="Mark Paid">
                                               <DollarSign className="h-3.5 w-3.5" />
                                             </Button>
                                           </>
@@ -1575,14 +1826,14 @@ const DesktopDashboard = () => {
                                           </Button>
                                         )}
                                         {client.portalId && (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank')} title="Client Portal" aria-label="Client Portal">
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PORTAL_BASE_URL}/client-view?id=${client.portalId}&preview=1`, '_blank')} title="Client Portal">
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </Button>
                                         )}
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'} aria-label={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUploadDiagnosticPdf(task.id)} title={task.diagnosticPdfUrl ? 'Replace Diagnostic PDF' : 'Upload Diagnostic PDF'}>
                                           <FileUp className={`h-3.5 w-3.5 ${task.diagnosticPdfUrl ? 'text-emerald-600' : ''}`} />
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTaskDialog({ open: true, taskId: task.id })} title="Delete" aria-label="Delete">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTaskDialog({ open: true, taskId: task.id })} title="Delete">
                                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                         </Button>
                                       </div>

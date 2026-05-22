@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, Legend,
+  PieChart, Pie, Cell, AreaChart, Area, Legend, ReferenceLine,
 } from 'recharts';
 import { CalendarIcon, RotateCcw, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
-import { pluralize } from '@/lib/pluralize';
-import { formatDuration, formatCurrency } from '@/lib/formatTime';
-import { computeTaskTotalAllocated } from '@/lib/billing';
-import { ImportedBadge } from '@/components/ImportedBadge';
+import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
+import { applyLaborDiscount } from '@/lib/discount';
+import { computeTaskTotal } from '@/lib/billing';
 
 const CHART_COLORS = [
   '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
@@ -51,7 +50,6 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
-  imported: boolean;
 }
 
 interface DrillState {
@@ -97,7 +95,6 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
                   statusBadgeColors[r.status] || '')}>
                   {r.status}
                 </span>
-                {r.imported && <ImportedBadge className="ml-1" />}
               </td>
               <td className="py-1 text-right font-mono">{formatDuration(r.timeWorked)}</td>
               <td className="py-1 text-right font-mono font-semibold">{formatCurrency(r.cost)}</td>
@@ -127,7 +124,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [rptShowActive, setRptShowActive] = useState(true);
   const [sortField, setSortField] = useState<'date' | 'cost' | 'client' | 'status'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [bucketMode, setBucketMode] = useState<'work' | 'created'>('work');
 
   const [drillRevTime, setDrillRevTime] = useState<DrillState | null>(null);
   const [drillClient, setDrillClient] = useState<DrillState | null>(null);
@@ -140,35 +136,16 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setRptClient('all'); setRptVehicle('all');
     setRptDateFrom(undefined); setRptDateTo(undefined);
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
-    setBucketMode('work');
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
-  const getTaskBucketDate = (task: Task): Date => {
-    if (bucketMode === 'work') {
-      let earliest: number | null = null;
-      for (const s of task.sessions || []) {
-        const candidates: any[] = [s.createdAt, ...(s.periods || []).map(p => p.startTime)];
-        for (const c of candidates) {
-          const t = new Date(c).getTime();
-          if (!isFinite(t)) continue;
-          if (earliest === null || t < earliest) earliest = t;
-        }
-      }
-      return new Date(earliest ?? task.createdAt);
-    }
-    return new Date(task.createdAt);
-  };
-
-  const monthKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
   const getTaskCost = (task: Task) => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
     const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).total;
+    const t = computeTaskTotal(task, client, settings);
+    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
+    return Math.ceil(laborAfter + t.parts);
   };
 
   const getTaskSeconds = (task: Task) =>
@@ -187,7 +164,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
-    imported: t.importedSalary != null && t.importedSalary > 0,
   });
 
   const availableVehicles = useMemo(() => {
@@ -199,7 +175,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return tasks.filter(t => {
       if (rptClient !== 'all' && t.clientId !== rptClient) return false;
       if (rptVehicle !== 'all' && t.vehicleId !== rptVehicle) return false;
-      const d = getTaskBucketDate(t);
+      const d = new Date(t.createdAt);
       if (rptDateFrom && d < rptDateFrom) return false;
       if (rptDateTo) {
         const endOfDay = new Date(rptDateTo);
@@ -212,18 +188,41 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       if (['pending', 'in-progress', 'paused'].includes(t.status) && !rptShowActive) return false;
       return true;
     });
-  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive, bucketMode]);
+  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
 
   const revenueOverTime = useMemo(() => {
-    const map: Record<string, number> = {};
+    const monthMap: Record<string, number> = {};
     filteredTasks.forEach(t => {
-      const key = monthKey(getTaskBucketDate(t));
-      map[key] = (map[key] || 0) + getTaskCost(t);
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[key] = (monthMap[key] || 0) + getTaskCost(t);
     });
-    return Object.entries(map)
+    return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [filteredTasks, bucketMode]);
+  }, [filteredTasks]);
+
+  // Mirror chart: merge overTime (positive) + received (negative) by month
+  const revenueMirror = useMemo(() => {
+    const overTimeMap: Record<string, number> = {};
+    filteredTasks.forEach(t => {
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      overTimeMap[key] = (overTimeMap[key] || 0) + getTaskCost(t);
+    });
+    const receivedMap: Record<string, number> = {};
+    filteredTasks.filter(t => t.status === 'paid' && t.paidAt).forEach(t => {
+      const d = new Date(t.paidAt!);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      receivedMap[key] = (receivedMap[key] || 0) + getTaskCost(t);
+    });
+    const allMonths = [...new Set([...Object.keys(overTimeMap), ...Object.keys(receivedMap)])].sort();
+    return allMonths.map(month => ({
+      month,
+      billed: Math.round((overTimeMap[month] || 0) * 100) / 100,
+      received: -Math.round((receivedMap[month] || 0) * 100) / 100,
+    }));
+  }, [filteredTasks]);
 
   const revenueByClient = useMemo(() => {
     const map: Record<string, { clientId: string; name: string; revenue: number }> = {};
@@ -238,7 +237,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .sort((a, b) => b.revenue - a.revenue);
   }, [filteredTasks, clients]);
 
-  const revenueByVehicleFull = useMemo(() => {
+  const revenueByVehicle = useMemo(() => {
     const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
       const v = vehicles.find(v => v.id === t.vehicleId);
@@ -248,24 +247,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     });
     return Object.values(map)
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
-      .sort((a, b) => b.revenue - a.revenue);
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 20);
   }, [filteredTasks, vehicles]);
-
-  const othersVehicleIds = useMemo(
-    () => revenueByVehicleFull.length > 20 ? revenueByVehicleFull.slice(19).map(r => r.vehicleId) : [],
-    [revenueByVehicleFull]
-  );
-
-  const revenueByVehicle = useMemo(() => {
-    if (revenueByVehicleFull.length <= 20) return revenueByVehicleFull;
-    const top = revenueByVehicleFull.slice(0, 19);
-    const rest = revenueByVehicleFull.slice(19);
-    const othersRevenue = Math.round(rest.reduce((s, r) => s + r.revenue, 0) * 100) / 100;
-    return [
-      ...top,
-      { vehicleId: '__others__', label: `Others (${pluralize(rest.length, 'vehicle')})`, revenue: othersRevenue },
-    ];
-  }, [revenueByVehicleFull]);
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
@@ -278,30 +262,30 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     }));
   }, [filteredTasks]);
 
-  const isImported = (t: Task) => t.importedSalary != null && t.importedSalary > 0;
-
   const hoursOverTime = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredTasks.filter(t => !isImported(t)).forEach(t => {
-      const key = monthKey(getTaskBucketDate(t));
-      map[key] = (map[key] || 0) + getTaskSeconds(t);
+    const monthMap: Record<string, number> = {};
+    filteredTasks.forEach(t => {
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[key] = (monthMap[key] || 0) + getTaskSeconds(t);
     });
-    return Object.entries(map)
+    return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, seconds]) => ({ month, hours: Math.round((seconds / 3600) * 100) / 100 }));
-  }, [filteredTasks, bucketMode]);
+  }, [filteredTasks]);
 
   const carsOverTime = useMemo(() => {
-    const map: Record<string, Set<string>> = {};
+    const monthMap: Record<string, Set<string>> = {};
     filteredTasks.forEach(t => {
-      const key = monthKey(getTaskBucketDate(t));
-      if (!map[key]) map[key] = new Set();
-      map[key].add(t.vehicleId);
+      const d = new Date(t.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap[key]) monthMap[key] = new Set();
+      monthMap[key].add(t.vehicleId);
     });
-    return Object.entries(map)
+    return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, set]) => ({ month, cars: set.size }));
-  }, [filteredTasks, bucketMode]);
+  }, [filteredTasks]);
 
   const detailData = useMemo(() => {
     const data = filteredTasks.map(toDrillRow);
@@ -319,14 +303,14 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   }, [filteredTasks, clients, vehicles, sortField, sortDir]);
 
   const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalHours = useMemo(
-    () => filteredTasks.filter(t => !isImported(t)).reduce((s, t) => s + getTaskSeconds(t), 0) / 3600,
-    [filteredTasks]
-  );
-  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status !== 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
+  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
+  const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
 
   const drillRowsForMonth = (month: string) =>
-    filteredTasks.filter(t => monthKey(getTaskBucketDate(t)) === month).map(toDrillRow);
+    filteredTasks.filter(t => {
+      const d = new Date(t.createdAt);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === month;
+    }).map(toDrillRow);
 
   const handleRevTimeClick = (e: any) => {
     const month = e?.activeLabel; if (!month) return;
@@ -340,11 +324,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const handleVehicleClick = (e: any) => {
     const p = e?.activePayload?.[0]?.payload;
     if (!p?.vehicleId) return;
-    if (p.vehicleId === '__others__') {
-      const ids = new Set(othersVehicleIds);
-      setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => ids.has(t.vehicleId)).map(toDrillRow) });
-      return;
-    }
     setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => t.vehicleId === p.vehicleId).map(toDrillRow) });
   };
   const handleStatusClick = (e: any) => {
@@ -415,18 +394,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <Button size="sm" variant={rptShowPaid ? 'default' : 'outline'} onClick={() => setRptShowPaid(!rptShowPaid)}
               className={cn("h-8 text-xs", rptShowPaid && "bg-emerald-600 hover:bg-emerald-700")}>Paid</Button>
           </div>
-          <div className="flex items-center rounded-md border h-8 overflow-hidden" title="Bucket monthly charts by work date or task created date">
-            <button
-              type="button"
-              onClick={() => setBucketMode('work')}
-              className={cn("px-2 text-xs h-full", bucketMode === 'work' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
-            >Work date</button>
-            <button
-              type="button"
-              onClick={() => setBucketMode('created')}
-              className={cn("px-2 text-xs h-full border-l", bucketMode === 'created' ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
-            >Created date</button>
-          </div>
           <DatePicker value={rptDateFrom} onChange={setRptDateFrom} label="From" />
           <DatePicker value={rptDateTo} onChange={setRptDateTo} label="To" />
           <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8">
@@ -449,22 +416,30 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* 1. Revenue Over Time */}
-          <Card className="border-2 border-green-500/30">
+          {/* 1. Revenue Mirror — billed (up) + received (down) */}
+          <Card className="border-2 border-green-500/30 lg:col-span-2">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
-                Revenue Over Time <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Revenue Over Time <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
+                </CardTitle>
+                <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1"></span>Billed (work date)</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-400 mr-1"></span>Received (paid date)</span>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px]">
+              <div className="h-[380px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueOverTime} onClick={handleRevTimeClick} style={{ cursor: 'pointer' }}>
+                  <BarChart data={revenueMirror} onClick={handleRevTimeClick} style={{ cursor: 'pointer' }} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${Math.abs(v)}`} />
+                    <Tooltip formatter={(v: number, name: string) => [formatCurrency(Math.abs(v as number)), name === 'billed' ? 'Billed' : 'Received']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                    <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={2} />
+                    <Bar dataKey="billed" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="received" fill="#10b981" radius={[0, 0, 4, 4]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -513,7 +488,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                     <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
-                      {revenueByVehicle.map((entry, i) => <Cell key={i} fill={entry.vehicleId === '__others__' ? '#94a3b8' : CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
+                      {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -622,7 +597,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2">{r.client}</td>
                       <td className="py-2">{r.vehicle}</td>
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
-                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge>{r.imported && <ImportedBadge className="ml-1" />}</td>
+                      <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
                       <td className="py-2 text-right font-mono">{formatCurrency(r.cost)}</td>
                     </tr>

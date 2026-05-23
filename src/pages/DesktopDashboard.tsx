@@ -791,6 +791,12 @@ const DesktopDashboard = () => {
   const monthlyRevenueData = useMemo(() => {
     const filtered = chartClient === 'all' ? tasks : tasks.filter(t => t.clientId === chartClient);
     const statusFiltered = filtered.filter(t => {
+      // When a specific filter is selected from left panel, use it directly
+      if (filter !== 'all') {
+        if (filter === 'active') return ['in-progress', 'paused', 'pending'].includes(t.status);
+        return t.status === filter;
+      }
+      // When 'all' is selected, use the toggle buttons
       if (t.status === 'completed' && !chartShowCompleted) return false;
       if (t.status === 'billed' && !chartShowBilled) return false;
       if (t.status === 'paid' && !chartShowPaid) return false;
@@ -805,7 +811,7 @@ const DesktopDashboard = () => {
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [tasks, chartClient, clients, settings, chartShowCompleted, chartShowBilled, chartShowPaid]);
+  }, [tasks, chartClient, clients, settings, chartShowCompleted, chartShowBilled, chartShowPaid, filter]);
 
   // --- Drill-down data for Money Over Time chart ---
   const drillDownData = useMemo(() => {
@@ -1427,12 +1433,19 @@ const DesktopDashboard = () => {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground mr-1">Show:</span>
-                        <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
-                        <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
-                        <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
-                      </div>
+                      {filter === 'all' ? (
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                          <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
+                          <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
+                          <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs text-muted-foreground">Showing:</span>
+                          <span className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full bg-primary/10 text-primary">{filter}</span>
+                        </div>
+                      )}
                       {monthlyRevenueData.length > 0 ? (
                         <div className="h-[250px]">
                           <ResponsiveContainer width="100%" height="100%">

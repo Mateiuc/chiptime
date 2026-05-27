@@ -263,12 +263,22 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                 <Button
                   variant="ghost"
                   size="icon"
+                  className={`h-7 w-7 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
+                  onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
+                  title="Charge minimum 1 hour for this session"
+                  aria-label="Charge minimum 1 hour for this session">
+                  <Flag className="h-3.5 w-3.5" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className={`h-7 w-7 ${session.isCloning ? 'text-primary' : 'text-muted-foreground/40'}`}
                   onClick={() => setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isCloning: !s.isCloning } : s))}
                   title="Apply cloning rate to this session"
                  aria-label="Apply cloning rate to this session">
                   <Copy className="h-3.5 w-3.5" fill={session.isCloning ? 'currentColor' : 'none'} />
                 </Button>
+
                 <Button
                   variant="ghost"
                   size="icon"

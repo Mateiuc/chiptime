@@ -1,72 +1,46 @@
-# P2 Cleanup Batch
+## Root cause
 
-Six non-breaking polish items. No behavior changes; verified by `tsc --noEmit`, `vitest run`, and a Mercedes-GLS bill PDF diff.
+The Lamborghini task's $80 labor comes from the **session-level** `chargeMinimumHour` flag (set during the mobile "Complete Work" flow), not from the period-level one.
 
-## #1 — PDF layout magic numbers
+DB confirms:
+- `period.chargeMinimumHour = false` (the pill the user toggles)
+- `session.chargeMinimumHour = true` (no UI to turn off on desktop)
+- duration = 1s, parts = $500 → labor $80 + parts $500 = **$580**
 
-Extend `src/lib/billPdfLayout.ts` with named constants for every bare numeric used in `billPdfRenderer.ts` and the Letter dimensions in `DesktopInvoiceView.tsx:87`.
+`TaskInlineEditor` (desktop inline edit) only exposes a **per-period** Min 1hr pill. The session-level flag has no toggle on desktop, so the user can't turn it off and the total never drops to $500. `EditTaskDialog` (mobile) already has a session-level Flag button — desktop is the only surface missing it.
 
-New exports (names final after a `rg -n '\b(198|329|534|554|215\.9|279\.4)\b' src/lib/billPdfRenderer.ts src/components/DesktopInvoiceView.tsx` sweep so nothing is missed):
+## Fix
 
-- `LETTER_WIDTH_MM = 215.9`, `LETTER_HEIGHT_MM = 279.4` (re-export aliases of existing `PAGE_W`/`PAGE_H` for callers outside the bill renderer)
-- Column X positions used by the bill totals/items grid (e.g. `COL_LABEL_X`, `COL_AMOUNT_X`, `COL_QTY_X`)
-- Totals-block Y offsets per page role
-- Any other bare X/Y/width literals discovered in the sweep
+Add a session-level "Min 1hr" Flag icon button to `TaskInlineEditor`'s session header, alongside the existing Cloning / Programming / Add Key / All Keys Lost icons (lines 262-302). Same pattern as `EditTaskDialog.tsx:891`:
 
-Update `billPdfRenderer.ts` and `DesktopInvoiceView.tsx` to import from `billPdfLayout.ts`. No numeric values change.
+```tsx
+<Button
+  variant="ghost" size="icon"
+  className={`h-7 w-7 ${session.chargeMinimumHour ? 'text-primary' : 'text-muted-foreground/40'}`}
+  onClick={() => setSessions(prev => prev.map(s =>
+    s.id === session.id ? { ...s, chargeMinimumHour: !s.chargeMinimumHour } : s))}
+  title="Charge minimum 1 hour for this session"
+  aria-label="Charge minimum 1 hour for this session"
+>
+  <Flag className="h-3.5 w-3.5" fill={session.chargeMinimumHour ? 'currentColor' : 'none'} />
+</Button>
+```
 
-## #2 — DRY: route both renderers through `computeSessionLabor`
+Place it right before the Cloning button (so order is: Min1hr · Cloning · Programming · AddKey · AllKeysLost · Delete).
 
-`src/lib/billing.ts` already exports `computeSessionLabor(session, client, settings)` with the correct per-period + per-session min-hour logic.
+## Out of scope
 
-- `src/lib/billPdfRenderer.ts` — replace its inline labor loop with `computeSessionLabor(session, client, settings)`. Already receives all three.
-- `src/lib/clientPortalUtils.ts` — same replacement; it currently calls `resolveRates` then computes labor inline. Resolve once via `computeSessionLabor` (which calls `resolveRates` internally) and drop the duplicate math.
-
-Verification: existing `billing.test.ts` covers the math; render a Mercedes-GLS bill PDF before/after and confirm byte-identical totals.
-
-## #3 — Other magic numbers
-
-Add a documented `const` near the top of each file:
-
-- `src/hooks/useCloudSync.ts:185` → `const CLOUD_SYNC_DEBOUNCE_MS = <existing value>;`
-- `src/pages/DesktopDashboard.tsx:189` → `const BACKGROUND_POLL_MS = 50 * 60 * 1000; // 50 minutes`
-- `src/pages/ClientPortal.tsx:30` → `const PORTAL_REFRESH_MS = 1000;`
-
-## #4 — Casing convention for monetary labels
-
-Convention: **sentence case** for accumulating rows (Subtotal, Discount, Deposit, Balance due); **ALL CAPS** reserved for the final total row only.
-
-- `src/components/ClientCostBreakdown.tsx:478` — change `"BALANCE DUE:"` → `"Balance due:"`
-- Audit `src/lib/billPdfRenderer.ts` totals block and `src/components/DesktopInvoiceView.tsx` for any other ALL-CAPS labels that aren't the final TOTAL row; fix to match.
-
-## #5 — Type the sync payload
-
-`src/services/appSyncService.ts` already exports `SyncData`. Replace the `as any` cast at the Supabase boundary on line 8 (and any sibling `data as any` casts within push/pull) with `SyncData` (or a new `SyncDataPayload = SyncData` alias if naming clarity helps). Other `as any` sites in the file (importer/external paths) remain untouched per scope.
-
-## #6 — Dead code dispositions (verified via `rg`)
-
-| Symbol | File | Disposition | Reason |
-|---|---|---|---|
-| `cloudSyncEvents` | `src/hooks/useStorage.ts:241` | **Keep** | Used at `useStorage.ts:170,214` and in `useStorage.race.test.ts`. ts-prune false positive (re-exported within same file). |
-| `formatDateTimeForInput` | `src/lib/formatTime.ts:51` | **Delete** | No references in `src/`. |
-| `safeArea` | `src/lib/billPdfLayout.ts:40` | **Delete** | No references; `safeTop`/`safeBottom` cover usage. |
-| `Client`, `Vehicle`, `Task`, `Settings` | `src/types/index.ts` | **Keep** | All four consumed via `import type` (verified: `billing.ts:1`, `billPdfRenderer.ts:19`, `discount.ts:1`, tests). ts-prune misses type-only imports. |
-| `lovable` | `src/integrations/lovable/index.ts:12` | **Keep** | Auto-generated by Lovable platform; do not modify per project rules. |
-| `contact-picker.d.ts` | `src/types/contact-picker.d.ts` | **Keep** | Ambient type augmentation for `navigator.contacts`. |
-
-For kept items not auto-generated, add a one-line comment above the export noting why ts-prune flags it (e.g. `// Used via import type — ts-prune false positive`).
-
-## Out of Scope
-
-#18 pushTimer, Cat 13 perf, Cat 12 UX, the other 8 `as any` sites in importers.
+- No billing math changes (`computeSessionLaborDetails` already handles both flags correctly; period flag wins).
+- No change to the per-period pill (still useful when only one period needs the bump).
+- No data migration.
 
 ## Verification
 
-- `bunx tsc --noEmit` clean
-- `bunx vitest run` 38/38 pass
-- Render Mercedes-GLS bill PDF; diff against pre-change baseline (math + layout identical)
-- #6 disposition table reproduced in final report
+1. Open Lamborghini billed task on desktop → expand session → click new Flag icon to turn off session Min 1hr → Save Changes.
+2. Header should drop from `$580` to `$500` immediately after save.
+3. Toggle back on → header returns to `$580`.
+4. Run `bunx tsc -p tsconfig.app.json --noEmit` and `bunx vitest run` (38 tests) — should remain green (no logic touched).
 
-## Deliverable
+## Files
 
-Files-modified count per item, full list of new constants in `billPdfLayout.ts` and the three files in #3, #6 disposition table, Mercedes PDF parity confirmation, test output.
+- `src/components/TaskInlineEditor.tsx` — add one Button in the session header row.

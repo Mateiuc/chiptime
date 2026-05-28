@@ -60,39 +60,51 @@ Deno.serve(async (req) => {
     const taskOwnershipCache = new Map<string, boolean>()
     const checkTaskOwnership = async (taskId: string): Promise<boolean> => {
       if (taskOwnershipCache.has(taskId)) return taskOwnershipCache.get(taskId)!
+      // Match the caller's workspace row OR the legacy shared
+      // `chiptime-default` row (predates workspaces; workspace_id IS NULL).
+      // Without the fallback, photos uploaded before the workspace migration
+      // could never be signed and rendered as "device only" everywhere.
       const { data, error } = await supabase
         .from('app_sync')
         .select('sync_id')
-        .eq('workspace_id', wsId)
+        .or(`workspace_id.eq.${wsId},sync_id.eq.chiptime-default`)
         .filter('data', '@?', `$.tasks[*] ? (@.id == "${taskId}")`)
         .limit(1)
         .maybeSingle()
       const owned = !error && !!data
+      if (!owned) {
+        console.warn(`[sign-photo-urls] ownership denied for task=${taskId} ws=${wsId}`, error)
+      }
       taskOwnershipCache.set(taskId, owned)
       return owned
     }
 
     const safePaths: string[] = []
+    const dropped: Array<{ path: string; reason: string }> = []
     for (const p of paths) {
-      if (typeof p !== 'string') continue
-      if (p.includes('..') || p.includes('//')) continue
+      if (typeof p !== 'string') { dropped.push({ path: String(p), reason: 'not-string' }); continue }
+      if (p.includes('..') || p.includes('//')) { dropped.push({ path: p, reason: 'unsafe-chars' }); continue }
       const segs = p.split('/')
-      if (!segs.every(isSafeSegment)) continue
+      if (!segs.every(isSafeSegment)) { dropped.push({ path: p, reason: 'invalid-segment' }); continue }
       const last = segs[segs.length - 1]
-      if (!last.toLowerCase().endsWith('.jpg')) continue
+      if (!last.toLowerCase().endsWith('.jpg')) { dropped.push({ path: p, reason: 'not-jpg' }); continue }
 
       if (segs.length === 3) {
         // Prefixed: wsId/taskId/photoId.jpg — must match caller workspace.
-        if (segs[0] !== wsId) continue
+        if (segs[0] !== wsId) { dropped.push({ path: p, reason: `ws-mismatch (${segs[0]} != ${wsId})` }); continue }
         safePaths.push(p)
       } else if (segs.length === 2) {
         // Legacy: taskId/photoId.jpg — verify caller's workspace owns this task.
         const taskId = segs[0]
         if (await checkTaskOwnership(taskId)) safePaths.push(p)
+        else dropped.push({ path: p, reason: 'no-task-ownership' })
       } else {
-        // Unknown shape — drop.
+        dropped.push({ path: p, reason: `unknown-shape (${segs.length} segs)` })
         continue
       }
+    }
+    if (dropped.length > 0) {
+      console.warn(`[sign-photo-urls] dropped ${dropped.length}/${paths.length} paths:`, dropped.slice(0, 10))
     }
 
     const urls: Record<string, string> = {}

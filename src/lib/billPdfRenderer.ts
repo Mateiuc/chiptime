@@ -493,46 +493,54 @@ async function renderPhotoPages(doc: jsPDF, task: Task): Promise<void> {
   const cloudSigned = cloudPaths.length ? await photoStorageService.signPhotoUrls(cloudPaths) : {};
 
   // Resolve every photo to base64 (or null) BEFORE adding any pages.
-  const resolved: Array<{ sessionNum: number; base64: string | null }> = [];
+  const resolved: Array<{ sessionNum: number; base64: string | null; failReason?: string }> = [];
   for (const item of allPhotos) {
     let b64: string | null = null;
+    let failReason: string | undefined;
     try {
       // 1. legacy inline base64
       if (item.photo.base64) b64 = item.photo.base64;
       // 2. local storage
       if (!b64 && item.photo.filePath) b64 = photoDataMap.get(item.photo.filePath) ?? null;
-      // 3. pre-signed cloud URL
-      if (!b64) {
-        const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
-        if (path && cloudSigned[path]) b64 = await fetchUrlAsBase64(cloudSigned[path]);
+      // 3. pre-signed cloud URL (batch result)
+      const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
+      if (!b64 && path && cloudSigned[path]) {
+        b64 = await fetchUrlAsBase64(cloudSigned[path]);
+        if (!b64) failReason = 'signed-fetch-failed';
       }
-      // 4. public cloudUrl
-      if (!b64 && item.photo.cloudUrl && item.photo.cloudUrl.includes('/object/public/')) {
-        b64 = await fetchUrlAsBase64(item.photo.cloudUrl);
-      }
-      // 5. on-demand single-path sign retry
-      if (!b64) {
-        const path = item.photo.cloudPath || photoStorageService.derivePathFromCloudUrl(item.photo.cloudUrl);
-        if (path) {
-          const retry = await photoStorageService.signPhotoUrls([path]);
-          if (retry[path]) b64 = await fetchUrlAsBase64(retry[path]);
+      // 4. on-demand single-path sign retry (covers paths the batch missed)
+      if (!b64 && path) {
+        const retry = await photoStorageService.signPhotoUrls([path]);
+        if (retry[path]) {
+          b64 = await fetchUrlAsBase64(retry[path]);
+          if (!b64) failReason = 'retry-sign-fetch-failed';
+        } else {
+          failReason = 'sign-denied';
         }
       }
-      // 6. last-known signed URL (might still be valid)
-      if (!b64 && item.photo.cloudUrl) {
+      // 5. last-resort cloudUrl (works only if it's a still-valid signed URL;
+      // /object/public/ URLs always 4xx now that the bucket is private).
+      if (!b64 && item.photo.cloudUrl && !item.photo.cloudUrl.includes('/object/public/')) {
         b64 = await fetchUrlAsBase64(item.photo.cloudUrl);
+        if (!b64) failReason = failReason || 'cloudurl-fetch-failed';
       }
       if (b64) b64 = await loadAndResize(b64);
     } catch (e) {
       console.warn('[bill] photo resolve failed:', e);
       b64 = null;
+      failReason = failReason || 'exception';
     }
-    resolved.push({ sessionNum: item.sessionNum, base64: b64 });
+    resolved.push({ sessionNum: item.sessionNum, base64: b64, failReason });
   }
 
   const ok = resolved.filter((r) => r.base64);
   const failed = resolved.length - ok.length;
-  console.info(`[bill] photos: ${ok.length} ok, ${failed} failed of ${resolved.length}`);
+  if (failed > 0) {
+    const reasons = resolved.filter(r => !r.base64).map(r => r.failReason || 'unknown');
+    console.warn(`[bill] photos: ${ok.length} ok, ${failed} failed of ${resolved.length}`, reasons);
+  } else {
+    console.info(`[bill] photos: ${ok.length} ok of ${resolved.length}`);
+  }
   if (ok.length === 0) return; // omit entire section
 
   // Render: middle-page background (logo only), two-column grid.

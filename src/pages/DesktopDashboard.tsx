@@ -1891,10 +1891,22 @@ const DesktopDashboard = () => {
                                             const photosWithUrl = (session.photos || []).map(p => {
                                               const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
                                               const signed = path ? photoSignedUrls[path] : undefined;
-                                              return { photo: p, url: signed || (p.cloudUrl && !p.cloudUrl.includes('/object/public/') ? p.cloudUrl : undefined) };
+                                              return { photo: p, path, url: signed || (p.cloudUrl && !p.cloudUrl.includes('/object/public/') ? p.cloudUrl : undefined) };
                                             });
                                             const viewable = photosWithUrl.filter(x => x.url);
-                                            const deviceOnly = photosWithUrl.length - viewable.length;
+                                            // "Device only" means no cloud reference at all (filePath / base64 living on the phone).
+                                            const deviceOnly = photosWithUrl.filter(x => !x.url && !x.path).length;
+                                            // "Unsigned" means we have a cloud path but signing returned nothing — retry-able.
+                                            const unsigned = photosWithUrl.filter(x => !x.url && !!x.path);
+                                            if (unsigned.length > 0) {
+                                              console.warn('[photos] could not sign URLs for', unsigned.map(u => u.path));
+                                            }
+                                            const retryUnsigned = async () => {
+                                              const paths = unsigned.map(u => u.path!).filter(Boolean);
+                                              if (paths.length === 0) return;
+                                              const map = await photoStorageService.signPhotoUrls(paths);
+                                              setPhotoSignedUrls(prev => ({ ...prev, ...map }));
+                                            };
                                             return (
                                               <div className="flex gap-2 mt-1">
                                                 {viewable.map(({ photo, url }) => (
@@ -1902,6 +1914,17 @@ const DesktopDashboard = () => {
                                                     <img src={url} alt="Photo" className="h-10 w-10 rounded object-cover border-2 border-border hover:ring-2 hover:ring-primary" />
                                                   </a>
                                                 ))}
+                                                {unsigned.length > 0 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={retryUnsigned}
+                                                    className="h-10 px-2 rounded border-2 border-dashed border-destructive/60 flex items-center gap-1 text-xs text-destructive hover:bg-destructive/10"
+                                                    title="Photo couldn't load — click to retry"
+                                                  >
+                                                    <ImageOff className="h-3 w-3" />
+                                                    {unsigned.length} retry
+                                                  </button>
+                                                )}
                                                 {deviceOnly > 0 && (
                                                   <div className="h-10 px-2 rounded border border-dashed flex items-center gap-1 text-xs text-muted-foreground">
                                                     <ImageOff className="h-3 w-3" />

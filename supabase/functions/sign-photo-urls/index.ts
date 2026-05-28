@@ -57,25 +57,35 @@ Deno.serve(async (req) => {
       })
     }
 
-    const taskOwnershipCache = new Map<string, boolean>()
-    const checkTaskOwnership = async (taskId: string): Promise<boolean> => {
-      if (taskOwnershipCache.has(taskId)) return taskOwnershipCache.get(taskId)!
-      // Match the caller's workspace row OR the legacy shared
-      // `chiptime-default` row (predates workspaces; workspace_id IS NULL).
-      // Without the fallback, photos uploaded before the workspace migration
-      // could never be signed and rendered as "device only" everywhere.
-      const { data, error } = await supabase
-        .from('app_sync')
-        .select('sync_id')
-        .or(`workspace_id.eq.${wsId},sync_id.eq.chiptime-default`)
-        .filter('data', '@?', `$.tasks[*] ? (@.id == "${taskId}")`)
-        .limit(1)
-        .maybeSingle()
-      const owned = !error && !!data
-      if (!owned) {
-        console.warn(`[sign-photo-urls] ownership denied for task=${taskId} ws=${wsId}`, error)
+    // Match the caller's workspace row OR the legacy shared `chiptime-default`
+    // row (predates workspaces; workspace_id IS NULL). We intentionally scan
+    // JSON in TypeScript instead of using PostgREST JSON-path filters because
+    // the data API rejects the `@?` operator for this project.
+    const { data: syncRows, error: syncErr } = await supabase
+      .from('app_sync')
+      .select('sync_id, workspace_id, data')
+      .or(`workspace_id.eq.${wsId},sync_id.eq.chiptime-default`)
+
+    if (syncErr) {
+      console.error('[sign-photo-urls] failed to load sync rows:', syncErr)
+      return new Response(JSON.stringify({ error: 'Sync lookup error' }), {
+        status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const ownedTaskIds = new Set<string>()
+    for (const row of syncRows || []) {
+      const tasks = Array.isArray(row?.data?.tasks) ? row.data.tasks : []
+      for (const task of tasks) {
+        if (typeof task?.id === 'string') ownedTaskIds.add(task.id)
       }
-      taskOwnershipCache.set(taskId, owned)
+    }
+
+    const checkTaskOwnership = (taskId: string): boolean => {
+      const owned = ownedTaskIds.has(taskId)
+      if (!owned) {
+        console.warn(`[sign-photo-urls] ownership denied for task=${taskId} ws=${wsId}`)
+      }
       return owned
     }
 
@@ -96,7 +106,7 @@ Deno.serve(async (req) => {
       } else if (segs.length === 2) {
         // Legacy: taskId/photoId.jpg — verify caller's workspace owns this task.
         const taskId = segs[0]
-        if (await checkTaskOwnership(taskId)) safePaths.push(p)
+        if (checkTaskOwnership(taskId)) safePaths.push(p)
         else dropped.push({ path: p, reason: 'no-task-ownership' })
       } else {
         dropped.push({ path: p, reason: `unknown-shape (${segs.length} segs)` })

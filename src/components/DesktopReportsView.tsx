@@ -336,7 +336,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     let g = 0;
     for (const t of tasksForVehicle) {
       const sessions = (t.sessions || []).slice().sort((a, b) =>
-        new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime()
+        new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime()
       );
       for (const s of sessions) {
         const periods = (s.periods || []).slice().sort((a, b) =>

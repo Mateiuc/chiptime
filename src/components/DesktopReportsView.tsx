@@ -567,9 +567,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   <div className="text-sm font-medium mb-2">
                     ↳ Time worked per day — {drillVehicle.label.replace(/^Vehicle — /, '')}
                   </div>
-                  <div style={{ height: Math.min(360, Math.max(180, vehicleDaily.data.length * 28 + 80)) }}>
+                  <div className="h-[380px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={vehicleDaily.data}>
+                      <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                         <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />

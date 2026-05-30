@@ -534,32 +534,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             </CardContent>
           </Card>
 
-          {/* 2. Revenue by Client */}
-          <Card className="border-2 border-blue-500/30 lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Revenue by Client <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div style={{ height: clientChartHeight }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueByClient} layout="vertical" onClick={handleClientClick} style={{ cursor: 'pointer' }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={120} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
-                      {revenueByClient.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {drillClient && <DrillTable drill={drillClient} onClose={() => setDrillClient(null)} />}
-            </CardContent>
-          </Card>
-
-          {/* 3. Revenue by Vehicle */}
+          {/* 2. Revenue by Vehicle */}
           <Card className="border-2 border-purple-500/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-400">
@@ -567,9 +542,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div style={{ height: vehicleChartHeight }}>
+              <div className="h-[380px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueByVehicle} layout="vertical" onClick={handleVehicleClick} style={{ cursor: 'pointer' }}>
+                  <BarChart data={revenueByVehicle} layout="vertical" onClick={handleVehicleClick} style={{ cursor: 'pointer' }} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
@@ -584,7 +559,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             </CardContent>
           </Card>
 
-          {/* 3b. Time worked per day (paired with Revenue by Vehicle) */}
+          {/* 2b. Time worked per day (paired with Revenue by Vehicle) */}
           <Card className="border-2 border-purple-500/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-400">
@@ -625,6 +600,32 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
               </div>
             </CardContent>
           </Card>
+
+          {/* 3. Revenue by Client */}
+          <Card className="border-2 border-blue-500/30 lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                Revenue by Client <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div style={{ height: clientChartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={revenueByClient} layout="vertical" onClick={handleClientClick} style={{ cursor: 'pointer' }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={120} />
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
+                      {revenueByClient.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {drillClient && <DrillTable drill={drillClient} onClose={() => setDrillClient(null)} />}
+            </CardContent>
+          </Card>
+
 
 
           {/* 4. Tasks by Status */}

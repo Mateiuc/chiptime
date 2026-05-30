@@ -322,6 +322,59 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
   const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
 
+  // Build per-day stacked dataset for the currently drilled vehicle.
+  // Each bar = one day; each stack segment = one work period that happened that day.
+  const vehicleDaily = useMemo(() => {
+    if (!drillVehicle?.vehicleId) return { data: [] as any[], indices: [] as number[] };
+    const tasksForVehicle = filteredTasks
+      .filter(t => t.vehicleId === drillVehicle.vehicleId)
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    type Flat = { dayKey: string; dayDate: Date; seconds: number; globalIdx: number };
+    const flats: Flat[] = [];
+    let g = 0;
+    for (const t of tasksForVehicle) {
+      const sessions = (t.sessions || []).slice().sort((a, b) =>
+        new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime()
+      );
+      for (const s of sessions) {
+        const periods = (s.periods || []).slice().sort((a, b) =>
+          new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime()
+        );
+        for (const p of periods) {
+          if (!p.duration || p.duration <= 0) continue;
+          const d = new Date(p.startTime as any);
+          const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          flats.push({ dayKey, dayDate: new Date(d.getFullYear(), d.getMonth(), d.getDate()), seconds: p.duration, globalIdx: g++ });
+        }
+      }
+    }
+
+    const buckets = new Map<string, { date: Date; periods: Flat[] }>();
+    for (const f of flats) {
+      const b = buckets.get(f.dayKey);
+      if (b) b.periods.push(f);
+      else buckets.set(f.dayKey, { date: f.dayDate, periods: [f] });
+    }
+
+    const days = Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, b]) => {
+        const row: any = {
+          day: `${String(b.date.getDate()).padStart(2, '0')}/${String(b.date.getMonth() + 1).padStart(2, '0')}`,
+          dayKey: key,
+          total: b.periods.reduce((s, p) => s + p.seconds, 0),
+        };
+        for (const p of b.periods) row[`p${p.globalIdx}`] = p.seconds;
+        return row;
+      });
+
+    const indices = flats.map(f => f.globalIdx);
+    return { data: days, indices };
+  }, [drillVehicle, filteredTasks]);
+
+
   const drillRowsForMonth = (month: string) =>
     filteredTasks.filter(t => {
       const d = new Date(t.createdAt);

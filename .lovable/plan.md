@@ -1,41 +1,59 @@
-# Add Daily Time Worked Chart to Bill PDF
+# Unify Desktop Bill Generation with Shared Renderer
 
-Append a final page to every bill PDF that visualizes how much time was worked on the task per calendar day, aggregated across all sessions and periods.
+The chart was added to the shared `renderBillPdf()` in `src/lib/billPdfRenderer.ts`, which is used by mobile (`TaskCard.generateBillingPDF`) and `ShareBillDialog`. The **desktop dashboard** still uses its own ~300-line duplicated PDF builder (`DesktopDashboard.generateBillPdf`), so bills generated there are missing the new chart, the improved photo pagination, and any future shared features.
 
-## Where
+## Fix
 
-`src/lib/billPdfRenderer.ts` — `renderBillPdf()`. New page added after photo pages, before returning the doc.
+Replace `DesktopDashboard.generateBillPdf` body with a thin wrapper that delegates to the shared renderer.
 
-## Data
+### File: `src/pages/DesktopDashboard.tsx`
 
-Iterate `task.sessions[].periods[]`:
-- Bucket by `startTime` calendar date (local time, YYYY-MM-DD key).
-- Sum `period.duration` (seconds) per day.
-- Sort chronologically.
-- If only one or zero days have data, still render the chart (single bar is fine); skip the page only if zero periods exist.
+Replace lines ~299–615 (`const generateBillPdf = async (task, client, vehicle) => { ... }`) with:
 
-## Layout
+```ts
+const generateBillPdf = async (task: Task, client: Client, vehicle: Vehicle) => {
+  const doc = await renderBillPdf({ task, client, vehicle, settings });
 
-- New page using the existing `middle` background (logo top, flag bottom — consistent with photo pages).
-- Title: "Time Worked per Day" in purple (matches "Work Photos" styling), centered at `safeTop('middle')`.
-- Chart area below the title, within `safeTop('middle') + 14` to `safeBottom('middle') - 20`, full width inside `LEFT_MARGIN_MM`..`RIGHT_MARGIN_MM`.
-- Vertical bar chart:
-  - X-axis = days (date label `DD/MM` under each bar, rotated −45° if >8 days to avoid overlap).
-  - Y-axis = hours worked. Y scale = max day rounded up to next 0.5h. Draw 4 horizontal gridlines with hour labels on the left.
-  - Bars: rounded-top rectangles in the brand purple (`128,0,128`) with a thin black border; bar width auto-fit, gap = 30% of slot.
-  - Value label above each bar: `Hh Mm` (e.g. `2h 15m`) in 8pt bold.
-- Footer summary line under chart: `Total: Xh Ym across N day(s)` centered.
+  // Merge diagnostic PDF if present (preserve existing desktop behavior).
+  if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
+    try {
+      const freshUrl = await resolveDiagnosticPdfUrl({
+        path: task.diagnosticPdfPath,
+        url: task.diagnosticPdfUrl,
+      });
+      if (freshUrl) {
+        const billBlob = doc.output('blob');
+        const merged = await mergePdfs(billBlob, freshUrl);
+        const url = URL.createObjectURL(merged);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: 'Bill PDF Generated', description: 'Includes diagnostic report' });
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to merge diagnostic PDF, saving without it:', e);
+    }
+  }
 
-## Technical Details
+  doc.save(`invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`);
+  toast({ title: 'Bill PDF Generated' });
+};
+```
 
-- Add helper `renderDailyTimeChart(doc, task)` near `renderPhotoPages`. Returns early when no periods exist.
-- Use jsPDF primitives only (`rect`, `line`, `text`, `setFillColor`, `setDrawColor`). No new deps.
-- Use existing `formatDurationHHMM` for tooltips/labels, plus a small `formatHm(seconds)` helper for `Xh Ym` style.
-- Call `await renderDailyTimeChart(doc, task)` immediately after `await renderPhotoPages(doc, task)` in `renderBillPdf`.
-- All text passed through `stripDiacritics` is unnecessary here (numeric/date labels only).
+### Imports
+
+Add `import { renderBillPdf } from '@/lib/billPdfRenderer';` and remove now-unused imports (`jsPDF`, `billBackground`, `applyLaborDiscount`, `formatCurrency`, `photoStorageService` — verify each is still used elsewhere in the file before deleting).
+
+## Result
+
+- Desktop "Generate Bill", "Preview Bill", and "Generate & Mark Billed" all go through the shared renderer.
+- The "Time Worked per Day" chart now appears on desktop bills, including re-generations for `billed`/`paid` tasks.
+- Bonus: desktop and mobile bills become visually identical (4-role page backgrounds, proper totals anchoring, robust photo loading).
 
 ## Out of Scope
 
-- No changes to `DesktopInvoiceView` (separate accounting invoice flow).
-- No changes to totals math or photo rendering.
-- No external chart library.
+- No changes to `DesktopInvoiceView` (separate accounting invoice flow with its own layout).
+- No changes to the shared renderer itself.

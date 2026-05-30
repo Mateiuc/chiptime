@@ -70,6 +70,7 @@ interface DrillRow {
 interface DrillState {
   label: string;
   rows: DrillRow[];
+  vehicleId?: string;
 }
 
 interface DesktopReportsViewProps {

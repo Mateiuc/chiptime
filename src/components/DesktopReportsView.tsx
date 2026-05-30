@@ -23,6 +23,21 @@ const CHART_COLORS = [
   '#14b8a6', '#f97316', '#84cc16', '#a855f7',
 ];
 
+// Mirror bill PDF palette so colors stay consistent across the app.
+const PERIOD_COLORS = [
+  '#800080', '#2563eb', '#16a34a', '#ea580c',
+  '#dc2626', '#ca8a04', '#0d9488', '#db2777',
+];
+
+const formatHm = (seconds: number): string => {
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   completed: '#22c55e',
   billed: '#a855f7',
@@ -55,6 +70,7 @@ interface DrillRow {
 interface DrillState {
   label: string;
   rows: DrillRow[];
+  vehicleId?: string;
 }
 
 interface DesktopReportsViewProps {
@@ -306,6 +322,59 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
   const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
 
+  // Build per-day stacked dataset for the currently drilled vehicle.
+  // Each bar = one day; each stack segment = one work period that happened that day.
+  const vehicleDaily = useMemo(() => {
+    if (!drillVehicle?.vehicleId) return { data: [] as any[], indices: [] as number[] };
+    const tasksForVehicle = filteredTasks
+      .filter(t => t.vehicleId === drillVehicle.vehicleId)
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    type Flat = { dayKey: string; dayDate: Date; seconds: number; globalIdx: number };
+    const flats: Flat[] = [];
+    let g = 0;
+    for (const t of tasksForVehicle) {
+      const sessions = (t.sessions || []).slice().sort((a, b) =>
+        new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime()
+      );
+      for (const s of sessions) {
+        const periods = (s.periods || []).slice().sort((a, b) =>
+          new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime()
+        );
+        for (const p of periods) {
+          if (!p.duration || p.duration <= 0) continue;
+          const d = new Date(p.startTime as any);
+          const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          flats.push({ dayKey, dayDate: new Date(d.getFullYear(), d.getMonth(), d.getDate()), seconds: p.duration, globalIdx: g++ });
+        }
+      }
+    }
+
+    const buckets = new Map<string, { date: Date; periods: Flat[] }>();
+    for (const f of flats) {
+      const b = buckets.get(f.dayKey);
+      if (b) b.periods.push(f);
+      else buckets.set(f.dayKey, { date: f.dayDate, periods: [f] });
+    }
+
+    const days = Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, b]) => {
+        const row: any = {
+          day: `${String(b.date.getDate()).padStart(2, '0')}/${String(b.date.getMonth() + 1).padStart(2, '0')}`,
+          dayKey: key,
+          total: b.periods.reduce((s, p) => s + p.seconds, 0),
+        };
+        for (const p of b.periods) row[`p${p.globalIdx}`] = p.seconds;
+        return row;
+      });
+
+    const indices = flats.map(f => f.globalIdx);
+    return { data: days, indices };
+  }, [drillVehicle, filteredTasks]);
+
+
   const drillRowsForMonth = (month: string) =>
     filteredTasks.filter(t => {
       const d = new Date(t.createdAt);
@@ -324,7 +393,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const handleVehicleClick = (e: any) => {
     const p = e?.activePayload?.[0]?.payload;
     if (!p?.vehicleId) return;
-    setDrillVehicle({ label: `Vehicle — ${p.label}`, rows: filteredTasks.filter(t => t.vehicleId === p.vehicleId).map(toDrillRow) });
+    setDrillVehicle({ label: `Vehicle — ${p.label}`, vehicleId: p.vehicleId, rows: filteredTasks.filter(t => t.vehicleId === p.vehicleId).map(toDrillRow) });
   };
   const handleStatusClick = (e: any) => {
     if (!e?.rawStatus) return;
@@ -493,6 +562,33 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              {drillVehicle && vehicleDaily.data.length > 0 && (
+                <div className="mt-3 border-t pt-3">
+                  <div className="text-sm font-medium mb-2">
+                    ↳ Time worked per day — {drillVehicle.label.replace(/^Vehicle — /, '')}
+                  </div>
+                  <div style={{ height: Math.min(360, Math.max(180, vehicleDaily.data.length * 28 + 80)) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={vehicleDaily.data}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
+                        <Tooltip
+                          formatter={(v: any) => formatHm(Number(v))}
+                          labelFormatter={(l, payload) => {
+                            const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                            return `${l} — total ${formatHm(total)}`;
+                          }}
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                        />
+                        {vehicleDaily.indices.map(idx => (
+                          <Bar key={idx} dataKey={`p${idx}`} stackId="day" fill={PERIOD_COLORS[idx % PERIOD_COLORS.length]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
               {drillVehicle && <DrillTable drill={drillVehicle} onClose={() => setDrillVehicle(null)} />}
             </CardContent>
           </Card>

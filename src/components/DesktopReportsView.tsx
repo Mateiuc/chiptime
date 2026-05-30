@@ -610,7 +610,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                         contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                       />
                       {vehicleDaily.indices.map((key, i) => (
-                        <Bar key={key} dataKey={key} stackId="day" fill={PERIOD_COLORS[i % PERIOD_COLORS.length]} />
+                        <Bar
+                          key={key}
+                          dataKey={key}
+                          name={vehicleDaily.labels[key] || key}
+                          stackId="day"
+                          fill={
+                            key.startsWith('v_')
+                              ? (vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length])
+                              : PERIOD_COLORS[i % PERIOD_COLORS.length]
+                          }
+                        />
+
                       ))}
                     </BarChart>
                   </ResponsiveContainer>

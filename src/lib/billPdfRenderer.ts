@@ -444,25 +444,51 @@ const formatHm = (seconds: number): string => {
   return `${h}h ${m}m`;
 };
 
+const PERIOD_COLORS: [number, number, number][] = [
+  [128, 0, 128],   // brand purple
+  [37, 99, 235],   // blue
+  [22, 163, 74],   // green
+  [234, 88, 12],   // orange
+  [220, 38, 38],   // red
+  [202, 138, 4],   // amber
+  [13, 148, 136],  // teal
+  [219, 39, 119],  // pink
+];
+
 function renderDailyTimeChart(doc: jsPDF, task: Task): void {
-  // Aggregate seconds per local calendar day.
-  const buckets = new Map<string, { date: Date; seconds: number }>();
+  // Collect all periods with a global index (for stable per-period color).
+  type FlatPeriod = { start: Date; seconds: number; globalIdx: number };
+  const flat: FlatPeriod[] = [];
+  let g = 0;
   (task.sessions || []).forEach((session) => {
     (session.periods || []).forEach((p) => {
       const start = p.startTime instanceof Date ? p.startTime : new Date(p.startTime);
-      if (isNaN(start.getTime())) return;
-      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-      const bucket = buckets.get(key);
-      if (bucket) {
-        bucket.seconds += p.duration || 0;
-      } else {
-        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-        buckets.set(key, { date: d, seconds: p.duration || 0 });
-      }
+      const dur = p.duration || 0;
+      if (isNaN(start.getTime()) || dur <= 0) { g++; return; }
+      flat.push({ start, seconds: dur, globalIdx: g });
+      g++;
     });
+  });
+  if (flat.length === 0) return;
+
+  // Bucket by local calendar day, preserving chronological order per day.
+  const buckets = new Map<string, { date: Date; periods: FlatPeriod[] }>();
+  flat.forEach((fp) => {
+    const key = `${fp.start.getFullYear()}-${String(fp.start.getMonth() + 1).padStart(2, '0')}-${String(fp.start.getDate()).padStart(2, '0')}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { date: new Date(fp.start.getFullYear(), fp.start.getMonth(), fp.start.getDate()), periods: [] };
+      buckets.set(key, bucket);
+    }
+    bucket.periods.push(fp);
   });
 
   const days = Array.from(buckets.values())
+    .map((b) => ({
+      date: b.date,
+      periods: b.periods.slice().sort((a, b) => a.start.getTime() - b.start.getTime()),
+      seconds: b.periods.reduce((s, p) => s + p.seconds, 0),
+    }))
     .filter((d) => d.seconds > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   if (days.length === 0) return;
@@ -480,14 +506,14 @@ function renderDailyTimeChart(doc: jsPDF, task: Task): void {
   y += 10;
 
   // Chart area.
-  const chartLeft = LEFT_MARGIN_MM + 14; // leave room for Y-axis labels
+  const chartLeft = LEFT_MARGIN_MM + 14;
   const chartRight = RIGHT_MARGIN_MM - 2;
   const chartTop = y + 4;
-  const chartBottom = safeBottom('middle') - 24; // leave room for x labels + summary
+  const chartBottom = safeBottom('middle') - 24;
   const chartWidth = chartRight - chartLeft;
   const chartHeight = chartBottom - chartTop;
 
-  // Y scale — round max up to next 0.5h.
+  // Y scale.
   const maxSec = Math.max(...days.map((d) => d.seconds));
   const maxHours = Math.max(0.5, Math.ceil((maxSec / 3600) * 2) / 2);
   const ySteps = 4;
@@ -512,7 +538,7 @@ function renderDailyTimeChart(doc: jsPDF, task: Task): void {
   doc.line(chartLeft, chartTop, chartLeft, chartBottom);
   doc.line(chartLeft, chartBottom, chartRight, chartBottom);
 
-  // Bars.
+  // Stacked bars.
   const slotW = chartWidth / days.length;
   const barW = slotW * 0.7;
   const barOffset = (slotW - barW) / 2;
@@ -525,17 +551,33 @@ function renderDailyTimeChart(doc: jsPDF, task: Task): void {
     const bh = Math.max(0.6, hFrac * chartHeight);
     const by = chartBottom - bh;
 
-    doc.setFillColor(128, 0, 128);
+    // Draw period segments from bottom up.
+    let segBottom = chartBottom;
+    d.periods.forEach((p, idx) => {
+      const segH = (p.seconds / d.seconds) * bh;
+      const segY = segBottom - segH;
+      const [r, gg, b] = PERIOD_COLORS[p.globalIdx % PERIOD_COLORS.length];
+      doc.setFillColor(r, gg, b);
+      doc.rect(bx, segY, barW, segH, 'F');
+      // White separator above this segment (skip top-most segment).
+      if (idx < d.periods.length - 1) {
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.3);
+        doc.line(bx, segY, bx + barW, segY);
+      }
+      segBottom = segY;
+    });
+
+    // Outline.
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.2);
-    doc.rect(bx, by, barW, bh, 'FD');
+    doc.rect(bx, by, barW, bh, 'S');
 
     // Value label above bar.
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
-    const label = formatHm(d.seconds);
-    doc.text(label, bx + barW / 2, by - 1.5, { align: 'center' });
+    doc.text(formatHm(d.seconds), bx + barW / 2, by - 1.5, { align: 'center' });
 
     // X-axis date label.
     const dateLabel = `${String(d.date.getDate()).padStart(2, '0')}/${String(d.date.getMonth() + 1).padStart(2, '0')}`;
@@ -550,6 +592,7 @@ function renderDailyTimeChart(doc: jsPDF, task: Task): void {
       doc.text(dateLabel, lx, ly + 2, { align: 'center' });
     }
   });
+
 
   // Summary footer.
   const totalSec = days.reduce((s, d) => s + d.seconds, 0);

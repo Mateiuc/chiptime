@@ -1,59 +1,58 @@
-# Stacked Period Segments in Daily Time Chart
+## Add per-day time chart (period segments) on vehicle drill in Reports
 
-Update the bar chart added to the bill PDF so that each day's bar is subdivided into colored segments — one segment per period that ran that day, sized proportionally to that period's share of the day's total.
+When the user clicks a bar in "Revenue by Vehicle", the existing `drillVehicle` table appears. Add a stacked bar chart above that table showing time worked per day for that vehicle, with each day's bar split into colored segments — one per period — exactly like the bill PDF chart.
 
-## Where
+## File
 
-`src/lib/billPdfRenderer.ts` → `renderDailyTimeChart()`.
+`src/components/DesktopReportsView.tsx`
 
-## Data change
+## Reuse palette
 
-Replace the current `Map<string, { date, seconds }>` with:
-
-```ts
-Map<string, { date: Date; periods: { seconds: number }[] }>
-```
-
-For each `period` in each session, push `{ seconds: period.duration }` into the bucket for its `startTime` calendar day. Skip periods with `duration <= 0`. Sort the periods within each day by their original start time so segment order is chronological.
-
-## Rendering change
-
-For each day bar:
-- Compute `daySeconds = sum(periods.seconds)`.
-- Compute the bar's full height `bh` from `daySeconds / maxHours` (same scale as today).
-- Iterate periods bottom-up. For each period:
-  - `segH = (period.seconds / daySeconds) * bh`
-  - Fill with a color from a fixed palette indexed by the period's global index (so the same period gets the same color even across days). Cycle the palette if there are more periods than colors.
-  - Draw `doc.rect(bx, segY, barW, segH, 'F')` (fill only).
-  - Draw a thin white separator line between segments (`setDrawColor(255,255,255)`, `setLineWidth(0.3)`) except at the top.
-- After all segments, draw a single black outline around the full bar (`doc.rect(bx, by, barW, bh, 'S')`).
-- Keep the existing total label (`formatHm(daySeconds)`) above the bar.
-
-## Color palette
-
-Add a local constant:
+Mirror the bill PDF palette so colors feel consistent. Add a local constant:
 
 ```ts
-const PERIOD_COLORS: [number, number, number][] = [
-  [128, 0, 128],   // brand purple
-  [37, 99, 235],   // blue
-  [22, 163, 74],   // green
-  [234, 88, 12],   // orange
-  [220, 38, 38],   // red
-  [202, 138, 4],   // amber
-  [13, 148, 136],  // teal
-  [219, 39, 119],  // pink
+const PERIOD_COLORS = [
+  '#800080', // purple
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#ea580c', // orange
+  '#dc2626', // red
+  '#ca8a04', // amber
+  '#0d9488', // teal
+  '#db2777', // pink
 ];
 ```
 
-Indexed by **global period index** (counter incremented as we walk sessions/periods in order), modulo palette length, so the same period keeps its color even if days are reordered.
+## Data shape
 
-## Legend
+Build a memo `vehicleDailyData` derived from `drillVehicle` (only when set):
 
-Skip a legend — the value label above each bar already shows the day's total, and adding a legend per period would not fit when there are many periods. Segments are visually distinct enough without one.
+1. Collect `filteredTasks.filter(t => t.vehicleId === drillVehicle.vehicleId)`.
+   - Store `vehicleId` on `DrillState` (extend interface) so we don't have to re-derive from label.
+2. Walk those tasks → sessions → periods in chronological order, assigning each period a `globalIdx` (running counter) so it gets a stable color via `PERIOD_COLORS[globalIdx % 8]`.
+3. Bucket periods by local calendar day (`YYYY-MM-DD`) using `period.startTime`. Skip periods with `duration <= 0`.
+4. Sort days ascending. For each day, produce a row:
+   ```ts
+   { day: 'DD/MM', p0: secondsOrNullForGlobalIdx0, p1: ..., ... }
+   ```
+   Recharts needs one numeric key per stack segment. Use keys `p${globalIdx}` and only set the keys for periods that actually fall on that day.
+
+## Render
+
+Inside the Revenue-by-Vehicle card, right before `{drillVehicle && <DrillTable .../>}`, render when `drillVehicle && vehicleDailyData.length > 0`:
+
+- Header: `Time worked per day — {drillVehicle.label}` with a small "Hide" button reusing the drill close pattern, or just rely on closing the drill itself.
+- `ResponsiveContainer` height `Math.max(180, vehicleDailyData.length * 28 + 80)` (cap reasonable max ~360).
+- `<BarChart data={vehicleDailyData}>` with `<XAxis dataKey="day">`, `<YAxis tickFormatter={s => formatHm(s)}>`, `<Tooltip formatter={(v) => formatHm(Number(v))}>`, `<CartesianGrid strokeDasharray="3 3">`.
+- For each `globalIdx` present in the dataset, render one `<Bar dataKey={'p'+idx} stackId="day" fill={PERIOD_COLORS[idx % 8]} />`. Compute the list of present indices in a memo so we render the right number of `<Bar>`s.
+- No `<Legend>` (matches PDF behavior).
+
+## Helper
+
+Add a small `formatHm(seconds)` local helper (`Xh Ym` / `Ym`) — or import existing one from `@/lib/formatTime` if present.
 
 ## Out of scope
 
-- No change to data aggregation logic outside the chart.
-- No change to non-chart pages.
-- No new dependency.
+- Other drills (client, status) keep existing behavior.
+- No changes to PDF renderer.
+- No new dependency (recharts already used).

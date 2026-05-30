@@ -631,14 +631,15 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           </Card>
 
           {/* 3. Revenue by Client */}
-          <Card className="border-2 border-blue-500/30 lg:col-span-2">
+          <Card className="border-2 border-blue-500/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">
                 Revenue by Client <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div style={{ height: clientChartHeight }}>
+              <div className="h-[380px]">
+
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={revenueByClient} layout="vertical" onClick={handleClientClick} style={{ cursor: 'pointer' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

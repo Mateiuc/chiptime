@@ -619,24 +619,34 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                           <Tooltip
                             formatter={(v: any) => formatHm(Number(v))}
                             labelFormatter={(l, payload) => {
-                              const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
-                              return `${l} — total ${formatHm(total)}`;
+                              // Avoid double-counting: sum only vehicle bars when present, else period bars.
+                              const vehSum = payload?.filter((p: any) => String(p?.dataKey || '').startsWith('v_'))
+                                .reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                              const perSum = payload?.filter((p: any) => /^p\d|^p_/.test(String(p?.dataKey || '')))
+                                .reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                              return `${l} — total ${formatHm(vehSum || perSum)}`;
                             }}
                             contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                           />
-                          {vehicleDaily.indices.map((key, i) => (
+                          {vehicleDaily.vehKeys.map((key, i) => (
                             <Bar
                               key={key}
                               dataKey={key}
                               name={vehicleDaily.labels[key] || key}
-                              stackId="day"
-                              fill={
-                                key.startsWith('v_')
-                                  ? (vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length])
-                                  : PERIOD_COLORS[i % PERIOD_COLORS.length]
-                              }
+                              stackId="veh"
+                              fill={vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length]}
                             />
                           ))}
+                          {vehicleDaily.perKeys.map((key, i) => (
+                            <Bar
+                              key={key}
+                              dataKey={key}
+                              name={vehicleDaily.labels[key] || key}
+                              stackId="per"
+                              fill={PERIOD_COLORS[i % PERIOD_COLORS.length]}
+                            />
+                          ))}
+
                         </BarChart>
                       </ResponsiveContainer>
                     )}

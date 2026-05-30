@@ -562,6 +562,33 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              {drillVehicle && vehicleDaily.data.length > 0 && (
+                <div className="mt-3 border-t pt-3">
+                  <div className="text-sm font-medium mb-2">
+                    ↳ Time worked per day — {drillVehicle.label.replace(/^Vehicle — /, '')}
+                  </div>
+                  <div style={{ height: Math.min(360, Math.max(180, vehicleDaily.data.length * 28 + 80)) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={vehicleDaily.data}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
+                        <Tooltip
+                          formatter={(v: any) => formatHm(Number(v))}
+                          labelFormatter={(l, payload) => {
+                            const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                            return `${l} — total ${formatHm(total)}`;
+                          }}
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                        />
+                        {vehicleDaily.indices.map(idx => (
+                          <Bar key={idx} dataKey={`p${idx}`} stackId="day" fill={PERIOD_COLORS[idx % PERIOD_COLORS.length]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
               {drillVehicle && <DrillTable drill={drillVehicle} onClose={() => setDrillVehicle(null)} />}
             </CardContent>
           </Card>

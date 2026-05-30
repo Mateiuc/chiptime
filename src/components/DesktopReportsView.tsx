@@ -535,7 +535,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           </Card>
 
           {/* 2. Revenue by Client */}
-          <Card className="border-2 border-blue-500/30">
+          <Card className="border-2 border-blue-500/30 lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">
                 Revenue by Client <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
@@ -580,36 +580,52 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {drillVehicle && vehicleDaily.data.length > 0 && (
-                <div className="mt-3 border-t pt-3">
-                  <div className="text-sm font-medium mb-2">
-                    ↳ Time worked per day — {drillVehicle.label.replace(/^Vehicle — /, '')}
-                  </div>
-                  <div className="h-[380px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
-                        <Tooltip
-                          formatter={(v: any) => formatHm(Number(v))}
-                          labelFormatter={(l, payload) => {
-                            const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
-                            return `${l} — total ${formatHm(total)}`;
-                          }}
-                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-                        />
-                        {vehicleDaily.indices.map(idx => (
-                          <Bar key={idx} dataKey={`p${idx}`} stackId="day" fill={PERIOD_COLORS[idx % PERIOD_COLORS.length]} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
               {drillVehicle && <DrillTable drill={drillVehicle} onClose={() => setDrillVehicle(null)} />}
             </CardContent>
           </Card>
+
+          {/* 3b. Time worked per day (paired with Revenue by Vehicle) */}
+          <Card className="border-2 border-purple-500/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-400">
+                Time worked per day
+                <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                  {drillVehicle?.vehicleId
+                    ? `— ${drillVehicle.label.replace(/^Vehicle — /, '')}`
+                    : '— all vehicles (click a vehicle bar to filter)'}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[380px]">
+                {vehicleDaily.data.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                    No time data for current filters.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
+                      <Tooltip
+                        formatter={(v: any) => formatHm(Number(v))}
+                        labelFormatter={(l, payload) => {
+                          const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                          return `${l} — total ${formatHm(total)}`;
+                        }}
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                      />
+                      {vehicleDaily.indices.map((key, i) => (
+                        <Bar key={key} dataKey={key} stackId="day" fill={PERIOD_COLORS[i % PERIOD_COLORS.length]} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
 
           {/* 4. Tasks by Status */}
           <Card className="border-2 border-amber-500/30">

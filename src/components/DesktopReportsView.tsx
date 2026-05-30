@@ -552,83 +552,83 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             </CardContent>
           </Card>
 
-          {/* 2. Revenue by Vehicle */}
-          <Card className="border-2 border-purple-500/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-400">
-                Revenue by Vehicle (Top 20) <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[380px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueByVehicle} layout="vertical" onClick={handleVehicleClick} style={{ cursor: 'pointer' }} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
-                    <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
-                      {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* 2. Vehicle revenue + time worked — linked, one card */}
+          <Card className="border-2 border-purple-500/30 lg:col-span-2">
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Revenue by Vehicle */}
+                <div>
+                  <div className="text-sm font-medium text-purple-700 dark:text-purple-400 mb-2">
+                    Revenue by Vehicle (Top 20)
+                    <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
+                  </div>
+                  <div className="h-[380px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueByVehicle} layout="vertical" onClick={handleVehicleClick} style={{ cursor: 'pointer' }} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${v}`} />
+                        <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={140} />
+                        <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                        <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={14}>
+                          {revenueByVehicle.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Right: Time worked per day */}
+                <div>
+                  <div className="text-sm font-medium text-purple-700 dark:text-purple-400 mb-2">
+                    Time worked per day
+                    <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                      {drillVehicle?.vehicleId
+                        ? `— ${drillVehicle.label.replace(/^Vehicle — /, '')}`
+                        : '— all vehicles (click a vehicle bar to filter)'}
+                    </span>
+                  </div>
+                  <div className="h-[380px]">
+                    {vehicleDaily.data.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                        No time data for current filters.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                          <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
+                          <Tooltip
+                            formatter={(v: any) => formatHm(Number(v))}
+                            labelFormatter={(l, payload) => {
+                              const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
+                              return `${l} — total ${formatHm(total)}`;
+                            }}
+                            contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                          />
+                          {vehicleDaily.indices.map((key, i) => (
+                            <Bar
+                              key={key}
+                              dataKey={key}
+                              name={vehicleDaily.labels[key] || key}
+                              stackId="day"
+                              fill={
+                                key.startsWith('v_')
+                                  ? (vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length])
+                                  : PERIOD_COLORS[i % PERIOD_COLORS.length]
+                              }
+                            />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
               </div>
               {drillVehicle && <DrillTable drill={drillVehicle} onClose={() => setDrillVehicle(null)} />}
             </CardContent>
           </Card>
 
-          {/* 2b. Time worked per day (paired with Revenue by Vehicle) */}
-          <Card className="border-2 border-purple-500/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-400">
-                Time worked per day
-                <span className="text-[10px] font-normal text-muted-foreground ml-1">
-                  {drillVehicle?.vehicleId
-                    ? `— ${drillVehicle.label.replace(/^Vehicle — /, '')}`
-                    : '— all vehicles (click a vehicle bar to filter)'}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[380px]">
-                {vehicleDaily.data.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                    No time data for current filters.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
-                      <Tooltip
-                        formatter={(v: any) => formatHm(Number(v))}
-                        labelFormatter={(l, payload) => {
-                          const total = payload?.reduce((s: number, p: any) => s + Number(p?.value || 0), 0) || 0;
-                          return `${l} — total ${formatHm(total)}`;
-                        }}
-                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-                      />
-                      {vehicleDaily.indices.map((key, i) => (
-                        <Bar
-                          key={key}
-                          dataKey={key}
-                          name={vehicleDaily.labels[key] || key}
-                          stackId="day"
-                          fill={
-                            key.startsWith('v_')
-                              ? (vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length])
-                              : PERIOD_COLORS[i % PERIOD_COLORS.length]
-                          }
-                        />
-
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* 3. Revenue by Client */}
           <Card className="border-2 border-blue-500/30">

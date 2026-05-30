@@ -1,59 +1,59 @@
-# Unify Desktop Bill Generation with Shared Renderer
+# Stacked Period Segments in Daily Time Chart
 
-The chart was added to the shared `renderBillPdf()` in `src/lib/billPdfRenderer.ts`, which is used by mobile (`TaskCard.generateBillingPDF`) and `ShareBillDialog`. The **desktop dashboard** still uses its own ~300-line duplicated PDF builder (`DesktopDashboard.generateBillPdf`), so bills generated there are missing the new chart, the improved photo pagination, and any future shared features.
+Update the bar chart added to the bill PDF so that each day's bar is subdivided into colored segments — one segment per period that ran that day, sized proportionally to that period's share of the day's total.
 
-## Fix
+## Where
 
-Replace `DesktopDashboard.generateBillPdf` body with a thin wrapper that delegates to the shared renderer.
+`src/lib/billPdfRenderer.ts` → `renderDailyTimeChart()`.
 
-### File: `src/pages/DesktopDashboard.tsx`
+## Data change
 
-Replace lines ~299–615 (`const generateBillPdf = async (task, client, vehicle) => { ... }`) with:
+Replace the current `Map<string, { date, seconds }>` with:
 
 ```ts
-const generateBillPdf = async (task: Task, client: Client, vehicle: Vehicle) => {
-  const doc = await renderBillPdf({ task, client, vehicle, settings });
-
-  // Merge diagnostic PDF if present (preserve existing desktop behavior).
-  if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
-    try {
-      const freshUrl = await resolveDiagnosticPdfUrl({
-        path: task.diagnosticPdfPath,
-        url: task.diagnosticPdfUrl,
-      });
-      if (freshUrl) {
-        const billBlob = doc.output('blob');
-        const merged = await mergePdfs(billBlob, freshUrl);
-        const url = URL.createObjectURL(merged);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast({ title: 'Bill PDF Generated', description: 'Includes diagnostic report' });
-        return;
-      }
-    } catch (e) {
-      console.warn('Failed to merge diagnostic PDF, saving without it:', e);
-    }
-  }
-
-  doc.save(`invoice-${stripDiacritics(client.name)}-${vehicle.vin}.pdf`);
-  toast({ title: 'Bill PDF Generated' });
-};
+Map<string, { date: Date; periods: { seconds: number }[] }>
 ```
 
-### Imports
+For each `period` in each session, push `{ seconds: period.duration }` into the bucket for its `startTime` calendar day. Skip periods with `duration <= 0`. Sort the periods within each day by their original start time so segment order is chronological.
 
-Add `import { renderBillPdf } from '@/lib/billPdfRenderer';` and remove now-unused imports (`jsPDF`, `billBackground`, `applyLaborDiscount`, `formatCurrency`, `photoStorageService` — verify each is still used elsewhere in the file before deleting).
+## Rendering change
 
-## Result
+For each day bar:
+- Compute `daySeconds = sum(periods.seconds)`.
+- Compute the bar's full height `bh` from `daySeconds / maxHours` (same scale as today).
+- Iterate periods bottom-up. For each period:
+  - `segH = (period.seconds / daySeconds) * bh`
+  - Fill with a color from a fixed palette indexed by the period's global index (so the same period gets the same color even across days). Cycle the palette if there are more periods than colors.
+  - Draw `doc.rect(bx, segY, barW, segH, 'F')` (fill only).
+  - Draw a thin white separator line between segments (`setDrawColor(255,255,255)`, `setLineWidth(0.3)`) except at the top.
+- After all segments, draw a single black outline around the full bar (`doc.rect(bx, by, barW, bh, 'S')`).
+- Keep the existing total label (`formatHm(daySeconds)`) above the bar.
 
-- Desktop "Generate Bill", "Preview Bill", and "Generate & Mark Billed" all go through the shared renderer.
-- The "Time Worked per Day" chart now appears on desktop bills, including re-generations for `billed`/`paid` tasks.
-- Bonus: desktop and mobile bills become visually identical (4-role page backgrounds, proper totals anchoring, robust photo loading).
+## Color palette
 
-## Out of Scope
+Add a local constant:
 
-- No changes to `DesktopInvoiceView` (separate accounting invoice flow with its own layout).
-- No changes to the shared renderer itself.
+```ts
+const PERIOD_COLORS: [number, number, number][] = [
+  [128, 0, 128],   // brand purple
+  [37, 99, 235],   // blue
+  [22, 163, 74],   // green
+  [234, 88, 12],   // orange
+  [220, 38, 38],   // red
+  [202, 138, 4],   // amber
+  [13, 148, 136],  // teal
+  [219, 39, 119],  // pink
+];
+```
+
+Indexed by **global period index** (counter incremented as we walk sessions/periods in order), modulo palette length, so the same period keeps its color even if days are reordered.
+
+## Legend
+
+Skip a legend — the value label above each bar already shows the day's total, and adding a legend per period would not fit when there are many periods. Segments are visually distinct enough without one.
+
+## Out of scope
+
+- No change to data aggregation logic outside the chart.
+- No change to non-chart pages.
+- No new dependency.

@@ -1,19 +1,18 @@
-## Unify Vehicle + Time charts; shrink Client chart
+## Merge Vehicle + Time into one Card
 
-In `src/components/DesktopReportsView.tsx`:
+In `src/components/DesktopReportsView.tsx`, combine the two separate purple cards ("Revenue by Vehicle (Top 20)" and "Time worked per day") into a single `<Card lg:col-span-2>` that holds both charts side-by-side in an internal 2-column grid.
 
-### 1. Fix tooltip labels on "Time worked per day"
-Currently bar `dataKey` is `v_<vehicleId>` or `p<n>`, so the tooltip shows raw keys. Extend `vehicleDaily` memo (line 328) to also return `labels: Record<string, string>`:
-- All-vehicles mode (`v_<id>`): label = vehicle display string (`year make model` || VIN || "Unknown vehicle"), resolved from the `vehicles` prop. Add `vehicles` to memo deps.
-- Drilled mode (`p<n>`): label = `Period N` (1-based).
+### Changes
 
-Then pass `name={labels[key]}` on each `<Bar>` so Recharts tooltip shows the friendly name.
-
-### 2. Unify color system between the two charts
-Build a stable color map keyed by `vehicleId` derived from `revenueByVehicle` order (using the same `CHART_COLORS[(i + 3) % len]` formula). Use that map in the time chart's all-vehicles mode so each vehicle shares the exact same color in both charts. Drilled (per-period) mode keeps `PERIOD_COLORS`.
-
-### 3. Shrink "Revenue by Client"
-Replace the card's `lg:col-span-2` with single-column placement and swap the dynamic `clientChartHeight` wrapper for `h-[380px]`, matching Vehicle + Time per day. Keep all data/logic.
+1. Delete the two standalone purple `<Card>` wrappers.
+2. Replace with one card:
+   - `<Card className="border-2 border-purple-500/30 lg:col-span-2">`
+   - Inside `<CardContent>`, render a `grid grid-cols-1 lg:grid-cols-2 gap-6` with two columns:
+     - **Left:** title "Revenue by Vehicle (Top 20)" + the existing vertical bar chart in `h-[380px]`, followed by `drillVehicle` DrillTable.
+     - **Right:** title "Time worked per day — {filter label}" + the existing stacked bar chart in `h-[380px]`.
+   - Each side gets its own small `<div>` title block (same `text-sm font-medium text-purple-700 dark:text-purple-400`) so they read as paired headers inside one card.
+3. Keep all chart logic, colors, tooltips, and click handlers unchanged.
 
 ### Out of scope
-- No changes to other charts, drill logic, or data computations.
+- No data/color/tooltip logic changes.
+- No changes to Revenue Over Time or Revenue by Client cards.

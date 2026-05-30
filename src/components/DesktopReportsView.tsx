@@ -340,18 +340,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       ? filteredTasks.filter(t => t.vehicleId === drillVehicle.vehicleId)
       : filteredTasks;
 
-    if (source.length === 0) return { data: [] as any[], indices: [] as string[], labels: {} as Record<string, string> };
+    if (source.length === 0) return { data: [] as any[], vehKeys: [] as string[], perKeys: [] as string[], labels: {} as Record<string, string> };
 
     type Day = { date: Date; segs: Map<string, number> };
     const buckets = new Map<string, Day>();
-    const segOrder: string[] = [];
+    const vehKeys: string[] = [];
+    const perKeys: string[] = [];
     const labels: Record<string, string> = {};
-    const ensureSeg = (key: string, label: string) => {
-      if (!segOrder.includes(key)) segOrder.push(key);
+    const ensureKey = (arr: string[], key: string, label: string) => {
+      if (!arr.includes(key)) arr.push(key);
       if (!labels[key]) labels[key] = label;
     };
-    const putSeg = (dayKey: string, dayDate: Date, segKey: string, label: string, seconds: number) => {
-      ensureSeg(segKey, label);
+    const putSeg = (dayKey: string, dayDate: Date, segKey: string, seconds: number) => {
       let day = buckets.get(dayKey);
       if (!day) { day = { date: dayDate, segs: new Map() }; buckets.set(dayKey, day); }
       day.segs.set(segKey, (day.segs.get(segKey) || 0) + seconds);
@@ -372,21 +372,30 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             const d = new Date(p.startTime as any);
             const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             g++;
-            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), `p${g}`, `Period ${g}`, p.duration);
+            const key = `p${g}`;
+            ensureKey(perKeys, key, `Period ${g}`);
+            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), key, p.duration);
           }
         }
       }
     } else {
+      let g = 0;
       for (const t of source) {
-        const segKey = `v_${t.vehicleId || 'none'}`;
+        const vehKey = `v_${t.vehicleId || 'none'}`;
         const v = vehicles.find(vh => vh.id === t.vehicleId);
-        const label = v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Unknown vehicle') : 'Unknown vehicle';
+        const vLabel = v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Unknown vehicle') : 'Unknown vehicle';
+        ensureKey(vehKeys, vehKey, vLabel);
         for (const s of (t.sessions || [])) {
           for (const p of (s.periods || [])) {
             if (!p.duration || p.duration <= 0) continue;
             const d = new Date(p.startTime as any);
             const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), segKey, label, p.duration);
+            const dayDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            putSeg(dayKey, dayDate, vehKey, p.duration);
+            g++;
+            const perKey = `p_${g}`;
+            ensureKey(perKeys, perKey, `Period ${g} — ${vLabel}`);
+            putSeg(dayKey, dayDate, perKey, p.duration);
           }
         }
       }
@@ -400,13 +409,22 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           dayKey: key,
         };
         let total = 0;
-        for (const [k, v] of b.segs.entries()) { row[k] = v; total += v; }
-        row.total = total;
+        for (const [k, v] of b.segs.entries()) {
+          row[k] = v;
+          if (k.startsWith('v_') || k.startsWith('p') && !k.startsWith('p_')) total += v;
+          // For drilled-vehicle mode, periods use 'p<n>' (no underscore) and sum to day total.
+          // For all-vehicles mode, vehicle segments ('v_*') sum to day total; 'p_*' duplicate.
+        }
+        // Recompute total properly: prefer vehicle sum if any, else period sum.
+        const vehTotal = Array.from(b.segs.entries()).filter(([k]) => k.startsWith('v_')).reduce((s, [, v]) => s + v, 0);
+        const perTotalDrill = Array.from(b.segs.entries()).filter(([k]) => /^p\d/.test(k)).reduce((s, [, v]) => s + v, 0);
+        row.total = vehTotal || perTotalDrill;
         return row;
       });
 
-    return { data, indices: segOrder, labels };
+    return { data, vehKeys, perKeys, labels };
   }, [drillVehicle, filteredTasks, vehicles]);
+
 
 
 

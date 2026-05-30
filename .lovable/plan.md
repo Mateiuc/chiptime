@@ -1,18 +1,44 @@
-## Merge Vehicle + Time into one Card
+# Time worked per day — dual-stack bars
 
-In `src/components/DesktopReportsView.tsx`, combine the two separate purple cards ("Revenue by Vehicle (Top 20)" and "Time worked per day") into a single `<Card lg:col-span-2>` that holds both charts side-by-side in an internal 2-column grid.
+## Goal
+On the "Time worked per day" chart (all-vehicles mode), each day currently shows ONE stacked bar colored only by vehicle. The user wants each day to also show period-level detail. Solution: render **two stacked bars per day, side by side** — left bar stacked by vehicle, right bar stacked by periods (when periods exist).
 
-### Changes
+No size, layout, or other chart changes.
 
-1. Delete the two standalone purple `<Card>` wrappers.
-2. Replace with one card:
-   - `<Card className="border-2 border-purple-500/30 lg:col-span-2">`
-   - Inside `<CardContent>`, render a `grid grid-cols-1 lg:grid-cols-2 gap-6` with two columns:
-     - **Left:** title "Revenue by Vehicle (Top 20)" + the existing vertical bar chart in `h-[380px]`, followed by `drillVehicle` DrillTable.
-     - **Right:** title "Time worked per day — {filter label}" + the existing stacked bar chart in `h-[380px]`.
-   - Each side gets its own small `<div>` title block (same `text-sm font-medium text-purple-700 dark:text-purple-400`) so they read as paired headers inside one card.
-3. Keep all chart logic, colors, tooltips, and click handlers unchanged.
+## Scope
+File: `src/components/DesktopReportsView.tsx`, the `vehicleDaily` memo + the `Time worked per day` `<BarChart>` (~lines 338–622).
 
-### Out of scope
-- No data/color/tooltip logic changes.
-- No changes to Revenue Over Time or Revenue by Client cards.
+## Changes
+
+### 1. `vehicleDaily` memo (all-vehicles branch, ~lines 379–393)
+For each task's period, write **two** segments into the same day bucket:
+- Vehicle segment: key `v_<vehicleId>`, stackId-group `veh`, label = vehicle display string (current behavior).
+- Period segment: key `p_<globalPeriodIndex>`, stackId-group `per`, label = `Period N — <vehicle label>`.
+
+Return shape becomes:
+```
+{ data, vehKeys: string[], perKeys: string[], labels: Record<string,string> }
+```
+(Drilled-vehicle branch keeps current behavior — only period segments, rendered as the single existing stack. `vehKeys = []`, `perKeys = segOrder`.)
+
+### 2. Bar rendering (~lines 609–621)
+Replace the single `.map(indices)` with two maps:
+```tsx
+{vehicleDaily.vehKeys.map((key, i) => (
+  <Bar key={key} dataKey={key} name={labels[key]} stackId="veh"
+       fill={vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length]} />
+))}
+{vehicleDaily.perKeys.map((key, i) => (
+  <Bar key={key} dataKey={key} name={labels[key]} stackId="per"
+       fill={PERIOD_COLORS[i % PERIOD_COLORS.length]} />
+))}
+```
+Recharts automatically places bars with different `stackId` values side-by-side within the same x category, giving the half-and-half look the user described. When there are no periods (empty `perKeys`), only the vehicle bar renders — matching "when exist".
+
+### 3. Tooltip
+Existing `labelFormatter` sums all payload values. Update it to sum only one group (e.g. `veh`) to avoid double-counting the day's total — pick from `payload` entries whose `dataKey` starts with `v_`.
+
+## Out of scope
+- No changes to Revenue by Vehicle chart, Revenue Over Time, Revenue by Client, or any sizes/spans.
+- No color palette changes.
+- Drilled-vehicle view stays as-is (only periods).

@@ -23,6 +23,21 @@ const CHART_COLORS = [
   '#14b8a6', '#f97316', '#84cc16', '#a855f7',
 ];
 
+// Mirror bill PDF palette so colors stay consistent across the app.
+const PERIOD_COLORS = [
+  '#800080', '#2563eb', '#16a34a', '#ea580c',
+  '#dc2626', '#ca8a04', '#0d9488', '#db2777',
+];
+
+const formatHm = (seconds: number): string => {
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   completed: '#22c55e',
   billed: '#a855f7',

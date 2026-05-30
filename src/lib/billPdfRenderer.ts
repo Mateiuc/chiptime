@@ -427,8 +427,143 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
   // Photo pages.
   await renderPhotoPages(doc, task);
 
+  // Daily time chart page.
+  renderDailyTimeChart(doc, task);
+
   return doc;
 }
+
+// ---------- Daily time chart ----------
+
+const formatHm = (seconds: number): string => {
+  const totalMinutes = Math.round(seconds / 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
+
+function renderDailyTimeChart(doc: jsPDF, task: Task): void {
+  // Aggregate seconds per local calendar day.
+  const buckets = new Map<string, { date: Date; seconds: number }>();
+  (task.sessions || []).forEach((session) => {
+    (session.periods || []).forEach((p) => {
+      const start = p.startTime instanceof Date ? p.startTime : new Date(p.startTime);
+      if (isNaN(start.getTime())) return;
+      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      const bucket = buckets.get(key);
+      if (bucket) {
+        bucket.seconds += p.duration || 0;
+      } else {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        buckets.set(key, { date: d, seconds: p.duration || 0 });
+      }
+    });
+  });
+
+  const days = Array.from(buckets.values())
+    .filter((d) => d.seconds > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  if (days.length === 0) return;
+
+  doc.addPage();
+  paintBillBackground(doc, 'middle');
+
+  // Title.
+  let y = safeTop('middle');
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(128, 0, 128);
+  doc.text('Time Worked per Day', PAGE_CENTER_X_MM, y, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  y += 10;
+
+  // Chart area.
+  const chartLeft = LEFT_MARGIN_MM + 14; // leave room for Y-axis labels
+  const chartRight = RIGHT_MARGIN_MM - 2;
+  const chartTop = y + 4;
+  const chartBottom = safeBottom('middle') - 24; // leave room for x labels + summary
+  const chartWidth = chartRight - chartLeft;
+  const chartHeight = chartBottom - chartTop;
+
+  // Y scale — round max up to next 0.5h.
+  const maxSec = Math.max(...days.map((d) => d.seconds));
+  const maxHours = Math.max(0.5, Math.ceil((maxSec / 3600) * 2) / 2);
+  const ySteps = 4;
+
+  // Gridlines + Y labels.
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(120, 120, 120);
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.2);
+  for (let i = 0; i <= ySteps; i++) {
+    const frac = i / ySteps;
+    const yy = chartBottom - frac * chartHeight;
+    doc.line(chartLeft, yy, chartRight, yy);
+    const hoursLabel = (maxHours * frac).toFixed(maxHours < 2 ? 2 : 1).replace(/\.?0+$/, '') || '0';
+    doc.text(`${hoursLabel}h`, chartLeft - 2, yy + 1.2, { align: 'right' });
+  }
+
+  // Axes.
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
+  doc.line(chartLeft, chartTop, chartLeft, chartBottom);
+  doc.line(chartLeft, chartBottom, chartRight, chartBottom);
+
+  // Bars.
+  const slotW = chartWidth / days.length;
+  const barW = slotW * 0.7;
+  const barOffset = (slotW - barW) / 2;
+  const rotate = days.length > 8;
+
+  days.forEach((d, i) => {
+    const slotX = chartLeft + i * slotW;
+    const bx = slotX + barOffset;
+    const hFrac = (d.seconds / 3600) / maxHours;
+    const bh = Math.max(0.6, hFrac * chartHeight);
+    const by = chartBottom - bh;
+
+    doc.setFillColor(128, 0, 128);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.rect(bx, by, barW, bh, 'FD');
+
+    // Value label above bar.
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    const label = formatHm(d.seconds);
+    doc.text(label, bx + barW / 2, by - 1.5, { align: 'center' });
+
+    // X-axis date label.
+    const dateLabel = `${String(d.date.getDate()).padStart(2, '0')}/${String(d.date.getMonth() + 1).padStart(2, '0')}`;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    const lx = slotX + slotW / 2;
+    const ly = chartBottom + 4;
+    if (rotate) {
+      doc.text(dateLabel, lx, ly + 2, { align: 'right', angle: 45 });
+    } else {
+      doc.text(dateLabel, lx, ly + 2, { align: 'center' });
+    }
+  });
+
+  // Summary footer.
+  const totalSec = days.reduce((s, d) => s + d.seconds, 0);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text(
+    `Total: ${formatHm(totalSec)} across ${days.length} day${days.length === 1 ? '' : 's'}`,
+    PAGE_CENTER_X_MM,
+    chartBottom + 18,
+    { align: 'center' },
+  );
+}
+
 
 // ---------- Photo pages ----------
 

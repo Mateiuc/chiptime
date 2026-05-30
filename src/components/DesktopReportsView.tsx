@@ -267,6 +267,16 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .slice(0, 20);
   }, [filteredTasks, vehicles]);
 
+  // Stable color per vehicleId so Revenue by Vehicle + Time per day share a palette.
+  const vehicleColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    revenueByVehicle.forEach((v, i) => {
+      map[v.vehicleId] = CHART_COLORS[(i + 3) % CHART_COLORS.length];
+    });
+    return map;
+  }, [revenueByVehicle]);
+
+
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
     filteredTasks.forEach(t => { map[t.status] = (map[t.status] || 0) + 1; });

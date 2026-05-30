@@ -340,14 +340,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       ? filteredTasks.filter(t => t.vehicleId === drillVehicle.vehicleId)
       : filteredTasks;
 
-    if (source.length === 0) return { data: [] as any[], indices: [] as string[] };
+    if (source.length === 0) return { data: [] as any[], indices: [] as string[], labels: {} as Record<string, string> };
 
     type Day = { date: Date; segs: Map<string, number> };
     const buckets = new Map<string, Day>();
     const segOrder: string[] = [];
-    const ensureSeg = (key: string) => { if (!segOrder.includes(key)) segOrder.push(key); };
-    const putSeg = (dayKey: string, dayDate: Date, segKey: string, seconds: number) => {
-      ensureSeg(segKey);
+    const labels: Record<string, string> = {};
+    const ensureSeg = (key: string, label: string) => {
+      if (!segOrder.includes(key)) segOrder.push(key);
+      if (!labels[key]) labels[key] = label;
+    };
+    const putSeg = (dayKey: string, dayDate: Date, segKey: string, label: string, seconds: number) => {
+      ensureSeg(segKey, label);
       let day = buckets.get(dayKey);
       if (!day) { day = { date: dayDate, segs: new Map() }; buckets.set(dayKey, day); }
       day.segs.set(segKey, (day.segs.get(segKey) || 0) + seconds);
@@ -367,19 +371,22 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             if (!p.duration || p.duration <= 0) continue;
             const d = new Date(p.startTime as any);
             const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), `p${g++}`, p.duration);
+            g++;
+            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), `p${g}`, `Period ${g}`, p.duration);
           }
         }
       }
     } else {
       for (const t of source) {
         const segKey = `v_${t.vehicleId || 'none'}`;
+        const v = vehicles.find(vh => vh.id === t.vehicleId);
+        const label = v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Unknown vehicle') : 'Unknown vehicle';
         for (const s of (t.sessions || [])) {
           for (const p of (s.periods || [])) {
             if (!p.duration || p.duration <= 0) continue;
             const d = new Date(p.startTime as any);
             const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), segKey, p.duration);
+            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), segKey, label, p.duration);
           }
         }
       }
@@ -398,8 +405,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
         return row;
       });
 
-    return { data, indices: segOrder };
-  }, [drillVehicle, filteredTasks]);
+    return { data, indices: segOrder, labels };
+  }, [drillVehicle, filteredTasks, vehicles]);
+
 
 
 

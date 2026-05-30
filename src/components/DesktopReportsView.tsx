@@ -322,57 +322,75 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
   const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
 
-  // Build per-day stacked dataset for the currently drilled vehicle.
-  // Each bar = one day; each stack segment = one work period that happened that day.
+  // Build per-day stacked dataset.
+  // When a vehicle is drilled: each stack segment = one work period.
+  // When no vehicle drilled: each stack segment = one vehicle's total that day.
   const vehicleDaily = useMemo(() => {
-    if (!drillVehicle?.vehicleId) return { data: [] as any[], indices: [] as number[] };
-    const tasksForVehicle = filteredTasks
-      .filter(t => t.vehicleId === drillVehicle.vehicleId)
-      .slice()
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const source = drillVehicle?.vehicleId
+      ? filteredTasks.filter(t => t.vehicleId === drillVehicle.vehicleId)
+      : filteredTasks;
 
-    type Flat = { dayKey: string; dayDate: Date; seconds: number; globalIdx: number };
-    const flats: Flat[] = [];
-    let g = 0;
-    for (const t of tasksForVehicle) {
-      const sessions = (t.sessions || []).slice().sort((a, b) =>
-        new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime()
-      );
-      for (const s of sessions) {
-        const periods = (s.periods || []).slice().sort((a, b) =>
-          new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime()
-        );
-        for (const p of periods) {
-          if (!p.duration || p.duration <= 0) continue;
-          const d = new Date(p.startTime as any);
-          const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          flats.push({ dayKey, dayDate: new Date(d.getFullYear(), d.getMonth(), d.getDate()), seconds: p.duration, globalIdx: g++ });
+    if (source.length === 0) return { data: [] as any[], indices: [] as string[] };
+
+    type Day = { date: Date; segs: Map<string, number> };
+    const buckets = new Map<string, Day>();
+    const segOrder: string[] = [];
+    const ensureSeg = (key: string) => { if (!segOrder.includes(key)) segOrder.push(key); };
+    const putSeg = (dayKey: string, dayDate: Date, segKey: string, seconds: number) => {
+      ensureSeg(segKey);
+      let day = buckets.get(dayKey);
+      if (!day) { day = { date: dayDate, segs: new Map() }; buckets.set(dayKey, day); }
+      day.segs.set(segKey, (day.segs.get(segKey) || 0) + seconds);
+    };
+
+    if (drillVehicle?.vehicleId) {
+      const tasks = source.slice().sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      let g = 0;
+      for (const t of tasks) {
+        const sessions = (t.sessions || []).slice().sort((a, b) =>
+          new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime());
+        for (const s of sessions) {
+          const periods = (s.periods || []).slice().sort((a, b) =>
+            new Date(a.startTime as any).getTime() - new Date(b.startTime as any).getTime());
+          for (const p of periods) {
+            if (!p.duration || p.duration <= 0) continue;
+            const d = new Date(p.startTime as any);
+            const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), `p${g++}`, p.duration);
+          }
+        }
+      }
+    } else {
+      for (const t of source) {
+        const segKey = `v_${t.vehicleId || 'none'}`;
+        for (const s of (t.sessions || [])) {
+          for (const p of (s.periods || [])) {
+            if (!p.duration || p.duration <= 0) continue;
+            const d = new Date(p.startTime as any);
+            const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            putSeg(dayKey, new Date(d.getFullYear(), d.getMonth(), d.getDate()), segKey, p.duration);
+          }
         }
       }
     }
 
-    const buckets = new Map<string, { date: Date; periods: Flat[] }>();
-    for (const f of flats) {
-      const b = buckets.get(f.dayKey);
-      if (b) b.periods.push(f);
-      else buckets.set(f.dayKey, { date: f.dayDate, periods: [f] });
-    }
-
-    const days = Array.from(buckets.entries())
+    const data = Array.from(buckets.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, b]) => {
         const row: any = {
           day: `${String(b.date.getDate()).padStart(2, '0')}/${String(b.date.getMonth() + 1).padStart(2, '0')}`,
           dayKey: key,
-          total: b.periods.reduce((s, p) => s + p.seconds, 0),
         };
-        for (const p of b.periods) row[`p${p.globalIdx}`] = p.seconds;
+        let total = 0;
+        for (const [k, v] of b.segs.entries()) { row[k] = v; total += v; }
+        row.total = total;
         return row;
       });
 
-    const indices = flats.map(f => f.globalIdx);
-    return { data: days, indices };
+    return { data, indices: segOrder };
   }, [drillVehicle, filteredTasks]);
+
 
 
   const drillRowsForMonth = (month: string) =>

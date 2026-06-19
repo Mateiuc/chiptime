@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { X, Bug, Copy, Flashlight, Sun, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, Bug, Copy, Flashlight, Sun, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { validateVinStrict } from '@/lib/vinDecoder';
 import { readVinWithGemini, type OcrResult as GeminiOcrResult } from '@/lib/geminiVinOcr';
 import { readVinWithGrok, type OcrResult as GrokOcrResult } from '@/lib/grokVinOcr';
@@ -11,7 +11,14 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
-import { pickMainRearCameraId } from '@/lib/cameraSelect';
+import {
+  pickMainRearCameraId,
+  nextRearCameraId,
+  listRearCameras,
+  saveRearCameraId,
+  lensKindLabel,
+  type RearCamera,
+} from '@/lib/cameraSelect';
 
 type OcrResult = GeminiOcrResult | GrokOcrResult | OcrSpaceOcrResult | TesseractOcrResult;
 
@@ -52,6 +59,9 @@ const VinScanner: React.FC<VinScannerProps> = ({
   const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
+  const [currentLensKind, setCurrentLensKind] = useState<RearCamera['kind'] | null>(null);
+  const [rearCameraCount, setRearCameraCount] = useState(0);
   const warnedNoKeyRef = useRef(false);
   
   // Debug state
@@ -190,18 +200,16 @@ const VinScanner: React.FC<VinScannerProps> = ({
   }, [googleApiKey, grokApiKey, ocrSpaceApiKey, ocrProvider, isFrameReady, stream]);
 
 
-  const startCamera = async () => {
+  const startCamera = async (overrideDeviceId?: string | null) => {
     try {
-      // Prime permissions so device labels become readable
-      let mediaStream: MediaStream | null = null;
-      try {
-        const priming = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        priming.getTracks().forEach(t => t.stop());
-      } catch {
-        // ignore — fall through to main request
+      // Stop any existing stream first
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
       }
 
-      const deviceId = await pickMainRearCameraId();
+      let mediaStream: MediaStream | null = null;
+      const deviceId = overrideDeviceId ?? (await pickMainRearCameraId());
+
       if (deviceId) {
         try {
           mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -237,48 +245,66 @@ const VinScanner: React.FC<VinScannerProps> = ({
         videoRef.current.srcObject = mediaStream;
       }
       setStream(mediaStream);
-      
+
+      // Track which lens we're on for the switcher label
+      try {
+        const settings: any = mediaStream.getVideoTracks()[0]?.getSettings?.() || {};
+        const activeId = settings.deviceId || deviceId || null;
+        setCurrentCameraId(activeId);
+        const list = await listRearCameras();
+        setRearCameraCount(list.length);
+        const match = list.find((c) => c.deviceId === activeId);
+        setCurrentLensKind(match?.kind ?? null);
+      } catch {
+        // ignore
+      }
+
       // Check camera capabilities for zoom and torch
       const track = mediaStream.getVideoTracks()[0];
       if (track) {
-        // Try getCapabilities first
+        // Reset torch state when switching lenses
+        setTorchOn(false);
+        setTorchSupported(false);
+
         if (typeof track.getCapabilities === 'function') {
           const capabilities = track.getCapabilities() as any;
-          
-          // Check zoom support
+
           if (capabilities.zoom) {
             setZoomCapabilities({
               min: capabilities.zoom.min || 1,
               max: capabilities.zoom.max || 1,
-              step: capabilities.zoom.step || 0.1
+              step: capabilities.zoom.step || 0.1,
             });
             setZoomLevel(capabilities.zoom.min || 1);
+          } else {
+            setZoomCapabilities(null);
           }
-          
-          // Check torch support via capabilities
+
           if (capabilities.torch) {
             setTorchSupported(true);
           }
         }
-        
-        // Fallback: Try to detect torch by attempting to apply constraint
-        // Some devices support torch but don't report it in getCapabilities
-        if (!torchSupported) {
-          try {
-            // Try applying torch constraint - if it doesn't throw, it's supported
-            await track.applyConstraints({ advanced: [{ torch: false } as any] });
-            setTorchSupported(true);
-            console.log('Torch supported (detected via constraint test)');
-          } catch (e) {
-            // Torch not supported
-            console.log('Torch not supported on this device');
-          }
+
+        // Fallback torch detection
+        try {
+          await track.applyConstraints({ advanced: [{ torch: false } as any] });
+          setTorchSupported(true);
+        } catch {
+          // Torch not supported
         }
       }
     } catch (error) {
       console.error('Camera access error:', error);
     }
   };
+
+  const switchLens = async () => {
+    const next = await nextRearCameraId(currentCameraId);
+    if (!next) return;
+    saveRearCameraId(next.deviceId);
+    await startCamera(next.deviceId);
+  };
+
   
   const handleZoomChange = async (newZoom: number) => {
     if (!stream) return;
@@ -760,6 +786,22 @@ const VinScanner: React.FC<VinScannerProps> = ({
         {/* Camera Controls: Zoom + Torch */}
         {isFrameReady && (
           <div className="absolute bottom-14 left-0 right-0 flex items-center justify-center gap-3 px-4">
+            {/* Lens Switcher (multi-camera phones) */}
+            {rearCameraCount > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Switch camera lens"
+                onClick={switchLens}
+                className="h-10 px-3 rounded-full bg-background/70 backdrop-blur flex flex-col items-center leading-tight"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="text-[10px] font-semibold mt-0.5">
+                  {currentLensKind ? lensKindLabel(currentLensKind) : 'Lens'}
+                </span>
+              </Button>
+            )}
+
             {/* Flashlight Button */}
             {torchSupported && (
               <Button

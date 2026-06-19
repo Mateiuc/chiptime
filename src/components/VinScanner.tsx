@@ -200,18 +200,16 @@ const VinScanner: React.FC<VinScannerProps> = ({
   }, [googleApiKey, grokApiKey, ocrSpaceApiKey, ocrProvider, isFrameReady, stream]);
 
 
-  const startCamera = async () => {
+  const startCamera = async (overrideDeviceId?: string | null) => {
     try {
-      // Prime permissions so device labels become readable
-      let mediaStream: MediaStream | null = null;
-      try {
-        const priming = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        priming.getTracks().forEach(t => t.stop());
-      } catch {
-        // ignore — fall through to main request
+      // Stop any existing stream first
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
       }
 
-      const deviceId = await pickMainRearCameraId();
+      let mediaStream: MediaStream | null = null;
+      const deviceId = overrideDeviceId ?? (await pickMainRearCameraId());
+
       if (deviceId) {
         try {
           mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -247,48 +245,66 @@ const VinScanner: React.FC<VinScannerProps> = ({
         videoRef.current.srcObject = mediaStream;
       }
       setStream(mediaStream);
-      
+
+      // Track which lens we're on for the switcher label
+      try {
+        const settings: any = mediaStream.getVideoTracks()[0]?.getSettings?.() || {};
+        const activeId = settings.deviceId || deviceId || null;
+        setCurrentCameraId(activeId);
+        const list = await listRearCameras();
+        setRearCameraCount(list.length);
+        const match = list.find((c) => c.deviceId === activeId);
+        setCurrentLensKind(match?.kind ?? null);
+      } catch {
+        // ignore
+      }
+
       // Check camera capabilities for zoom and torch
       const track = mediaStream.getVideoTracks()[0];
       if (track) {
-        // Try getCapabilities first
+        // Reset torch state when switching lenses
+        setTorchOn(false);
+        setTorchSupported(false);
+
         if (typeof track.getCapabilities === 'function') {
           const capabilities = track.getCapabilities() as any;
-          
-          // Check zoom support
+
           if (capabilities.zoom) {
             setZoomCapabilities({
               min: capabilities.zoom.min || 1,
               max: capabilities.zoom.max || 1,
-              step: capabilities.zoom.step || 0.1
+              step: capabilities.zoom.step || 0.1,
             });
             setZoomLevel(capabilities.zoom.min || 1);
+          } else {
+            setZoomCapabilities(null);
           }
-          
-          // Check torch support via capabilities
+
           if (capabilities.torch) {
             setTorchSupported(true);
           }
         }
-        
-        // Fallback: Try to detect torch by attempting to apply constraint
-        // Some devices support torch but don't report it in getCapabilities
-        if (!torchSupported) {
-          try {
-            // Try applying torch constraint - if it doesn't throw, it's supported
-            await track.applyConstraints({ advanced: [{ torch: false } as any] });
-            setTorchSupported(true);
-            console.log('Torch supported (detected via constraint test)');
-          } catch (e) {
-            // Torch not supported
-            console.log('Torch not supported on this device');
-          }
+
+        // Fallback torch detection
+        try {
+          await track.applyConstraints({ advanced: [{ torch: false } as any] });
+          setTorchSupported(true);
+        } catch {
+          // Torch not supported
         }
       }
     } catch (error) {
       console.error('Camera access error:', error);
     }
   };
+
+  const switchLens = async () => {
+    const next = await nextRearCameraId(currentCameraId);
+    if (!next) return;
+    saveRearCameraId(next.deviceId);
+    await startCamera(next.deviceId);
+  };
+
   
   const handleZoomChange = async (newZoom: number) => {
     if (!stream) return;

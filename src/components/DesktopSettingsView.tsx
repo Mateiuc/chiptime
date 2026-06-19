@@ -8,6 +8,7 @@ import { Settings, PaymentMethod } from '@/types';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { BackupView } from './BackupView';
+import { CameraSettingsSection } from './CameraSettingsSection';
 
 interface DesktopSettingsViewProps {
   settings: Settings;
@@ -243,6 +244,16 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
             <Plus className="h-4 w-4 mr-1" /> Add Payment Method
           </Button>
           <p className="text-xs text-muted-foreground">These appear as Pay buttons in the client portal — only visible on the Billed tab</p>
+        </CardContent>
+      </Card>
+
+      {/* Camera */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Camera</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CameraSettingsSection />
         </CardContent>
       </Card>
 

@@ -18,6 +18,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { BackupView } from './BackupView';
 import { cn } from '@/lib/utils';
 import { WorkspaceManager } from './WorkspaceManager';
+import { CameraSettingsSection } from './CameraSettingsSection';
 import { Users } from 'lucide-react';
 
 interface SettingsDialogProps {
@@ -425,6 +426,10 @@ export const SettingsDialog = ({
                   This rate is added per session when marked as "All Keys Lost"
                 </p>
               </div>
+
+              <CameraSettingsSection />
+
+
 
               <div className="flex items-center justify-between py-2">
                 <div className="space-y-0.5">

@@ -1,42 +1,45 @@
 ## Problem
 
-On Samsung phones the label-based picker in `src/lib/cameraSelect.ts` still selects the ultra-wide lens. Android Chrome labels are inconsistent (often generic like `camera2 0, facing back` or localized strings), so matching on words like `wide`/`main`/`ultra` is unreliable. We need a detection method that does not depend on label text, plus a manual override so the user can always force the correct lens.
+Two issues:
 
-## Solution
+1. **Bug**: After picking the right lens with the in-overlay "Lens" button in the VIN scanner, the photo session still opens the wrong (ultra-wide) lens. Cause: `pickMainRearCameraId()` reads a `sessionStorage` cache (`SS_PROBED_PICK`) **before** checking the saved user pick in `localStorage`. When the user switches lenses, `saveRearCameraId()` writes to `localStorage` but never invalidates the session cache, so the next caller (web photo capture) returns the stale auto-pick.
 
-Two changes that work together:
+2. **Missing**: No way to test and persist a chosen rear camera from Settings — the user has to keep switching lenses via the in-overlay button every time.
 
-### 1. Probe-based lens detection (no labels)
+## Fix + Feature
 
-Replace the label heuristic in `src/lib/cameraSelect.ts` with a capability probe:
+### A. Fix the stale-cache bug — `src/lib/cameraSelect.ts`
+- In `saveRearCameraId(deviceId)`, also write the same `deviceId` to `sessionStorage[SS_PROBED_PICK]` so subsequent calls return the user's choice immediately.
+- In `clearSavedRearCameraId()`, also clear `SS_PROBED_PICK`.
+- Add `clearProbedCameras()` helper that wipes both `SS_PROBED_LIST` and `SS_PROBED_PICK` (used by the Settings "Re-detect" action).
 
-- Enumerate `videoinput` devices, keep those with `facingMode: 'environment'` (or label hints when present, as a fallback).
-- For each rear candidate, briefly open a stream with `getUserMedia({ video: { deviceId: { exact } } })`, read `track.getCapabilities()` and `track.getSettings()`, then stop the stream.
-- Score each lens:
-  - **Ultra-wide signal** → `capabilities.zoom?.min < 1` (typically 0.5) **or** very wide reported FOV. Reject.
-  - **Telephoto signal** → `capabilities.zoom?.min > 1` (e.g. 3.0) or label contains `tele`. Reject for default.
-  - **Main signal** → `zoom.min === 1` (or no zoom capability) and not flagged as depth/mono/IR. Prefer.
-- Cache the winning `deviceId` per session in `sessionStorage` so we don't probe every capture.
-- Expose a new helper `listRearCameras()` that returns `[{ deviceId, label, kind: 'main' | 'ultrawide' | 'tele' | 'unknown' }]` for the UI switcher.
+This single change makes the VIN scanner's lens switch carry over to photo sessions automatically.
 
-### 2. In-overlay lens switcher
+### B. New "Camera" section in Settings
 
-Update `src/lib/webPhotoCapture.ts` and `src/components/VinScanner.tsx`:
+Add a Camera section to both `src/components/SettingsDialog.tsx` (mobile) and `src/components/DesktopSettingsView.tsx` (desktop) with:
 
-- Add a small `Lens` button in the camera overlay bar. Tapping it cycles through the rear cameras returned by `listRearCameras()`, restarting the stream on the chosen `deviceId` and re-applying `focusMode: continuous` + `zoom: 1`.
-- Show a tiny label under the button (`Main` / `Ultra` / `Tele` / `Cam 2`) so the user can see which lens is active.
-- Remember the user's last manual pick in `localStorage` (`chiptime.rearCameraId`) and prefer it on next open; fall back to the probe winner; fall back to `facingMode: 'environment'`.
+- **Detected rear cameras** list (uses `listRearCameras()`), each row showing:
+  - lens kind badge: `Main` / `Ultra` / `Tele` / `Cam`
+  - the device label (or short id fallback)
+  - zoom range when known (e.g. `0.5×–10×`)
+  - a "Use this" radio / button that calls `saveRearCameraId(deviceId)`
+  - a "Test" button that opens a small preview overlay streaming that exact `deviceId` for a few seconds so the user visually confirms the framing matches the lens they want — Capture button is hidden (preview only), Close button stops the stream.
+- **Auto-detect** button → `clearSavedRearCameraId()` + `clearProbedCameras()`, then re-runs `listRearCameras()`.
+- The currently saved deviceId is highlighted as "Active".
+- On **native** (Capacitor) the OS picks the lens, so the section renders a short note: "On the installed app, your phone's camera picks the lens automatically." and hides the list.
 
-### Files
+### C. Wire-up confirmation
 
-- `src/lib/cameraSelect.ts` — rewrite: `pickMainRearCameraId()` uses probe-based scoring + `sessionStorage` cache + `localStorage` user override; add `listRearCameras()`.
-- `src/lib/webPhotoCapture.ts` — add lens-switch button; persist user pick.
-- `src/components/VinScanner.tsx` — add the same lens-switch button to the VIN overlay; persist user pick.
+No changes needed in `webPhotoCapture.ts` or `VinScanner.tsx`: both already call `pickMainRearCameraId()` on open, which (after fix A) will return the Settings-saved deviceId.
 
-### Out of scope
+## Files
 
-No native (Capacitor) changes — native uses the OS camera UI, which already picks the main lens. No changes to OCR, storage, upload, or session/photo data model.
+- `src/lib/cameraSelect.ts` — patch `saveRearCameraId`, `clearSavedRearCameraId`, add `clearProbedCameras`.
+- `src/components/CameraSettingsSection.tsx` *(new)* — self-contained UI with list, Test preview overlay, Auto-detect button.
+- `src/components/SettingsDialog.tsx` — render `<CameraSettingsSection />` in the settings view.
+- `src/components/DesktopSettingsView.tsx` — render the same section.
 
-### Verification
+## Out of scope
 
-You'll test on your Samsung after deploy: open VIN scan or session photo, confirm the default lens is the main rear (not ultra-wide), and confirm the new `Lens` button cycles to the correct one and is remembered next time.
+No native camera changes, no changes to OCR / upload pipeline, no changes to photo storage.

@@ -786,6 +786,22 @@ const VinScanner: React.FC<VinScannerProps> = ({
         {/* Camera Controls: Zoom + Torch */}
         {isFrameReady && (
           <div className="absolute bottom-14 left-0 right-0 flex items-center justify-center gap-3 px-4">
+            {/* Lens Switcher (multi-camera phones) */}
+            {rearCameraCount > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Switch camera lens"
+                onClick={switchLens}
+                className="h-10 px-3 rounded-full bg-background/70 backdrop-blur flex flex-col items-center leading-tight"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="text-[10px] font-semibold mt-0.5">
+                  {currentLensKind ? lensKindLabel(currentLensKind) : 'Lens'}
+                </span>
+              </Button>
+            )}
+
             {/* Flashlight Button */}
             {torchSupported && (
               <Button

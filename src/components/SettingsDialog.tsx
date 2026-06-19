@@ -426,6 +426,10 @@ export const SettingsDialog = ({
                 </p>
               </div>
 
+              <CameraSettingsSection />
+
+
+
               <div className="flex items-center justify-between py-2">
                 <div className="space-y-0.5">
                   <Label>Show Popup Notifications</Label>

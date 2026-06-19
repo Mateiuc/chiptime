@@ -1626,6 +1626,11 @@ const DesktopDashboard = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
+                                        {(task.status === 'in-progress' || task.status === 'paused') && (
+                                          <Button variant="default" size="sm" className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStopTimer(task.id)} title="Stop & Complete">
+                                            <Square className="h-3.5 w-3.5 mr-1" />Stop
+                                          </Button>
+                                        )}
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>

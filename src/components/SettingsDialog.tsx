@@ -18,6 +18,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { BackupView } from './BackupView';
 import { cn } from '@/lib/utils';
 import { WorkspaceManager } from './WorkspaceManager';
+import { CameraSettingsSection } from './CameraSettingsSection';
 import { Users } from 'lucide-react';
 
 interface SettingsDialogProps {

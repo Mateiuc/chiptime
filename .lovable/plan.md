@@ -1,11 +1,14 @@
-Move the "Stop" button from the right-side action-buttons area in the desktop task header row to sit directly next to the status `Badge` (the "Paused" / "in-progress" pill). Keep the button styling as-is (`h-7 text-xs bg-red-600 …`) so its shape and text size match the badge height. Remove it from the far-right button group.
+## Add session start/stop date+time to each session row (desktop)
 
-**File:** `src/pages/DesktopDashboard.tsx`
-**Lines affected:** ~1607 (badge) and ~1629-1633 (current stop button location)
+In `src/pages/DesktopDashboard.tsx`, within the sessions list (around line 1689, the header row inside each `Session N` block), append a small muted time range next to the duration. This shows for sessions in every task status (Active, Completed, Billed, Paid) since the same renderer is used for all of them.
 
-**What changes:**
-1. In the left info area, right after the `<Badge>{task.status}</Badge>` (line 1607), insert the same conditional Stop button (`task.status === 'in-progress' || task.status === 'paused'`).
-2. In the right action-buttons area (lines 1629-1633), remove that Stop button block — it should no longer render there.
-3. No logic changes; `handleStopTimer(task.id)` stays the same.
+### Display
+- Format: `Mar 30, 10:23 AM → 11:18 AM` when start/stop are the same day, or `Mar 30, 10:23 AM → Mar 31, 1:05 AM` when they differ.
+- Uses minute-precision per project rule (HH:MM AM/PM, no seconds).
+- If `session.endTime` is missing (still running), show `Mar 30, 10:23 AM → …`.
+- Rendered as `<span className="text-[11px] text-muted-foreground font-mono">` so it sits inline after the duration without disrupting the existing badges/description.
 
-**Out of scope:** No changes to `CompleteWorkDialog`, mobile view, or any other dashboard functionality.
+### Technical
+- Add a small inline helper `formatSessionRange(start, end)` near the render (or in `src/lib/formatTime.ts`) using `Intl.DateTimeFormat` with `month: 'short', day: 'numeric'` and `hour: 'numeric', minute: '2-digit', hour12: true`.
+- Insert the new span in the flex row right after the `formatDuration(sDur)` span (line ~1691), before the description.
+- No data-model, billing, or mobile changes.

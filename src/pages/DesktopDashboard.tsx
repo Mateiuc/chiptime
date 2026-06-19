@@ -1900,6 +1900,29 @@ const DesktopDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+
+      <CompleteWorkDialog
+        open={showCompleteWork}
+        onOpenChange={(open) => { setShowCompleteWork(open); if (!open) setStoppingTaskId(null); }}
+        onComplete={handleCompleteWork}
+        vehicleLabel={(() => {
+          if (!stoppingTaskId) return undefined;
+          const t = tasks.find(tk => tk.id === stoppingTaskId);
+          if (!t) return undefined;
+          const v = vehicles.find(vh => vh.id === t.vehicleId);
+          if (!v) return undefined;
+          return [v.year, v.make, v.model].filter(Boolean).join(' ');
+        })()}
+        sessionPeriods={(() => {
+          const t = stoppingTaskId ? tasks.find(tk => tk.id === stoppingTaskId) : tasks.find(tk => tk.status === 'in-progress' || tk.status === 'paused');
+          if (!t) return [];
+          const session = t.activeSessionId
+            ? t.sessions?.find(s => s.id === t.activeSessionId)
+            : t.sessions?.find(s => s.periods && s.periods.length > 0);
+          return session?.periods || [];
+        })()}
+      />
+
     </div>
   );
 };

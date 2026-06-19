@@ -1684,13 +1684,20 @@ const DesktopDashboard = () => {
                                     )}
                                     {editingTaskId !== task.id && (task.sessions || []).map((session, sIdx) => {
                                       const sDur = getSessionDuration(session);
+                                      const periods = session.periods || [];
+                                      const periodStart = periods.length
+                                        ? new Date(Math.min(...periods.map(p => +new Date(p.startTime))))
+                                        : session.createdAt;
+                                      const periodEnd = periods.length && periods.every(p => p.endTime)
+                                        ? new Date(Math.max(...periods.map(p => +new Date(p.endTime as any))))
+                                        : session.completedAt;
                                       return (
                                         <div key={session.id || sIdx} className={`rounded-md p-2 mt-1 ${sessionColor.session}`}>
                                           <div className="flex items-center gap-2 text-xs flex-wrap">
                                             <span className="font-medium">Session {sIdx + 1}</span>
                                             <span className="font-mono">{formatDuration(sDur)}</span>
-                                            {session.createdAt && (
-                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(session.createdAt, session.completedAt)}</span>
+                                            {periodStart && (
+                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(periodStart, periodEnd)}</span>
                                             )}
                                             {session.description && <span className="text-muted-foreground">— {session.description}</span>}
                                             {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}

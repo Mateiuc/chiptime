@@ -561,7 +561,7 @@ export const TaskCard = ({
 
         // Save photo to filesystem and get the file path
         const filePath = await photoStorageService.savePhoto(
-          photo.base64String,
+          base64String,
           task.id,
           photoId
         );

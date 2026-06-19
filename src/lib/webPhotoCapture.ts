@@ -1,6 +1,7 @@
 import {
   pickMainRearCameraId,
   nextRearCameraId,
+  listRearCameras,
   saveRearCameraId,
   lensKindLabel,
   type RearCamera,
@@ -100,14 +101,9 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
     };
     // Initial label
     (async () => {
-      const first = await nextRearCameraId(null);
-      if (currentDeviceId) {
-        const list = await import('./cameraSelect').then((m) => m.listRearCameras());
-        const match = list.find((c) => c.deviceId === currentDeviceId) || first;
-        setLensLabel(match);
-      } else {
-        setLensLabel(first);
-      }
+      const list = await listRearCameras();
+      const match = list.find((c) => c.deviceId === currentDeviceId) || list[0] || null;
+      setLensLabel(match);
     })();
 
     lensBtn.onclick = async () => {

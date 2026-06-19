@@ -246,6 +246,16 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </CardContent>
       </Card>
 
+      {/* Camera */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Camera</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CameraSettingsSection />
+        </CardContent>
+      </Card>
+
       {/* Backup & Restore */}
       <Card>
         <CardHeader>

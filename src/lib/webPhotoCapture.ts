@@ -1,38 +1,31 @@
-import {
-  pickMainRearCameraId,
-  nextRearCameraId,
-  listRearCameras,
-  saveRearCameraId,
-  lensKindLabel,
-  type RearCamera,
-} from './cameraSelect';
+import { pickMainRearCameraId } from './cameraSelect';
 
 /**
- * Web-only photo capture using getUserMedia, preferring the main rear lens.
- * Includes a "Lens" button so the user can manually cycle through rear cameras
- * on multi-camera phones where label-based detection is unreliable (Samsung).
- * Returns a base64-encoded JPEG (no data: prefix) or null if cancelled / failed.
+ * Web-only photo capture using getUserMedia, using the rear camera selected
+ * in Settings → Camera (falls back to auto-detected main lens, then to
+ * facingMode: 'environment'). Returns a base64-encoded JPEG (no data: prefix)
+ * or null if cancelled / failed.
  */
 export async function captureSessionPhotoWeb(): Promise<string | null> {
-  let stream: MediaStream | null = null;
-  let currentDeviceId: string | null = await pickMainRearCameraId();
+  const deviceId = await pickMainRearCameraId();
 
-  const openStream = async (deviceId: string | null): Promise<MediaStream | null> => {
-    if (deviceId) {
-      try {
-        return await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: deviceId },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        });
-      } catch {
-        // fall through
-      }
-    }
+  let stream: MediaStream | null = null;
+  if (deviceId) {
     try {
-      return await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: deviceId },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      });
+    } catch {
+      stream = null;
+    }
+  }
+  if (!stream) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
           width: { ideal: 1920 },
@@ -42,22 +35,16 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
     } catch {
       return null;
     }
-  };
+  }
 
-  stream = await openStream(currentDeviceId);
-  if (!stream) return null;
-
-  const applyDefaults = async (s: MediaStream) => {
-    try {
-      const t = s.getVideoTracks()[0];
-      await t?.applyConstraints({
-        advanced: [{ focusMode: 'continuous' } as any, { zoom: 1 } as any],
-      });
-    } catch {
-      // ignore
-    }
-  };
-  await applyDefaults(stream);
+  try {
+    const t = stream.getVideoTracks()[0];
+    await t?.applyConstraints({
+      advanced: [{ focusMode: 'continuous' } as any, { zoom: 1 } as any],
+    });
+  } catch {
+    // ignore
+  }
 
   return new Promise<string | null>((resolve) => {
     const cleanup = () => {
@@ -67,19 +54,19 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
 
     const overlay = document.createElement('div');
     overlay.style.cssText =
-      'position:fixed;inset:0;z-index:2147483647;background:#000;display:flex;flex-direction:column;';
+      'position:fixed;top:0;left:0;right:0;width:100vw;height:100dvh;z-index:2147483647;background:#000;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);';
 
     const video = document.createElement('video');
     video.autoplay = true;
     video.playsInline = true;
     video.muted = true;
     video.srcObject = stream;
-    video.style.cssText = 'flex:1;width:100%;object-fit:contain;background:#000;';
+    video.style.cssText = 'flex:1;width:100%;min-height:0;object-fit:contain;background:#000;';
     overlay.appendChild(video);
 
     const bar = document.createElement('div');
     bar.style.cssText =
-      'display:flex;gap:12px;justify-content:space-between;align-items:center;padding:16px;background:#000;';
+      'display:flex;gap:12px;justify-content:space-between;align-items:center;padding:16px 16px max(16px, env(safe-area-inset-bottom)) 16px;background:#000;flex-shrink:0;';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
@@ -88,43 +75,6 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
     cancelBtn.onclick = () => {
       cleanup();
       resolve(null);
-    };
-
-    // Lens switcher (cycles through rear cameras)
-    const lensBtn = document.createElement('button');
-    lensBtn.style.cssText =
-      'padding:8px 14px;border-radius:8px;border:2px solid #fff;background:transparent;color:#fff;font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;line-height:1.1;';
-    lensBtn.innerHTML = '<span>Lens</span><span style="font-size:11px;opacity:0.85;margin-top:2px" data-kind>...</span>';
-    const setLensLabel = (cam: RearCamera | null) => {
-      const span = lensBtn.querySelector('[data-kind]') as HTMLSpanElement | null;
-      if (span) span.textContent = cam ? lensKindLabel(cam.kind) : '—';
-    };
-    // Initial label
-    (async () => {
-      const list = await listRearCameras();
-      const match = list.find((c) => c.deviceId === currentDeviceId) || list[0] || null;
-      setLensLabel(match);
-    })();
-
-    lensBtn.onclick = async () => {
-      lensBtn.disabled = true;
-      try {
-        const next = await nextRearCameraId(currentDeviceId);
-        if (!next) return;
-        const newStream = await openStream(next.deviceId);
-        if (!newStream) return;
-        // Replace stream
-        stream?.getTracks().forEach((t) => t.stop());
-        stream = newStream;
-        video.srcObject = newStream;
-        currentDeviceId = next.deviceId;
-        saveRearCameraId(next.deviceId);
-        setLensLabel(next);
-        await applyDefaults(newStream);
-        rebuildTorch();
-      } finally {
-        lensBtn.disabled = false;
-      }
     };
 
     const captureBtn = document.createElement('button');
@@ -161,22 +111,14 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
     };
 
     bar.appendChild(cancelBtn);
-    bar.appendChild(lensBtn);
-    bar.appendChild(captureBtn);
 
-    // Torch toggle — rebuilt when lens changes (capabilities differ per lens)
-    let torchBtn: HTMLButtonElement | null = null;
-    const rebuildTorch = () => {
-      if (torchBtn) {
-        torchBtn.remove();
-        torchBtn = null;
-      }
-      try {
-        const track = stream!.getVideoTracks()[0];
-        const caps: any = track?.getCapabilities?.();
-        if (!caps?.torch) return;
+    // Torch toggle if supported by the active lens
+    try {
+      const track = stream!.getVideoTracks()[0];
+      const caps: any = track?.getCapabilities?.();
+      if (caps?.torch) {
         let on = false;
-        torchBtn = document.createElement('button');
+        const torchBtn = document.createElement('button');
         torchBtn.textContent = 'Torch';
         torchBtn.style.cssText =
           'padding:12px 20px;border-radius:8px;border:2px solid #fff;background:transparent;color:#fff;font-size:16px;font-weight:600;';
@@ -184,19 +126,19 @@ export async function captureSessionPhotoWeb(): Promise<string | null> {
           on = !on;
           try {
             await track.applyConstraints({ advanced: [{ torch: on } as any] });
-            torchBtn!.style.background = on ? '#fff' : 'transparent';
-            torchBtn!.style.color = on ? '#000' : '#fff';
+            torchBtn.style.background = on ? '#fff' : 'transparent';
+            torchBtn.style.color = on ? '#000' : '#fff';
           } catch {
             // ignore
           }
         };
-        bar.insertBefore(torchBtn, captureBtn);
-      } catch {
-        // ignore
+        bar.appendChild(torchBtn);
       }
-    };
-    rebuildTorch();
+    } catch {
+      // ignore
+    }
 
+    bar.appendChild(captureBtn);
     overlay.appendChild(bar);
     document.body.appendChild(overlay);
   });

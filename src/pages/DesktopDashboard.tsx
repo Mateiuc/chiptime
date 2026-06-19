@@ -1689,8 +1689,8 @@ const DesktopDashboard = () => {
                                           <div className="flex items-center gap-2 text-xs flex-wrap">
                                             <span className="font-medium">Session {sIdx + 1}</span>
                                             <span className="font-mono">{formatDuration(sDur)}</span>
-                                            {session.startTime && (
-                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(session.startTime, session.endTime)}</span>
+                                            {session.createdAt && (
+                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(session.createdAt, session.completedAt)}</span>
                                             )}
                                             {session.description && <span className="text-muted-foreground">— {session.description}</span>}
                                             {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}

@@ -188,15 +188,69 @@ const VinScanner: React.FC<VinScannerProps> = ({
     }
   }, [googleApiKey, grokApiKey, ocrSpaceApiKey, ocrProvider, isFrameReady, stream]);
 
+  const pickMainRearCameraId = async (): Promise<string | null> => {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) return null;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      if (!cams.length) return null;
+
+      const rear = cams.filter(d => /back|rear|environment/i.test(d.label));
+      const pool = rear.length ? rear : cams;
+
+      const isBad = (l: string) => /ultra[\s-]?wide|0\.5x|telephoto|\btele\b|depth|mono|infrared|\bir\b/i.test(l);
+      const candidates = pool.filter(d => !isBad(d.label));
+
+      const preferred = candidates.find(d => /(^|[^a-z])(wide|main|1x|back camera)([^a-z]|$)/i.test(d.label) && !/ultra/i.test(d.label));
+      return (preferred || candidates[0] || pool[0])?.deviceId || null;
+    } catch {
+      return null;
+    }
+  };
+
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+      // Prime permissions so device labels become readable
+      let mediaStream: MediaStream | null = null;
+      try {
+        const priming = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        priming.getTracks().forEach(t => t.stop());
+      } catch {
+        // ignore — fall through to main request
+      }
+
+      const deviceId = await pickMainRearCameraId();
+      if (deviceId) {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: deviceId },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          });
+        } catch {
+          mediaStream = null;
         }
-      });
+      }
+      if (!mediaStream) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        });
+      }
+
+      // Nudge multi-lens stacks to 1× main lens and enable continuous focus
+      try {
+        const t = mediaStream.getVideoTracks()[0];
+        await t?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as any, { zoom: 1 } as any] });
+      } catch {
+        // capability not supported — ignore
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }

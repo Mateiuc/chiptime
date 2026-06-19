@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp, Square } from 'lucide-react';
+import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { Task, Client, Vehicle, WorkSession } from '@/types';
+import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
@@ -146,6 +147,105 @@ const DesktopDashboard = () => {
   // Delete confirmation dialogs
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
   const [deleteTaskDialog, setDeleteTaskDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
+  const [showCompleteWork, setShowCompleteWork] = useState(false);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
+
+  const handleStopTimer = (taskId: string) => {
+    const activeTask = tasks.find(t => t.id === taskId);
+    if (!activeTask) return;
+    setStoppingTaskId(taskId);
+
+    if (activeTask.status === 'in-progress' && activeTask.startTime) {
+      const startMs = activeTask.startTime instanceof Date ? activeTask.startTime.getTime() : new Date(activeTask.startTime).getTime();
+      const elapsed = Math.floor((Date.now() - startMs) / 1000);
+      const finalPeriod: WorkPeriod = {
+        id: crypto.randomUUID(),
+        startTime: activeTask.startTime instanceof Date ? activeTask.startTime : new Date(activeTask.startTime),
+        endTime: new Date(),
+        duration: elapsed,
+      };
+      let updatedSessions = [...(activeTask.sessions || [])];
+      let activeSessionId = activeTask.activeSessionId;
+      if (!activeSessionId) {
+        const newSession: WorkSession = {
+          id: crypto.randomUUID(),
+          createdAt: new Date(),
+          periods: [],
+          parts: [],
+        };
+        updatedSessions.push(newSession);
+        activeSessionId = newSession.id;
+      }
+      const activeSession = updatedSessions.find(s => s.id === activeSessionId);
+      if (activeSession) {
+        activeSession.periods = [...(activeSession.periods || []), finalPeriod];
+      }
+      updateTask(activeTask.id, {
+        status: 'paused',
+        sessions: updatedSessions,
+        totalTime: activeTask.totalTime + elapsed,
+        startTime: undefined,
+        activeSessionId,
+      });
+    }
+    setShowCompleteWork(true);
+  };
+
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false) => {
+    const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
+    if (!activeTask) return;
+
+    const updatedSessions = [...(activeTask.sessions || [])];
+    let targetSession = activeTask.activeSessionId
+      ? updatedSessions.find(s => s.id === activeTask.activeSessionId)
+      : updatedSessions.find(s => s.periods && s.periods.length > 0);
+
+    if (targetSession) {
+      targetSession.description = description;
+      targetSession.parts = parts;
+      targetSession.completedAt = new Date();
+      targetSession.periods = targetSession.periods.map((p, i) => ({
+        ...p,
+        chargeMinimumHour: periodMinHourFlags[i] || false,
+      }));
+      targetSession.chargeMinimumHour = periodMinHourFlags.some(Boolean);
+      targetSession.isCloning = isCloning;
+      targetSession.isProgramming = isProgramming;
+      targetSession.isAddKey = isAddKey;
+      targetSession.isAllKeysLost = isAllKeysLost;
+    }
+
+    updateTask(activeTask.id, {
+      status: 'completed',
+      sessions: updatedSessions,
+      startTime: undefined,
+      activeSessionId: undefined,
+      needsFollowUp,
+    });
+
+    setShowCompleteWork(false);
+    setStoppingTaskId(null);
+    toast({
+      title: 'Work Completed',
+      description: needsFollowUp ? 'Task completed - more work needed' : 'Work session finished successfully',
+    });
+
+    const client = clients.find(c => c.id === activeTask.clientId);
+    if (client) {
+      const updatedTasks = tasks.map(t =>
+        t.id === activeTask.id
+          ? { ...t, status: 'completed' as const, sessions: updatedSessions, needsFollowUp, startTime: undefined, activeSessionId: undefined }
+          : t
+      );
+      syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
+        .then(result => {
+          if (!client.portalId) {
+            updateClient(client.id, { portalId: result.portalId, accessCode: result.accessCode });
+          }
+        })
+        .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+    }
+  };
   const [chartClient, setChartClient] = useState<string>('all');
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
   const [drillSortField, setDrillSortField] = useState<'date' | 'cost'>('date');

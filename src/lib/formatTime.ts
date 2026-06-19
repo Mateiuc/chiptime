@@ -62,3 +62,22 @@ export const formatDateForInput = (date: Date | string): string => {
   
   return `${year}-${month}-${day}`;
 };
+
+const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
+  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+});
+const timeOnlyFmt = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric', minute: '2-digit', hour12: true,
+});
+
+export const formatSessionRange = (start?: Date | string, end?: Date | string): string => {
+  if (!start) return '';
+  const s = start instanceof Date ? start : new Date(start);
+  if (isNaN(s.getTime())) return '';
+  const startStr = dateTimeFmt.format(s);
+  if (!end) return `${startStr} → …`;
+  const e = end instanceof Date ? end : new Date(end);
+  if (isNaN(e.getTime())) return `${startStr} → …`;
+  const sameDay = s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate();
+  return `${startStr} → ${sameDay ? timeOnlyFmt.format(e) : dateTimeFmt.format(e)}`;
+};

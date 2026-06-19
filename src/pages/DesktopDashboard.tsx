@@ -21,7 +21,7 @@ import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudP
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
+import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';
@@ -1689,6 +1689,9 @@ const DesktopDashboard = () => {
                                           <div className="flex items-center gap-2 text-xs flex-wrap">
                                             <span className="font-medium">Session {sIdx + 1}</span>
                                             <span className="font-mono">{formatDuration(sDur)}</span>
+                                            {session.createdAt && (
+                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(session.createdAt, session.completedAt)}</span>
+                                            )}
                                             {session.description && <span className="text-muted-foreground">— {session.description}</span>}
                                             {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}
                                             {session.isCloning && <Badge variant="outline" className="text-[10px] px-1">Cloning</Badge>}

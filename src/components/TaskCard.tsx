@@ -624,7 +624,7 @@ export const TaskCard = ({
 
         // Background cloud upload (fire-and-forget). Re-fetch the task before
         // merging cloud fields so concurrent updates aren't clobbered.
-        photoStorageService.uploadPhotoToCloud(photo.base64String!, task.id, photoId)
+        photoStorageService.uploadPhotoToCloud(base64String!, task.id, photoId)
           .then(async ({ url: cloudUrl, path: cloudPath }) => {
             try {
               const freshTasks = await capacitorStorage.getTasks();

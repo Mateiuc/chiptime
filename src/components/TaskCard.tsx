@@ -535,14 +535,22 @@ export const TaskCard = ({
   // Handle capturing photo for active session
   const handleCapturePhoto = async () => {
     try {
-      const photo = await Camera.getPhoto({
-        quality: 80,
-        allowEditing: false,
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Camera,
-      });
+      let base64String: string | undefined;
+      if (Capacitor.isNativePlatform()) {
+        const photo = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Camera,
+        });
+        base64String = photo.base64String;
+      } else {
+        const { captureSessionPhotoWeb } = await import('@/lib/webPhotoCapture');
+        const result = await captureSessionPhotoWeb();
+        base64String = result ?? undefined;
+      }
 
-      if (photo.base64String) {
+      if (base64String) {
         // Fetch fresh task data from storage to avoid stale state issues
         const currentTasks = await capacitorStorage.getTasks();
         const freshTask = currentTasks.find(t => t.id === task.id);

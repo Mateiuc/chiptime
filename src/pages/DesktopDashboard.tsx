@@ -21,7 +21,7 @@ import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudP
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
+import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';

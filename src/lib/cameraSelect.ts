@@ -33,11 +33,33 @@ export function saveRearCameraId(deviceId: string): void {
   } catch {
     // ignore
   }
+  // Invalidate the session "auto-pick" cache so the next caller picks up
+  // the user's choice instead of returning the stale auto-detected lens.
+  try {
+    sessionStorage.setItem(SS_PROBED_PICK, deviceId);
+  } catch {
+    // ignore
+  }
 }
 
 export function clearSavedRearCameraId(): void {
   try {
     localStorage.removeItem(LS_USER_PICK);
+  } catch {
+    // ignore
+  }
+  try {
+    sessionStorage.removeItem(SS_PROBED_PICK);
+  } catch {
+    // ignore
+  }
+}
+
+/** Wipes the per-session probe cache so listRearCameras() will re-probe. */
+export function clearProbedCameras(): void {
+  try {
+    sessionStorage.removeItem(SS_PROBED_LIST);
+    sessionStorage.removeItem(SS_PROBED_PICK);
   } catch {
     // ignore
   }

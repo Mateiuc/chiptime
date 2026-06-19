@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { X, Bug, Copy, Flashlight, Sun, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, Bug, Copy, Flashlight, Sun, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { validateVinStrict } from '@/lib/vinDecoder';
 import { readVinWithGemini, type OcrResult as GeminiOcrResult } from '@/lib/geminiVinOcr';
 import { readVinWithGrok, type OcrResult as GrokOcrResult } from '@/lib/grokVinOcr';
@@ -11,7 +11,14 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
-import { pickMainRearCameraId } from '@/lib/cameraSelect';
+import {
+  pickMainRearCameraId,
+  nextRearCameraId,
+  listRearCameras,
+  saveRearCameraId,
+  lensKindLabel,
+  type RearCamera,
+} from '@/lib/cameraSelect';
 
 type OcrResult = GeminiOcrResult | GrokOcrResult | OcrSpaceOcrResult | TesseractOcrResult;
 
@@ -52,6 +59,9 @@ const VinScanner: React.FC<VinScannerProps> = ({
   const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
+  const [currentLensKind, setCurrentLensKind] = useState<RearCamera['kind'] | null>(null);
+  const [rearCameraCount, setRearCameraCount] = useState(0);
   const warnedNoKeyRef = useRef(false);
   
   // Debug state

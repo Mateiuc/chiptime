@@ -220,18 +220,6 @@ export async function pickMainRearCameraId(): Promise<string | null> {
   return winner;
 }
 
-/**
- * Returns the next rear-camera deviceId in the cycle, used by the in-overlay
- * "Lens" button. If no current id is given, returns the preferred camera.
- */
-export async function nextRearCameraId(currentId: string | null): Promise<RearCamera | null> {
-  const cams = await listRearCameras();
-  if (!cams.length) return null;
-  if (!currentId) return cams[0];
-  const idx = cams.findIndex((c) => c.deviceId === currentId);
-  const next = cams[(idx + 1) % cams.length];
-  return next || cams[0];
-}
 
 export function lensKindLabel(kind: RearLensKind): string {
   switch (kind) {

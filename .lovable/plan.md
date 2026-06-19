@@ -1,45 +1,36 @@
-## Problem
+## Goal
 
-Two issues:
+Now that lens selection is managed centrally in Settings → Camera, remove the redundant in-overlay "Lens" switchers and clean unused helpers. Also fix the web photo-session overlay where the bottom Cancel / Capture / Torch buttons are clipped by the phone's native navigation bar.
 
-1. **Bug**: After picking the right lens with the in-overlay "Lens" button in the VIN scanner, the photo session still opens the wrong (ultra-wide) lens. Cause: `pickMainRearCameraId()` reads a `sessionStorage` cache (`SS_PROBED_PICK`) **before** checking the saved user pick in `localStorage`. When the user switches lenses, `saveRearCameraId()` writes to `localStorage` but never invalidates the session cache, so the next caller (web photo capture) returns the stale auto-pick.
+## Changes
 
-2. **Missing**: No way to test and persist a chosen rear camera from Settings — the user has to keep switching lenses via the in-overlay button every time.
+### 1. `src/lib/webPhotoCapture.ts` — clean + safe-area fix
+- Remove the "Lens" button, its label updater, and the `nextRearCameraId` / `listRearCameras` / `saveRearCameraId` / `lensKindLabel` imports.
+- Keep only: `pickMainRearCameraId` (reads Settings choice), the video stream, Cancel / Torch / Capture buttons.
+- Bottom bar fix:
+  - Add `padding-bottom: max(16px, env(safe-area-inset-bottom))` to the button bar so it sits above the phone's nav-bar.
+  - Add matching `padding-top: max(env(safe-area-inset-top), 0px)` so the top of the overlay does not slip under the status bar.
+  - Use `100dvh` (dynamic viewport) by switching from `inset:0` to `top/left/right:0; height:100dvh; width:100vw;` so URL bars / nav bars are accounted for on mobile browsers.
 
-## Fix + Feature
+### 2. `src/components/VinScanner.tsx` — remove in-overlay lens switcher
+- Drop imports of `nextRearCameraId`, `listRearCameras`, `saveRearCameraId`, `lensKindLabel`, and the `RearCamera` type.
+- Drop `RefreshCw` from the lucide import.
+- Remove state: `currentCameraId`, `currentLensKind`, `rearCameraCount`.
+- Remove the `switchLens()` function.
+- Remove the post-stream code block that calls `listRearCameras()` to populate the lens label (lines ~249–260).
+- Remove the "Lens Switcher" Button block in the JSX (lines ~789–803). Keep Torch and Zoom controls untouched.
+- `startCamera` signature: drop the `overrideDeviceId` parameter (no longer used internally).
 
-### A. Fix the stale-cache bug — `src/lib/cameraSelect.ts`
-- In `saveRearCameraId(deviceId)`, also write the same `deviceId` to `sessionStorage[SS_PROBED_PICK]` so subsequent calls return the user's choice immediately.
-- In `clearSavedRearCameraId()`, also clear `SS_PROBED_PICK`.
-- Add `clearProbedCameras()` helper that wipes both `SS_PROBED_LIST` and `SS_PROBED_PICK` (used by the Settings "Re-detect" action).
+### 3. `src/lib/cameraSelect.ts` — drop now-unused exports
+- Remove `nextRearCameraId()` (no remaining caller).
+- Keep everything else (`listRearCameras`, `pickMainRearCameraId`, `saveRearCameraId`, `getSavedRearCameraId`, `clearSavedRearCameraId`, `clearProbedCameras`, `lensKindLabel`, `RearCamera`, `RearLensKind`) — all still used by `CameraSettingsSection.tsx` and the two camera consumers.
 
-This single change makes the VIN scanner's lens switch carry over to photo sessions automatically.
+### Out of scope
+- No change to `CameraSettingsSection.tsx` or to the native (Capacitor) photo path.
+- No OCR / upload / business logic changes.
+- No change to where photos are stored or how the session flow works.
 
-### B. New "Camera" section in Settings
-
-Add a Camera section to both `src/components/SettingsDialog.tsx` (mobile) and `src/components/DesktopSettingsView.tsx` (desktop) with:
-
-- **Detected rear cameras** list (uses `listRearCameras()`), each row showing:
-  - lens kind badge: `Main` / `Ultra` / `Tele` / `Cam`
-  - the device label (or short id fallback)
-  - zoom range when known (e.g. `0.5×–10×`)
-  - a "Use this" radio / button that calls `saveRearCameraId(deviceId)`
-  - a "Test" button that opens a small preview overlay streaming that exact `deviceId` for a few seconds so the user visually confirms the framing matches the lens they want — Capture button is hidden (preview only), Close button stops the stream.
-- **Auto-detect** button → `clearSavedRearCameraId()` + `clearProbedCameras()`, then re-runs `listRearCameras()`.
-- The currently saved deviceId is highlighted as "Active".
-- On **native** (Capacitor) the OS picks the lens, so the section renders a short note: "On the installed app, your phone's camera picks the lens automatically." and hides the list.
-
-### C. Wire-up confirmation
-
-No changes needed in `webPhotoCapture.ts` or `VinScanner.tsx`: both already call `pickMainRearCameraId()` on open, which (after fix A) will return the Settings-saved deviceId.
-
-## Files
-
-- `src/lib/cameraSelect.ts` — patch `saveRearCameraId`, `clearSavedRearCameraId`, add `clearProbedCameras`.
-- `src/components/CameraSettingsSection.tsx` *(new)* — self-contained UI with list, Test preview overlay, Auto-detect button.
-- `src/components/SettingsDialog.tsx` — render `<CameraSettingsSection />` in the settings view.
-- `src/components/DesktopSettingsView.tsx` — render the same section.
-
-## Out of scope
-
-No native camera changes, no changes to OCR / upload pipeline, no changes to photo storage.
+## Verification
+- Open a work session → Take photo: overlay fills the screen, Cancel / Torch / Capture all fully visible above the phone nav bar; lens used = the one saved in Settings (no Lens button shown).
+- Open VIN scan: no Lens button in the camera overlay; Torch + Zoom still work; the camera used = Settings choice.
+- Settings → Camera: list, Test, Use this, Auto-detect all still work.

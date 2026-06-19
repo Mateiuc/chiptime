@@ -1,57 +1,42 @@
-## Goal
+## Problem
 
-Use the same main-rear-camera lens selection for session photos as the VIN scanner, so phone captures stop landing on the ultra-wide lens.
+On Samsung phones the label-based picker in `src/lib/cameraSelect.ts` still selects the ultra-wide lens. Android Chrome labels are inconsistent (often generic like `camera2 0, facing back` or localized strings), so matching on words like `wide`/`main`/`ultra` is unreliable. We need a detection method that does not depend on label text, plus a manual override so the user can always force the correct lens.
 
-## Where the capture lives today
+## Solution
 
-`TaskCard.handleCapturePhoto` (around `src/components/TaskCard.tsx:536`) calls `Camera.getPhoto` from `@capacitor/camera`.
+Two changes that work together:
 
-- **Native iOS/Android (Capacitor):** opens the system camera app, which already defaults to the main lens. No change needed.
-- **Web / PWA:** `@ionic/pwa-elements` (`src/main.tsx`) renders a custom camera UI that calls `getUserMedia({ facingMode: 'environment' })` — same problem as the VIN scanner had: multi-lens phones can pick the ultra-wide lens.
+### 1. Probe-based lens detection (no labels)
 
-## Plan
+Replace the label heuristic in `src/lib/cameraSelect.ts` with a capability probe:
 
-### 1. Extract the lens picker — `src/lib/cameraSelect.ts` (new)
+- Enumerate `videoinput` devices, keep those with `facingMode: 'environment'` (or label hints when present, as a fallback).
+- For each rear candidate, briefly open a stream with `getUserMedia({ video: { deviceId: { exact } } })`, read `track.getCapabilities()` and `track.getSettings()`, then stop the stream.
+- Score each lens:
+  - **Ultra-wide signal** → `capabilities.zoom?.min < 1` (typically 0.5) **or** very wide reported FOV. Reject.
+  - **Telephoto signal** → `capabilities.zoom?.min > 1` (e.g. 3.0) or label contains `tele`. Reject for default.
+  - **Main signal** → `zoom.min === 1` (or no zoom capability) and not flagged as depth/mono/IR. Prefer.
+- Cache the winning `deviceId` per session in `sessionStorage` so we don't probe every capture.
+- Expose a new helper `listRearCameras()` that returns `[{ deviceId, label, kind: 'main' | 'ultrawide' | 'tele' | 'unknown' }]` for the UI switcher.
 
-Move `pickMainRearCameraId` out of `VinScanner.tsx` into a tiny shared util:
+### 2. In-overlay lens switcher
 
-```ts
-export async function pickMainRearCameraId(): Promise<string | null> { ... }
-```
+Update `src/lib/webPhotoCapture.ts` and `src/components/VinScanner.tsx`:
 
-Same logic already shipped in VinScanner (reject ultra-wide/tele/depth/mono; prefer wide/main/1x/Back Camera).
+- Add a small `Lens` button in the camera overlay bar. Tapping it cycles through the rear cameras returned by `listRearCameras()`, restarting the stream on the chosen `deviceId` and re-applying `focusMode: continuous` + `zoom: 1`.
+- Show a tiny label under the button (`Main` / `Ultra` / `Tele` / `Cam 2`) so the user can see which lens is active.
+- Remember the user's last manual pick in `localStorage` (`chiptime.rearCameraId`) and prefer it on next open; fall back to the probe winner; fall back to `facingMode: 'environment'`.
 
-Update `VinScanner.tsx` to import it instead of defining it locally. No behavior change for VIN.
+### Files
 
-### 2. Add a small web-only photo capture — `src/lib/webPhotoCapture.ts` (new)
+- `src/lib/cameraSelect.ts` — rewrite: `pickMainRearCameraId()` uses probe-based scoring + `sessionStorage` cache + `localStorage` user override; add `listRearCameras()`.
+- `src/lib/webPhotoCapture.ts` — add lens-switch button; persist user pick.
+- `src/components/VinScanner.tsx` — add the same lens-switch button to the VIN overlay; persist user pick.
 
-Exposes `captureSessionPhotoWeb(): Promise<string | null>` returning a base64 JPEG (no `data:` prefix, matching what `Camera.getPhoto` returns) or `null` if the user cancels.
+### Out of scope
 
-Implementation:
-- Pick lens via `pickMainRearCameraId()`, open `getUserMedia({ deviceId: { exact } | facingMode: 'environment', width/height ideal 1920×1080 })`.
-- Apply `focusMode: continuous`, `zoom: 1` advanced constraints (try/catch).
-- Render a minimal full-screen overlay (plain DOM, no React) with `<video>` preview + **Capture** + **Cancel** buttons + torch toggle if `capabilities.torch` is reported. Tear down on either action.
-- On capture: draw video frame to an off-screen `<canvas>` at the video's intrinsic resolution, `canvas.toDataURL('image/jpeg', 0.8)`, strip the `data:image/jpeg;base64,` prefix, return.
+No native (Capacitor) changes — native uses the OS camera UI, which already picks the main lens. No changes to OCR, storage, upload, or session/photo data model.
 
-Keeps styling minimal (solid black backdrop, white buttons) — this is a utility surface, not a designed screen.
+### Verification
 
-### 3. Route web captures through the new util — `src/components/TaskCard.tsx`
-
-In `handleCapturePhoto`, branch on `Capacitor.isNativePlatform()`:
-
-- **Native:** unchanged `Camera.getPhoto({...})`.
-- **Web:** `const base64 = await captureSessionPhotoWeb(); if (!base64) return;` then continue with the existing `photo.base64String` pipeline (rename local var so the rest of the function reads `base64String` from either source).
-
-No changes to storage, session/photo data model, toasts, or UI buttons.
-
-## Out of scope
-
-- No changes to the VIN scanner UI, OCR, zoom slider, or torch logic beyond the file split.
-- No changes to native camera behavior — Capacitor still drives iOS/Android captures.
-- No design system changes.
-
-## Verification
-
-- On a multi-lens phone using the published web app: tap **Add photo** on a task → custom capture overlay opens on the main lens (no fish-eye), snap saves the photo to the session as before.
-- On native build: behavior is identical to today (system camera).
-- VIN scanner continues to behave exactly as it does now.
+You'll test on your Samsung after deploy: open VIN scan or session photo, confirm the default lens is the main rear (not ultra-wide), and confirm the new `Lens` button cycles to the correct one and is remembered next time.

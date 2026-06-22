@@ -105,6 +105,14 @@ export interface Task {
   
   importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column — locks task total
   paidAt?: Date;           // Timestamp when task was marked as paid
+  /**
+   * Ledger entry written when status flips to 'paid'. Records how much of
+   * the task's total was paid out of the vehicle deposit and the client
+   * deposit. Original `vehicle.prepaidAmount` / `client.prepaidAmount` are
+   * NEVER mutated — remaining deposit is derived (see `lib/deposit.ts`).
+   * Cleared when the task is un-marked paid.
+   */
+  depositApplied?: { vehicle: number; client: number; at: Date };
   diagnosticPdfUrl?: string; // Last-known signed URL (may expire)
   diagnosticPdfPath?: string; // Storage path in private bucket (canonical)
   createdBy?: string; // user_id of the worker who created this task

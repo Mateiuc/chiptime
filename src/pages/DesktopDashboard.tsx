@@ -24,6 +24,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
+import { getClientFinancials as sharedGetClientFinancials, getVehicleFinancials as sharedGetVehicleFinancials } from '@/lib/clientFinancials';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { parseWorkHistoryXls } from '@/lib/xlsImporter';
@@ -720,6 +721,15 @@ const DesktopDashboard = () => {
     sharedGetClientFinancials(clientId, clients, tasks, settings);
   const getVehicleFinancials = (vehicleId: string, clientId: string) =>
     sharedGetVehicleFinancials(vehicleId, clientId, clients, tasks, settings);
+
+  const getVehicleStats = (vehicleId: string) => {
+    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
+    return {
+      active: vehicleTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
+      total: vehicleTasks.length,
+    };
+  };
+
 
   const generateClientPDF = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);

@@ -731,50 +731,49 @@ export const TaskCard = ({
         return 'bg-secondary text-secondary-foreground';
     }
   };
-  const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-  const cloningRate = client?.cloningRate || (settings as any).defaultCloningRate || 0;
-  const programmingRate = client?.programmingRate || (settings as any).defaultProgrammingRate || 0;
-  const addKeyRate = client?.addKeyRate || (settings as any).defaultAddKeyRate || 0;
-  const allKeysLostRate = client?.allKeysLostRate || (settings as any).defaultAllKeysLostRate || 0;
+  // --- Single source of truth: src/lib/billing.ts ---
+  const billingSettings = settings as Settings;
+  const rates = resolveRates(client, billingSettings);
+  const hourlyRate = rates.hourly;
+
+  // Aggregate per-session breakdown (counts come from session flags; dollar
+  // amounts come from computeSessionLaborDetails so we never re-derive math).
+  const isImported = task.importedSalary != null && task.importedSalary > 0;
   let baseLabor = 0, totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
   let minHourCount = 0, cloningCount = 0, programmingCount = 0, addKeyCount = 0, allKeysLostCount = 0;
-  // Phase 2: imported (XLS) tasks lock labor to importedSalary; per-session
-  // breakdown is suppressed so the displayed total matches computeTaskTotal.
-  const isImported = task.importedSalary != null && task.importedSalary > 0;
+  let partsCost = 0;
+
   if (isImported) {
     baseLabor = task.importedSalary as number;
   } else {
-    (task.sessions || []).forEach(session => {
-      session.periods.forEach(period => {
-        if (period.chargeMinimumHour && period.duration < 3600) {
-          baseLabor += Math.ceil(hourlyRate);
-          minHourCount++;
-        } else {
-          baseLabor += calcPeriodCost(period.duration, hourlyRate);
-        }
-      });
-      const sessionDur = session.periods.reduce((sum, p) => sum + p.duration, 0);
-      const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-      if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) {
-        totalMinHourAdj += Math.ceil(((3600 - sessionDur) / 3600) * hourlyRate);
-        minHourCount++;
-      }
-      if (session.isCloning && cloningRate > 0) { totalCloning += cloningRate; cloningCount++; }
-      if (session.isProgramming && programmingRate > 0) { totalProgramming += programmingRate; programmingCount++; }
-      if (session.isAddKey && addKeyRate > 0) { totalAddKey += addKeyRate; addKeyCount++; }
-      if (session.isAllKeysLost && allKeysLostRate > 0) { totalAllKeysLost += allKeysLostRate; allKeysLostCount++; }
-    });
+    for (const session of task.sessions || []) {
+      const d = computeSessionLaborDetails(session, client, billingSettings);
+      baseLabor += d.baseLabor;
+      totalMinHourAdj += d.minHourAdj;
+      totalCloning += d.cloning;
+      totalProgramming += d.programming;
+      totalAddKey += d.addKey;
+      totalAllKeysLost += d.allKeysLost;
+      partsCost += computeSessionParts(session);
+
+      // Per-display counts (chip badges only — pure session-flag accounting).
+      const hasPeriodFlags = (session.periods || []).some(p => p.chargeMinimumHour);
+      minHourCount += (session.periods || []).filter(p => p.chargeMinimumHour && p.duration < 3600).length;
+      const sessionDur = (session.periods || []).reduce((s, p) => s + p.duration, 0);
+      if (!hasPeriodFlags && session.chargeMinimumHour && sessionDur < 3600) minHourCount++;
+      if (session.isCloning && rates.cloning > 0) cloningCount++;
+      if (session.isProgramming && rates.programming > 0) programmingCount++;
+      if (session.isAddKey && rates.addKey > 0) addKeyCount++;
+      if (session.isAllKeysLost && rates.allKeysLost > 0) allKeysLostCount++;
+    }
   }
-  const calculatedLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
-  // Phase 2: importedSalary short-circuits computeTaskTotal (locks task labor
-  // to the imported figure); render via the amber Imported badge when present.
-  // Otherwise total = live labor + services + parts, with per-vehicle discount on labor.
-  const partsCost = (task.sessions || []).reduce((total, session) => {
-    return total + (session.parts || []).reduce((sum, part) => sum + (part.providedByClient ? 0 : part.price * part.quantity), 0);
-  }, 0);
-  const rawLabor = calculatedLabor;
-  const { discount: laborDiscount, laborAfter: laborCost } = applyLaborDiscount(rawLabor, vehicle);
-  const totalCost = ceilDollars(laborCost + partsCost);
+
+  // Chip total + per-task discount allocation — pooled across vehicle.
+  const effectiveVehicleTasks = vehicleTasks && vehicleTasks.length > 0 ? vehicleTasks : [task];
+  const allocated = computeTaskTotalAllocated(task, vehicle, effectiveVehicleTasks, client, billingSettings);
+  const laborDiscount = allocated.discount;
+  const laborCost = Math.max(0, (allocated.labor + allocated.services) - laborDiscount);
+  const totalCost = allocated.total;
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="p-3 py-0">

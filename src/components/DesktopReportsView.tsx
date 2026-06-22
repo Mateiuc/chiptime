@@ -193,6 +193,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
+    workerIds: getTaskWorkerIds(t),
   });
 
   const availableVehicles = useMemo(() => {

@@ -211,6 +211,7 @@ const DesktopDashboard = () => {
         startTime: activeTask.startTime instanceof Date ? activeTask.startTime : new Date(activeTask.startTime),
         endTime: new Date(),
         duration: elapsed,
+        createdBy: currentUserId || undefined,
       };
       let updatedSessions = [...(activeTask.sessions || [])];
       let activeSessionId = activeTask.activeSessionId;
@@ -220,6 +221,7 @@ const DesktopDashboard = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: currentUserId || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;

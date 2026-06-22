@@ -452,6 +452,7 @@ const Index = () => {
         createdAt: new Date(),
         periods: [],
         parts: [],
+        createdBy: getCurrentUserId() || undefined,
       };
       updatedSessions.push(newSession);
       activeSessionId = newSession.id;

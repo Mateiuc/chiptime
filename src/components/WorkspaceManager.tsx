@@ -22,6 +22,12 @@ interface MemberRow {
   created_at: string;
 }
 
+interface ProfileRow {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -39,6 +45,7 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
   const { toast } = useNotifications();
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -51,8 +58,21 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
       supabase.from('workspace_invites').select('id, code, role, created_at, used_at').eq('workspace_id', workspace.id).order('created_at', { ascending: false }),
       supabase.from('workspace_members').select('user_id, role, created_at').eq('workspace_id', workspace.id).order('created_at'),
     ]);
+    const memberRows: MemberRow[] = (mem.data as any) || [];
     setInvites((inv.data as any) || []);
-    setMembers((mem.data as any) || []);
+    setMembers(memberRows);
+    const ids = memberRows.map(m => m.user_id);
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, email, display_name')
+        .in('id', ids);
+      const map: Record<string, ProfileRow> = {};
+      ((profs as any) || []).forEach((p: ProfileRow) => { map[p.id] = p; });
+      setProfiles(map);
+    } else {
+      setProfiles({});
+    }
     setLoading(false);
   };
 
@@ -142,13 +162,26 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
 
           <div className="space-y-2">
             <Label className="text-sm">Members ({members.length})</Label>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {members.map((m) => (
-                <div key={m.user_id} className="flex justify-between">
-                  <span className="font-mono truncate">{m.user_id === user?.id ? 'You' : m.user_id.slice(0, 8) + '…'}</span>
-                  <span>{m.role}</span>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              {members.map((m) => {
+                const p = profiles[m.user_id];
+                const name = p?.display_name || p?.email || 'Unknown user';
+                const showEmail = !!(p?.display_name && p?.email && p.display_name !== p.email);
+                const isYou = m.user_id === user?.id;
+                return (
+                  <div key={m.user_id} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">
+                        {name}{isYou && <span className="text-xs text-muted-foreground font-normal"> (You)</span>}
+                      </div>
+                      {showEmail && (
+                        <div className="text-[11px] text-muted-foreground truncate">{p!.email}</div>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{m.role}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

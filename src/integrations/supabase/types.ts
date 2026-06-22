@@ -85,6 +85,30 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rate_limit_buckets: {
         Row: {
           bucket_key: string
@@ -226,6 +250,7 @@ export type Database = {
         Returns: boolean
       }
       redeem_workspace_invite: { Args: { _code: string }; Returns: string }
+      shares_workspace: { Args: { _a: string; _b: string }; Returns: boolean }
       user_primary_workspace: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {

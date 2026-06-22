@@ -22,8 +22,7 @@ import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
-import { applyLaborDiscount } from '@/lib/discount';
-import { computeTaskTotal, computeVehicleTotal } from '@/lib/billing';
+import { computeTaskTotal, computeVehicleTotal, computeTaskCost } from '@/lib/billing';
 import { getClientFinancials as sharedGetClientFinancials, getVehicleFinancials as sharedGetVehicleFinancials } from '@/lib/clientFinancials';
 import { photoStorageService } from '@/services/photoStorageService';
 import { syncPortalToCloud, generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
@@ -626,15 +625,11 @@ const DesktopDashboard = () => {
     toast({ title: 'Vehicle Moved' });
   };
 
-  // --- Helpers (Phase 1: route through shared billing utility) ---
+  // --- Helpers — single source of truth: src/lib/billing.ts ---
+  // Per-task chip total: pooled vehicle discount, allocated per task.
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicle = vehicles.find(v => v.id === task.vehicleId);
-    const t = computeTaskTotal(task, client, settings);
-    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
-    // Match DesktopReportsView and ceilDollars convention so chip totals
-    // never show fractional dollars.
-    return Math.ceil(laborAfter + t.parts);
+    return computeTaskCost(task, vehicles, tasks, client, settings);
   };
 
   // Pre-discount cost (for headline display alongside Discount/Deposit chips).
@@ -647,11 +642,7 @@ const DesktopDashboard = () => {
   const getVehicleDiscount = (vehicle: Vehicle | undefined, vehicleTasks: Task[]) => {
     if (!vehicle?.discountType || !vehicle.discountValue || vehicleTasks.length === 0) return 0;
     const client = clients.find(c => c.id === vehicleTasks[0].clientId) || null;
-    const labor = vehicleTasks.reduce((sum, task) => {
-      const t = computeTaskTotal(task, client, settings);
-      return sum + t.labor + t.services;
-    }, 0);
-    return applyLaborDiscount(labor, vehicle).discount;
+    return computeVehicleTotal(vehicle, vehicleTasks, client, settings).discount;
   };
 
   // --- Money Over Time chart data ---

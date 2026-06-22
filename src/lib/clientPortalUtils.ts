@@ -1,6 +1,6 @@
 import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod, Settings } from '@/types';
 import { applyLaborDiscount } from '@/lib/discount';
-import { computeSessionLaborDetails } from '@/lib/billing';
+import { computeSessionLaborDetails, computeSessionParts, ceilDollars } from '@/lib/billing';
 
 export const PORTAL_BASE_URL =
   (import.meta.env.VITE_PORTAL_BASE_URL as string | undefined) ||
@@ -230,11 +230,8 @@ export function calculateClientCosts(
         const sessionProgrammingCost = d.programming;
         const sessionAddKeyCost = d.addKey;
         const sessionAllKeysLostCost = d.allKeysLost;
-        const laborCost = Math.ceil(d.total);
-        const sessionPartsCost = (session.parts || []).reduce(
-          (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
-          0
-        );
+        const laborCost = ceilDollars(d.total);
+        const sessionPartsCost = computeSessionParts(session);
 
         const sessionDiscount = 0;
         unbilledLabor += laborCost;

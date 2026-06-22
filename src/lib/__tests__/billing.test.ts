@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ceilDollars,
   computeSessionLabor,
+  computeTaskCost,
   computeTaskTotal,
   computeTaskTotalAllocated,
   computeVehicleTotal,
@@ -191,5 +192,64 @@ describe("previewSessionLabor", () => {
     expect(
       previewSessionLabor(1800, 100, { sessionMinHour: true, periodMinHour: true }),
     ).toBe(100);
+  });
+});
+
+describe("cross-surface invariant — chips reconcile to vehicle total", () => {
+  // 3 tasks on a vehicle with 10% discount + 1 imported + 1 with providedByClient parts.
+  const v: Vehicle = {
+    id: "v1",
+    clientId: "c1",
+    vin: "VIN",
+    discountType: "percent",
+    discountValue: 10,
+  } as Vehicle;
+  const t1 = task([session({ periods: [period(3600)] })]); // $100 labor
+  const t2 = task([session({
+    periods: [period(1800)],
+    parts: [
+      { id: "p1", name: "x", quantity: 2, price: 25 } as any, // $50
+      { id: "p2", name: "y", quantity: 1, price: 99, providedByClient: true } as any, // $0 (excluded)
+    ],
+  })]); // $50 labor + $50 parts
+  const t3 = task([], { importedSalary: 200 }); // $200 imported, ignores parts/sessions
+
+  const all = [t1, t2, t3];
+
+  it("sum(chip totals) is within [vehicleTotal, vehicleTotal + (n-1)]", () => {
+    const vt = computeVehicleTotal(v, all, client, settings).total;
+    const chipSum = all.reduce(
+      (s, t) => s + computeTaskTotalAllocated(t, v, all, client, settings).total,
+      0,
+    );
+    expect(chipSum).toBeGreaterThanOrEqual(vt);
+    expect(chipSum).toBeLessThanOrEqual(vt + (all.length - 1));
+  });
+
+  it("computeTaskCost matches computeTaskTotalAllocated.total", () => {
+    for (const t of all) {
+      const a = computeTaskTotalAllocated(t, v, all, client, settings).total;
+      const b = computeTaskCost(t, [v], all, client, settings);
+      expect(b).toBe(a);
+    }
+  });
+
+  it("imported task ignores parts/sessions; lock to importedSalary", () => {
+    const withParts = task([session({
+      periods: [period(3600)],
+      parts: [{ id: "x", name: "z", quantity: 1, price: 999 } as any],
+    })], { importedSalary: 50 });
+    const r = computeTaskTotal(withParts, client, settings);
+    expect(r.labor).toBe(50);
+    expect(r.parts).toBe(0);
+    expect(r.total).toBe(50);
+  });
+
+  it("providedByClient parts contribute $0 everywhere", () => {
+    const onlyClientParts = task([session({
+      periods: [period(3600)],
+      parts: [{ id: "p", name: "z", quantity: 5, price: 100, providedByClient: true } as any],
+    })]);
+    expect(computeTaskTotal(onlyClientParts, client, settings).parts).toBe(0);
   });
 });

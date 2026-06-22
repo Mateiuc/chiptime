@@ -20,7 +20,7 @@ import type { Task, Client, Vehicle, SessionPhoto, Settings as SettingsType } fr
 import { formatCurrency } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { stripDiacritics } from '@/lib/pdfUtils';
-import { computeSessionLaborDetails } from '@/lib/billing';
+import { computeSessionLaborDetails, computeSessionParts, ceilDollars } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
@@ -100,14 +100,12 @@ export function computeBillTotals(
   });
 
   const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
-  const partsCost = (task.sessions || []).reduce((total, session) => {
-    return total + (session.parts || []).reduce(
-      (sum, p) => sum + (p.providedByClient ? 0 : p.price * p.quantity),
-      0,
-    );
-  }, 0);
+  const partsCost = (task.sessions || []).reduce(
+    (total, session) => total + computeSessionParts(session),
+    0,
+  );
   const { discount: laborDiscount, laborAfter: laborCost } = applyLaborDiscount(rawLabor, vehicle);
-  const totalCost = Math.ceil(laborCost + partsCost);
+  const totalCost = ceilDollars(laborCost + partsCost);
 
   return {
     hourlyRate, baseLabor, totalMinHourAdj, totalCloning, totalProgramming,
@@ -383,7 +381,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
         doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(ceilDollars(totals.rawLabor + totals.partsCost)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
         yPos += 7;
         if (showDiscount) {
           doc.setFontSize(11);

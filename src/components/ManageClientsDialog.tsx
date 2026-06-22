@@ -180,7 +180,11 @@ export const ManageClientsDialog = ({
     yPos += 6;
     doc.text(`Total Labor Time: ${formatDuration(financials.totalTime)}`, 25, yPos);
     yPos += 6;
-    const baseLab = financials.totalLaborCost - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    const baseLab = financials.totalLaborCost
+      - (financials.totalCloning || 0)
+      - (financials.totalProgramming || 0)
+      - (financials.totalAddKey || 0)
+      - (financials.totalAllKeysLost || 0);
     doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos);
     yPos += 6;
     if (financials.totalCloning > 0) {
@@ -189,6 +193,14 @@ export const ManageClientsDialog = ({
     }
     if (financials.totalProgramming > 0) {
       doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos);
+      yPos += 6;
+    }
+    if (financials.totalAddKey > 0) {
+      doc.text(`Add Key: ${formatCurrency(financials.totalAddKey)}`, 25, yPos);
+      yPos += 6;
+    }
+    if (financials.totalAllKeysLost > 0) {
+      doc.text(`All Keys Lost: ${formatCurrency(financials.totalAllKeysLost)}`, 25, yPos);
       yPos += 6;
     }
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos);
@@ -248,11 +260,17 @@ export const ManageClientsDialog = ({
         yPos += 5;
         doc.text(`Total Time: ${formatDuration(vehicleFinancials.totalTime)}`, 30, yPos);
         yPos += 5;
-        const vBaseLab = vehicleFinancials.totalLaborCost - (vehicleFinancials.totalCloning || 0) - (vehicleFinancials.totalProgramming || 0);
+        const vBaseLab = vehicleFinancials.totalLaborCost
+          - (vehicleFinancials.totalCloning || 0)
+          - (vehicleFinancials.totalProgramming || 0)
+          - (vehicleFinancials.totalAddKey || 0)
+          - (vehicleFinancials.totalAllKeysLost || 0);
         doc.text(`Labor Cost: ${formatCurrency(vBaseLab)}`, 30, yPos);
         yPos += 5;
         if (vehicleFinancials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(vehicleFinancials.totalCloning)}`, 30, yPos); yPos += 5; }
         if (vehicleFinancials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(vehicleFinancials.totalProgramming)}`, 30, yPos); yPos += 5; }
+        if (vehicleFinancials.totalAddKey > 0) { doc.text(`Add Key: ${formatCurrency(vehicleFinancials.totalAddKey)}`, 30, yPos); yPos += 5; }
+        if (vehicleFinancials.totalAllKeysLost > 0) { doc.text(`All Keys Lost: ${formatCurrency(vehicleFinancials.totalAllKeysLost)}`, 30, yPos); yPos += 5; }
         doc.text(`Parts Cost: ${formatCurrency(vehicleFinancials.totalPartsCost)}`, 30, yPos);
         yPos += 5;
         doc.setFont('helvetica', 'bold');

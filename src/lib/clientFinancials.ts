@@ -110,18 +110,5 @@ export function getVehicleFinancials(
   };
 }
 
-/**
- * Convenience: per-vehicle total with the vehicle-level discount applied
- * (pooled across all tasks). Mirrors `computeVehicleTotal` in billing.ts.
- */
-export function getVehicleTotalWithDiscount(
-  vehicle: Vehicle | null | undefined,
-  vehicleTasks: Task[],
-  client: Client | null | undefined,
-  settings: Settings
-) {
-  return computeVehicleTotal(vehicle, vehicleTasks, client, settings);
-}
-
 // Re-export for callers that also need per-task totals.
 export { computeTaskTotal };

@@ -75,6 +75,10 @@ const DesktopDashboard = () => {
   const { tasks, setTasks, addTask, updateTask, deleteTask } = tasksHook;
   const { settings, setSettings } = settingsHook;
 
+  const { user } = useAuth();
+  const currentUserId = user?.id;
+  const { getWorker, allWorkers } = useWorkers();
+
   const { syncing, lastSyncAt, refresh } = useCloudSync({
     clients: clientsHook,
     vehicles: vehiclesHook,

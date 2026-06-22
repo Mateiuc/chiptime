@@ -331,6 +331,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   {session.periods.map((period, periodIndex) => (
                     <div key={period.id} className={`flex items-center gap-2 border rounded-md px-3 py-2 ${sc.period}`}>
                       <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">Period {periodIndex + 1}</span>
+                      {period.createdBy && <WorkerChip worker={getWorker(period.createdBy)} size="xs" />}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <span className="text-[10px] text-green-600 shrink-0">Start</span>
                         <Input type="date"

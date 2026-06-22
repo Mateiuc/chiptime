@@ -1,6 +1,7 @@
 import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod, Settings } from '@/types';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeSessionLaborDetails, computeSessionParts } from '@/lib/billing';
+import { remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
 
 export const PORTAL_BASE_URL =
   (import.meta.env.VITE_PORTAL_BASE_URL as string | undefined) ||

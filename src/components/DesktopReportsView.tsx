@@ -545,6 +545,15 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
               ))}
             </SelectContent>
           </Select>
+          <Select value={rptWorker} onValueChange={setRptWorker}>
+            <SelectTrigger className="w-[150px] h-8 text-sm"><SelectValue placeholder="All Workers" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Workers</SelectItem>
+              {allWorkers().map(w => (
+                <SelectItem key={w.id} value={w.id}>{w.firstName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-1">
             <Button size="sm" variant={rptShowActive ? 'default' : 'outline'} onClick={() => setRptShowActive(!rptShowActive)}
               className={cn("h-8 text-xs", rptShowActive && "bg-blue-600 hover:bg-blue-700")}>Active</Button>

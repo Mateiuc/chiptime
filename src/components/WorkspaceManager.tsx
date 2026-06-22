@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Copy, LogOut, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Copy, LogOut, Plus, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
 
 interface InviteRow {
   id: string;
@@ -26,6 +26,7 @@ interface ProfileRow {
   id: string;
   email: string | null;
   display_name: string | null;
+  nickname: string | null;
 }
 
 interface Props {

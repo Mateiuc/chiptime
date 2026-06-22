@@ -37,6 +37,9 @@ import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 import { renderBillPdf } from '@/lib/billPdfRenderer';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWorkers } from '@/lib/workers';
+import { WorkerChip } from '@/components/WorkerChip';
 
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';

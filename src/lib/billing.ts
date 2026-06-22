@@ -229,6 +229,30 @@ export function computeVehicleTotal(
 }
 
 /**
+ * THE single helper for "what dollar amount goes on this task chip?".
+ *
+ * Looks up the task's vehicle and sibling tasks, then defers to
+ * `computeTaskTotalAllocated` (pooled vehicle discount, allocated per task
+ * with ceil bias). Every surface — mobile TaskCard, DesktopDashboard chips,
+ * DesktopReportsView rows, drill-down tables — calls this so chip totals
+ * across a vehicle reconcile to `computeVehicleTotal` (modulo ≤ n-1 ceil
+ * dollars, documented in `computeTaskTotalAllocated`).
+ *
+ * Do NOT inline `Math.ceil(...)` or `applyLaborDiscount(...)` in callers.
+ */
+export function computeTaskCost(
+  task: Task,
+  vehicles: Vehicle[],
+  allTasks: Task[],
+  client: Client | null | undefined,
+  settings: Settings
+): number {
+  const vehicle = vehicles.find(v => v.id === task.vehicleId);
+  const vehicleTasks = allTasks.filter(t => t.vehicleId === task.vehicleId);
+  return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).total;
+}
+
+/**
  * Lightweight preview helper for the SettingsDialog rate calculator.
  * Mirrors `computeSessionLabor` but takes raw inputs (no full WorkSession).
  */

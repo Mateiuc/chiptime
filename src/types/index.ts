@@ -107,6 +107,7 @@ export interface Task {
   paidAt?: Date;           // Timestamp when task was marked as paid
   diagnosticPdfUrl?: string; // Last-known signed URL (may expire)
   diagnosticPdfPath?: string; // Storage path in private bucket (canonical)
+  createdBy?: string; // user_id of the worker who created this task
 }
 
 export interface BackupSettings {

@@ -1759,6 +1759,7 @@ const DesktopDashboard = () => {
                                         <div key={session.id || sIdx} className={`rounded-md p-2 mt-1 ${sessionColor.session}`}>
                                           <div className="flex items-center gap-2 text-xs flex-wrap">
                                             <span className="font-medium">Session {sIdx + 1}</span>
+                                            {session.createdBy && <WorkerChip worker={getWorker(session.createdBy)} size="xs" />}
                                             <span className="font-mono">{formatDuration(sDur)}</span>
                                             {periodStart && (
                                               <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(periodStart, periodEnd)}</span>

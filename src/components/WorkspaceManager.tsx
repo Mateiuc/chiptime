@@ -45,6 +45,7 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
   const { toast } = useNotifications();
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -57,8 +58,21 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
       supabase.from('workspace_invites').select('id, code, role, created_at, used_at').eq('workspace_id', workspace.id).order('created_at', { ascending: false }),
       supabase.from('workspace_members').select('user_id, role, created_at').eq('workspace_id', workspace.id).order('created_at'),
     ]);
+    const memberRows: MemberRow[] = (mem.data as any) || [];
     setInvites((inv.data as any) || []);
-    setMembers((mem.data as any) || []);
+    setMembers(memberRows);
+    const ids = memberRows.map(m => m.user_id);
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, email, display_name')
+        .in('id', ids);
+      const map: Record<string, ProfileRow> = {};
+      ((profs as any) || []).forEach((p: ProfileRow) => { map[p.id] = p; });
+      setProfiles(map);
+    } else {
+      setProfiles({});
+    }
     setLoading(false);
   };
 

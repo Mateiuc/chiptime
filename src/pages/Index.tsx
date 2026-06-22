@@ -793,6 +793,7 @@ const Index = () => {
                           task={task}
                           client={client}
                           vehicle={vehicle}
+                          vehicleTasks={tasks.filter(t => t.vehicleId === task.vehicleId)}
                           settings={settings}
                           onMarkBilled={handleMarkBilled}
                           onMarkPaid={handleMarkPaid}
@@ -858,6 +859,7 @@ const Index = () => {
                           task={task}
                           client={client}
                           vehicle={vehicle}
+                          vehicleTasks={tasks.filter(t => t.vehicleId === task.vehicleId)}
                           settings={settings}
                           onMarkBilled={handleMarkBilled}
                           onMarkPaid={handleMarkPaid}

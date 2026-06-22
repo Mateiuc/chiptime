@@ -381,7 +381,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
         doc.text('Subtotal:', totalX, yPos);
-        doc.text(formatCurrency(Math.ceil(totals.rawLabor + totals.partsCost)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
+        doc.text(formatCurrency(ceilDollars(totals.rawLabor + totals.partsCost)), TOTALS_VALUE_X + 2, yPos, { align: 'right' });
         yPos += 7;
         if (showDiscount) {
           doc.setFontSize(11);

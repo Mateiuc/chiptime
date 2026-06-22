@@ -37,6 +37,9 @@ import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 import { renderBillPdf } from '@/lib/billPdfRenderer';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWorkers } from '@/lib/workers';
+import { WorkerChip } from '@/components/WorkerChip';
 
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
@@ -72,6 +75,10 @@ const DesktopDashboard = () => {
   const { tasks, setTasks, addTask, updateTask, deleteTask } = tasksHook;
   const { settings, setSettings } = settingsHook;
 
+  const { user } = useAuth();
+  const currentUserId = user?.id;
+  const { getWorker, allWorkers } = useWorkers();
+
   const { syncing, lastSyncAt, refresh } = useCloudSync({
     clients: clientsHook,
     vehicles: vehiclesHook,
@@ -88,6 +95,47 @@ const DesktopDashboard = () => {
   useEffect(() => {
     refresh();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One-time backfill: stamp every Task/Session/Period/Part missing `createdBy`
+  // with the current user, so existing historical data shows up as "yours".
+  useEffect(() => {
+    if (!currentUserId) return;
+    const flagKey = 'worker_attribution_backfill_v1';
+    if (localStorage.getItem(flagKey)) return;
+    if (!tasks || tasks.length === 0) return;
+    let dirty = false;
+    const next = tasks.map(t => {
+      let tChanged = false;
+      const sessions = (t.sessions || []).map(s => {
+        let sChanged = false;
+        const periods = (s.periods || []).map(p => {
+          if (!p.createdBy) { sChanged = true; return { ...p, createdBy: currentUserId }; }
+          return p;
+        });
+        const parts = (s.parts || []).map(p => {
+          if (!p.createdBy) { sChanged = true; return { ...p, createdBy: currentUserId }; }
+          return p;
+        });
+        if (!s.createdBy) { sChanged = true; return { ...s, createdBy: currentUserId, periods, parts }; }
+        if (sChanged) return { ...s, periods, parts };
+        return s;
+      });
+      if (!t.createdBy) { tChanged = true; }
+      if (tChanged || sessions.some((s, i) => s !== t.sessions[i])) {
+        dirty = true;
+        return { ...t, createdBy: t.createdBy || currentUserId, sessions };
+      }
+      return t;
+    });
+    if (dirty) {
+      setTasks(next).then(() => {
+        localStorage.setItem(flagKey, '1');
+      }).catch(() => {});
+    } else {
+      localStorage.setItem(flagKey, '1');
+    }
+  }, [currentUserId, tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // After a backup import, re-read all data from storage and update React state directly
   useEffect(() => {
@@ -163,6 +211,7 @@ const DesktopDashboard = () => {
         startTime: activeTask.startTime instanceof Date ? activeTask.startTime : new Date(activeTask.startTime),
         endTime: new Date(),
         duration: elapsed,
+        createdBy: currentUserId || undefined,
       };
       let updatedSessions = [...(activeTask.sessions || [])];
       let activeSessionId = activeTask.activeSessionId;
@@ -172,6 +221,7 @@ const DesktopDashboard = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: currentUserId || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;
@@ -202,7 +252,7 @@ const DesktopDashboard = () => {
 
     if (targetSession) {
       targetSession.description = description;
-      targetSession.parts = parts;
+      targetSession.parts = parts.map(p => p.createdBy ? p : { ...p, createdBy: currentUserId || undefined });
       targetSession.completedAt = new Date();
       targetSession.periods = targetSession.periods.map((p, i) => ({
         ...p,
@@ -337,8 +387,10 @@ const DesktopDashboard = () => {
             startTime: p.startTime,
             endTime: p.endTime,
             duration: p.duration,
+            createdBy: currentUserId || undefined,
           })),
           parts: [],
+          createdBy: currentUserId || undefined,
         };
 
         const task: Task = {
@@ -353,6 +405,7 @@ const DesktopDashboard = () => {
           createdAt: s.date,
           importedSalary: s.relSalary,
           sessions: [workSession],
+          createdBy: currentUserId || undefined,
         };
 
         newTasks.push(task);
@@ -506,6 +559,7 @@ const DesktopDashboard = () => {
       needsFollowUp: false,
       sessions: [],
       createdAt: new Date(),
+      createdBy: currentUserId || undefined,
     } as any);
     toast({ title: 'Vehicle & Task Created' });
   };
@@ -1594,6 +1648,13 @@ const DesktopDashboard = () => {
                                 const sessionColor = getSessionColorScheme(task.id);
                                 const cost = getTaskCost(task);
                                 const photoCount = (task.sessions || []).reduce((s, ses) => s + (ses.photos?.length || 0), 0);
+                                // Collect distinct workers on this task (creator + session/period authors).
+                                const workerIds = new Set<string>();
+                                if (task.createdBy) workerIds.add(task.createdBy);
+                                (task.sessions || []).forEach(s => {
+                                  if (s.createdBy) workerIds.add(s.createdBy);
+                                  (s.periods || []).forEach(p => { if (p.createdBy) workerIds.add(p.createdBy); });
+                                });
 
                                 return (
                                   <div key={task.id} className={`rounded-lg border p-3 ${sessionColor.session}`}>
@@ -1604,6 +1665,9 @@ const DesktopDashboard = () => {
                                         <span className="text-xs text-muted-foreground">
                                           {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : ''}
                                         </span>
+                                        {Array.from(workerIds).map(uid => (
+                                          <WorkerChip key={uid} worker={getWorker(uid)} size="xs" />
+                                        ))}
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         {(task.status === 'in-progress' || task.status === 'paused') && (
                                           <Button variant="default" size="sm" className="h-5 px-2 py-0 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-full" onClick={() => handleStopTimer(task.id)} title="Stop & Complete">
@@ -1695,6 +1759,7 @@ const DesktopDashboard = () => {
                                         <div key={session.id || sIdx} className={`rounded-md p-2 mt-1 ${sessionColor.session}`}>
                                           <div className="flex items-center gap-2 text-xs flex-wrap">
                                             <span className="font-medium">Session {sIdx + 1}</span>
+                                            {session.createdBy && <WorkerChip worker={getWorker(session.createdBy)} size="xs" />}
                                             <span className="font-mono">{formatDuration(sDur)}</span>
                                             {periodStart && (
                                               <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(periodStart, periodEnd)}</span>

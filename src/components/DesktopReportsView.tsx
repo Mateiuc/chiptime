@@ -16,6 +16,8 @@ import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeTaskTotal } from '@/lib/billing';
+import { useWorkers } from '@/lib/workers';
+import { WorkerChip } from '@/components/WorkerChip';
 
 const CHART_COLORS = [
   '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
@@ -65,6 +67,17 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
+  workerIds: string[];
+}
+
+function getTaskWorkerIds(t: Task): string[] {
+  const set = new Set<string>();
+  if (t.createdBy) set.add(t.createdBy);
+  (t.sessions || []).forEach(s => {
+    if (s.createdBy) set.add(s.createdBy);
+    (s.periods || []).forEach(p => { if (p.createdBy) set.add(p.createdBy); });
+  });
+  return Array.from(set);
 }
 
 interface DrillState {
@@ -130,8 +143,10 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
 );
 
 export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: DesktopReportsViewProps) => {
+  const { getWorker, allWorkers } = useWorkers();
   const [rptClient, setRptClient] = useState<string>('all');
   const [rptVehicle, setRptVehicle] = useState<string>('all');
+  const [rptWorker, setRptWorker] = useState<string>('all');
   const [rptDateFrom, setRptDateFrom] = useState<Date | undefined>();
   const [rptDateTo, setRptDateTo] = useState<Date | undefined>();
   const [rptShowCompleted, setRptShowCompleted] = useState(true);
@@ -149,7 +164,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [drillCars, setDrillCars] = useState<DrillState | null>(null);
 
   const resetFilters = () => {
-    setRptClient('all'); setRptVehicle('all');
+    setRptClient('all'); setRptVehicle('all'); setRptWorker('all');
     setRptDateFrom(undefined); setRptDateTo(undefined);
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
@@ -180,6 +195,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
+    workerIds: getTaskWorkerIds(t),
   });
 
   const availableVehicles = useMemo(() => {
@@ -191,6 +207,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return tasks.filter(t => {
       if (rptClient !== 'all' && t.clientId !== rptClient) return false;
       if (rptVehicle !== 'all' && t.vehicleId !== rptVehicle) return false;
+      if (rptWorker !== 'all' && !getTaskWorkerIds(t).includes(rptWorker)) return false;
       const d = new Date(t.createdAt);
       if (rptDateFrom && d < rptDateFrom) return false;
       if (rptDateTo) {
@@ -204,7 +221,28 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       if (['pending', 'in-progress', 'paused'].includes(t.status) && !rptShowActive) return false;
       return true;
     });
-  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+  }, [tasks, rptClient, rptVehicle, rptWorker, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+
+  // Per-worker totals for the summary chip row.
+  const workerTotals = useMemo(() => {
+    const map: Record<string, { seconds: number; cost: number }> = {};
+    filteredTasks.forEach(t => {
+      const ids = getTaskWorkerIds(t);
+      const fallback = ids.length === 0 ? [''] : ids;
+      const seconds = getTaskSeconds(t);
+      const cost = getTaskCost(t);
+      // Equal split across involved workers — keeps totals additive.
+      const share = 1 / fallback.length;
+      fallback.forEach(uid => {
+        if (!map[uid]) map[uid] = { seconds: 0, cost: 0 };
+        map[uid].seconds += seconds * share;
+        map[uid].cost += cost * share;
+      });
+    });
+    return Object.entries(map)
+      .map(([uid, v]) => ({ uid, ...v }))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredTasks]);
 
   const revenueOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};
@@ -507,6 +545,15 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
               ))}
             </SelectContent>
           </Select>
+          <Select value={rptWorker} onValueChange={setRptWorker}>
+            <SelectTrigger className="w-[150px] h-8 text-sm"><SelectValue placeholder="All Workers" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Workers</SelectItem>
+              {allWorkers().map(w => (
+                <SelectItem key={w.id} value={w.id}>{w.firstName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-1">
             <Button size="sm" variant={rptShowActive ? 'default' : 'outline'} onClick={() => setRptShowActive(!rptShowActive)}
               className={cn("h-8 text-xs", rptShowActive && "bg-blue-600 hover:bg-blue-700")}>Active</Button>
@@ -534,6 +581,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
           </div>
         </div>
+        {workerTotals.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">By worker:</span>
+            {workerTotals.map(({ uid, seconds, cost }) => (
+              <div key={uid || 'unknown'} className="flex items-center gap-1.5 text-xs">
+                <WorkerChip worker={getWorker(uid)} size="xs" />
+                <span className="font-mono text-muted-foreground">{(seconds / 3600).toFixed(1)}h</span>
+                <span className="font-mono font-semibold">{formatCurrency(cost)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -773,6 +832,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('date')}>Date <SortIcon field="date" /></th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('client')}>Client <SortIcon field="client" /></th>
                     <th className="text-left py-2">Vehicle</th>
+                    <th className="text-left py-2">Worker</th>
                     <th className="text-left py-2">Description</th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('status')}>Status <SortIcon field="status" /></th>
                     <th className="text-right py-2">Time</th>
@@ -785,6 +845,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2">{format(r.date, 'MMM d, yyyy')}</td>
                       <td className="py-2">{r.client}</td>
                       <td className="py-2">{r.vehicle}</td>
+                      <td className="py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {r.workerIds.length === 0 ? <span className="text-muted-foreground text-xs">—</span> :
+                            r.workerIds.map(uid => <WorkerChip key={uid} worker={getWorker(uid)} size="xs" />)}
+                        </div>
+                      </td>
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
                       <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
@@ -794,7 +860,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 font-semibold">
-                    <td colSpan={5} className="py-2">Totals</td>
+                    <td colSpan={6} className="py-2">Totals</td>
                     <td className="py-2 text-right font-mono text-xs">{formatDuration(Math.round(totalHours * 3600))}</td>
                     <td className="py-2 text-right font-mono">{formatCurrency(totalRevenue)}</td>
                   </tr>

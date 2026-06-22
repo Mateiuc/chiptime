@@ -9,6 +9,9 @@ import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatD
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getSessionColorScheme } from '@/lib/sessionColors';
+import { getCurrentUserId } from '@/lib/currentUser';
+import { useWorkers } from '@/lib/workers';
+import { WorkerChip } from '@/components/WorkerChip';
 
 interface TaskInlineEditorProps {
   task: Task;
@@ -19,6 +22,7 @@ interface TaskInlineEditorProps {
 
 export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlineEditorProps) => {
   const { toast } = useNotifications();
+  const { getWorker } = useWorkers();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
     new Set((task.sessions || []).map(s => s.id))
@@ -164,7 +168,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
       toast({ title: "Cannot add period", description: "Time slot conflicts", variant: "destructive" });
       return;
     }
-    const newPeriod: WorkPeriod = { id: `period-${Date.now()}`, startTime, endTime, duration: 3600 };
+    const newPeriod: WorkPeriod = { id: `period-${Date.now()}`, startTime, endTime, duration: 3600, createdBy: getCurrentUserId() || undefined };
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, periods: [...s.periods, newPeriod] } : s));
     toast({ title: "Period added", description: `${formatTime(startTime)} - ${formatTime(endTime)}` });
   };
@@ -185,10 +189,11 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
       const pS = p.startTime.getTime(), pE = p.endTime.getTime(), nS = startTime.getTime(), nE = endTime.getTime();
       return (nS >= pS && nS < pE) || (nE > pS && nE <= pE) || (nS <= pS && nE >= pE);
     });
+    const uid = getCurrentUserId() || undefined;
     const newSession: WorkSession = {
       id: `session-${Date.now()}`, createdAt: new Date(),
-      periods: [{ id: `period-${Date.now()}`, startTime, endTime, duration: 3600 }],
-      parts: [], description: ''
+      periods: [{ id: `period-${Date.now()}`, startTime, endTime, duration: 3600, createdBy: uid }],
+      parts: [], description: '', createdBy: uid,
     };
     setSessions(prev => [...prev, newSession]);
     toast({ title: "Session created", description: hasConflict ? "Time conflict - adjust times" : `${formatTime(startTime)} - ${formatTime(endTime)}` });
@@ -196,7 +201,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
 
   const handleAddPart = (sessionId: string) => {
     setSessions(prev => prev.map(session => {
-      if (session.id === sessionId) return { ...session, parts: [...(session.parts || []), { name: 'New Part', quantity: 1, price: 0 }] };
+      if (session.id === sessionId) return { ...session, parts: [...(session.parts || []), { name: 'New Part', quantity: 1, price: 0, createdBy: getCurrentUserId() || undefined }] };
       return session;
     }));
   };
@@ -250,6 +255,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
               <CollapsibleTrigger className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-80 transition-opacity">
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${expandedSessions.has(session.id) ? '' : '-rotate-90'}`} />
                 <h4 className="font-semibold text-sm">Session {sessionIndex + 1}</h4>
+                {session.createdBy && <WorkerChip worker={getWorker(session.createdBy)} size="xs" />}
                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{formattedDate}</span>
                 {!expandedSessions.has(session.id) && (
                   <span className="text-xs text-muted-foreground ml-2">
@@ -325,6 +331,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                   {session.periods.map((period, periodIndex) => (
                     <div key={period.id} className={`flex items-center gap-2 border rounded-md px-3 py-2 ${sc.period}`}>
                       <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">Period {periodIndex + 1}</span>
+                      {period.createdBy && <WorkerChip worker={getWorker(period.createdBy)} size="xs" />}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <span className="text-[10px] text-green-600 shrink-0">Start</span>
                         <Input type="date"

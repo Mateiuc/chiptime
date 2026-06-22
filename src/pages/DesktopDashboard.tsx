@@ -1648,6 +1648,13 @@ const DesktopDashboard = () => {
                                 const sessionColor = getSessionColorScheme(task.id);
                                 const cost = getTaskCost(task);
                                 const photoCount = (task.sessions || []).reduce((s, ses) => s + (ses.photos?.length || 0), 0);
+                                // Collect distinct workers on this task (creator + session/period authors).
+                                const workerIds = new Set<string>();
+                                if (task.createdBy) workerIds.add(task.createdBy);
+                                (task.sessions || []).forEach(s => {
+                                  if (s.createdBy) workerIds.add(s.createdBy);
+                                  (s.periods || []).forEach(p => { if (p.createdBy) workerIds.add(p.createdBy); });
+                                });
 
                                 return (
                                   <div key={task.id} className={`rounded-lg border p-3 ${sessionColor.session}`}>
@@ -1658,6 +1665,9 @@ const DesktopDashboard = () => {
                                         <span className="text-xs text-muted-foreground">
                                           {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : ''}
                                         </span>
+                                        {Array.from(workerIds).map(uid => (
+                                          <WorkerChip key={uid} worker={getWorker(uid)} size="xs" />
+                                        ))}
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
                                         {(task.status === 'in-progress' || task.status === 'paused') && (
                                           <Button variant="default" size="sm" className="h-5 px-2 py-0 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-full" onClick={() => handleStopTimer(task.id)} title="Stop & Complete">

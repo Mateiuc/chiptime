@@ -96,16 +96,14 @@ const DesktopDashboard = () => {
     refresh();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // One-time backfill: stamp every Task/Session/Period/Part missing `createdBy`
-  // with the current user, so existing historical data shows up as "yours".
+  // Ongoing backfill: stamp every Task/Session/Period/Part missing `createdBy`
+  // with the current user. Runs whenever new unstamped items appear (e.g. data
+  // arriving from cloud sync or created on a device that didn't stamp them).
   useEffect(() => {
     if (!currentUserId) return;
-    const flagKey = 'worker_attribution_backfill_v1';
-    if (localStorage.getItem(flagKey)) return;
     if (!tasks || tasks.length === 0) return;
     let dirty = false;
     const next = tasks.map(t => {
-      let tChanged = false;
       const sessions = (t.sessions || []).map(s => {
         let sChanged = false;
         const periods = (s.periods || []).map(p => {
@@ -120,21 +118,17 @@ const DesktopDashboard = () => {
         if (sChanged) return { ...s, periods, parts };
         return s;
       });
-      if (!t.createdBy) { tChanged = true; }
-      if (tChanged || sessions.some((s, i) => s !== t.sessions[i])) {
+      const tChanged = !t.createdBy || sessions.some((s, i) => s !== (t.sessions || [])[i]);
+      if (tChanged) {
         dirty = true;
         return { ...t, createdBy: t.createdBy || currentUserId, sessions };
       }
       return t;
     });
     if (dirty) {
-      setTasks(next).then(() => {
-        localStorage.setItem(flagKey, '1');
-      }).catch(() => {});
-    } else {
-      localStorage.setItem(flagKey, '1');
+      setTasks(next).catch(() => {});
     }
-  }, [currentUserId, tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUserId, tasks]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // After a backup import, re-read all data from storage and update React state directly

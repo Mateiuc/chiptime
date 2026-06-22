@@ -400,6 +400,7 @@ const Index = () => {
         startTime: runningTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       let updatedSessions = [...(runningTask.sessions || [])];
@@ -411,6 +412,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;

@@ -169,18 +169,19 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
                 const name = p?.display_name || p?.email || 'Unknown user';
                 const showEmail = !!(p?.display_name && p?.email && p.display_name !== p.email);
                 const isYou = m.user_id === user?.id;
+                const canEditNickname = isYou || isAdmin;
                 return (
-                  <div key={m.user_id} className="flex items-center justify-between gap-2 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">
-                        {name}{isYou && <span className="text-xs text-muted-foreground font-normal"> (You)</span>}
-                      </div>
-                      {showEmail && (
-                        <div className="text-[11px] text-muted-foreground truncate">{p!.email}</div>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">{m.role}</span>
-                  </div>
+                  <MemberRowItem
+                    key={m.user_id}
+                    userId={m.user_id}
+                    name={name}
+                    email={showEmail ? p!.email : null}
+                    nickname={p?.nickname || ''}
+                    role={m.role}
+                    isYou={isYou}
+                    canEdit={canEditNickname}
+                    onSaved={load}
+                  />
                 );
               })}
             </div>

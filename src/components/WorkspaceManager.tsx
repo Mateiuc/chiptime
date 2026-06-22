@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Copy, LogOut, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Copy, LogOut, Plus, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
 
 interface InviteRow {
   id: string;
@@ -26,6 +26,7 @@ interface ProfileRow {
   id: string;
   email: string | null;
   display_name: string | null;
+  nickname: string | null;
 }
 
 interface Props {
@@ -65,7 +66,7 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
     if (ids.length > 0) {
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id, email, display_name')
+        .select('id, email, display_name, nickname')
         .in('id', ids);
       const map: Record<string, ProfileRow> = {};
       ((profs as any) || []).forEach((p: ProfileRow) => { map[p.id] = p; });
@@ -168,18 +169,19 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
                 const name = p?.display_name || p?.email || 'Unknown user';
                 const showEmail = !!(p?.display_name && p?.email && p.display_name !== p.email);
                 const isYou = m.user_id === user?.id;
+                const canEditNickname = isYou || isAdmin;
                 return (
-                  <div key={m.user_id} className="flex items-center justify-between gap-2 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">
-                        {name}{isYou && <span className="text-xs text-muted-foreground font-normal"> (You)</span>}
-                      </div>
-                      {showEmail && (
-                        <div className="text-[11px] text-muted-foreground truncate">{p!.email}</div>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">{m.role}</span>
-                  </div>
+                  <MemberRowItem
+                    key={m.user_id}
+                    userId={m.user_id}
+                    name={name}
+                    email={showEmail ? p!.email : null}
+                    nickname={p?.nickname || ''}
+                    role={m.role}
+                    isYou={isYou}
+                    canEdit={canEditNickname}
+                    onSaved={load}
+                  />
                 );
               })}
             </div>
@@ -191,5 +193,86 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
         </div>
       </DialogContent>
     </Dialog>
+  );
+};
+
+interface MemberRowItemProps {
+  userId: string;
+  name: string;
+  email: string | null;
+  nickname: string;
+  role: string;
+  isYou: boolean;
+  canEdit: boolean;
+  onSaved: () => void;
+}
+
+const MemberRowItem = ({ userId, name, email, nickname, role, isYou, canEdit, onSaved }: MemberRowItemProps) => {
+  const { toast } = useNotifications();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(nickname);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setValue(nickname); }, [nickname]);
+
+  const save = async () => {
+    setSaving(true);
+    const trimmed = value.trim().slice(0, 20);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ nickname: trimmed || null })
+      .eq('id', userId);
+    setSaving(false);
+    if (error) {
+      toast({ title: 'Could not save nickname', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setEditing(false);
+    toast({ title: 'Nickname updated' });
+    onSaved();
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium flex items-center gap-1.5">
+          <span className="truncate">{name}</span>
+          {isYou && <span className="text-xs text-muted-foreground font-normal">(You)</span>}
+          {!editing && nickname && (
+            <span className="text-xs text-primary font-semibold">· "{nickname}"</span>
+          )}
+        </div>
+        {email && <div className="text-[11px] text-muted-foreground truncate">{email}</div>}
+        {editing && (
+          <div className="flex items-center gap-1 mt-1">
+            <Input
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder="Nickname"
+              maxLength={20}
+              className="h-7 text-xs"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setValue(nickname); } }}
+            />
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={saving} onClick={save} aria-label="Save nickname">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5 text-emerald-600" />}
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(false); setValue(nickname); }} aria-label="Cancel">
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {!editing && (
+        <div className="flex items-center gap-1">
+          {canEdit && (
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} aria-label="Edit nickname" title={nickname ? 'Edit nickname' : 'Add nickname'}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground">{role}</span>
+        </div>
+      )}
+    </div>
   );
 };

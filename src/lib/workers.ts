@@ -40,7 +40,9 @@ function makeColors(uid: string) {
   };
 }
 
-function firstNameFrom(displayName: string | null | undefined, email: string | null | undefined): string {
+function labelFrom(nickname: string | null | undefined, displayName: string | null | undefined, email: string | null | undefined): string {
+  const nn = (nickname || '').trim();
+  if (nn) return nn;
   const dn = (displayName || '').trim();
   if (dn) return dn.split(/\s+/)[0];
   const em = (email || '').trim();
@@ -52,6 +54,7 @@ interface ProfileRow {
   id: string;
   email: string | null;
   display_name: string | null;
+  nickname: string | null;
 }
 
 /**
@@ -74,7 +77,7 @@ export function useWorkers() {
       if (ids.length === 0) { if (!cancelled) setProfiles({}); return; }
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id, email, display_name')
+        .select('id, email, display_name, nickname')
         .in('id', ids);
       if (cancelled) return;
       const map: Record<string, ProfileRow> = {};
@@ -90,7 +93,7 @@ export function useWorkers() {
     const colors = makeColors(uid);
     return {
       id: uid,
-      firstName: firstNameFrom(p?.display_name, p?.email),
+      firstName: labelFrom(p?.nickname, p?.display_name, p?.email),
       fullName: p?.display_name || p?.email || 'Unknown',
       email: p?.email || null,
       ...colors,
@@ -100,11 +103,12 @@ export function useWorkers() {
   const allWorkers = (): WorkerDisplay[] =>
     Object.values(profiles).map(p => ({
       id: p.id,
-      firstName: firstNameFrom(p.display_name, p.email),
+      firstName: labelFrom(p.nickname, p.display_name, p.email),
       fullName: p.display_name || p.email || 'Unknown',
       email: p.email,
       ...makeColors(p.id),
     }));
+
 
   return { getWorker, allWorkers, profiles };
 }

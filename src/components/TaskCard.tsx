@@ -6,9 +6,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronUp, FileText, DollarSign, CheckCircle2, Play, MoreVertical, Edit, Wrench, Pause, Square, Trash, Camera as CameraIcon, Eye } from 'lucide-react';
-import { formatDuration, formatCurrency, formatTime, calcPeriodCost } from '@/lib/formatTime';
-import { applyLaborDiscount } from '@/lib/discount';
-import { ceilDollars } from '@/lib/billing';
+import { formatDuration, formatCurrency, formatTime } from '@/lib/formatTime';
+import {
+  computeSessionLaborDetails,
+  computeSessionParts,
+  computeTaskTotalAllocated,
+  resolveRates,
+} from '@/lib/billing';
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -32,6 +36,11 @@ interface TaskCardProps {
   task: Task;
   client: Client | undefined;
   vehicle: Vehicle | undefined;
+  /**
+   * All tasks on the same vehicle. Used so the chip total honors the pooled
+   * vehicle-level discount (`computeTaskTotalAllocated`). Defaults to `[task]`.
+   */
+  vehicleTasks?: Task[];
   settings: Pick<Settings,
     'defaultHourlyRate' | 'defaultCloningRate' | 'defaultProgrammingRate' |
     'defaultAddKeyRate' | 'defaultAllKeysLostRate'
@@ -50,6 +59,7 @@ export const TaskCard = ({
   task,
   client,
   vehicle,
+  vehicleTasks,
   settings,
   onMarkBilled,
   onMarkPaid,

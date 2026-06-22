@@ -189,10 +189,11 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
       const pS = p.startTime.getTime(), pE = p.endTime.getTime(), nS = startTime.getTime(), nE = endTime.getTime();
       return (nS >= pS && nS < pE) || (nE > pS && nE <= pE) || (nS <= pS && nE >= pE);
     });
+    const uid = getCurrentUserId() || undefined;
     const newSession: WorkSession = {
       id: `session-${Date.now()}`, createdAt: new Date(),
-      periods: [{ id: `period-${Date.now()}`, startTime, endTime, duration: 3600 }],
-      parts: [], description: ''
+      periods: [{ id: `period-${Date.now()}`, startTime, endTime, duration: 3600, createdBy: uid }],
+      parts: [], description: '', createdBy: uid,
     };
     setSessions(prev => [...prev, newSession]);
     toast({ title: "Session created", description: hasConflict ? "Time conflict - adjust times" : `${formatTime(startTime)} - ${formatTime(endTime)}` });
@@ -200,7 +201,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
 
   const handleAddPart = (sessionId: string) => {
     setSessions(prev => prev.map(session => {
-      if (session.id === sessionId) return { ...session, parts: [...(session.parts || []), { name: 'New Part', quantity: 1, price: 0 }] };
+      if (session.id === sessionId) return { ...session, parts: [...(session.parts || []), { name: 'New Part', quantity: 1, price: 0, createdBy: getCurrentUserId() || undefined }] };
       return session;
     }));
   };

@@ -143,8 +143,10 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
 );
 
 export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: DesktopReportsViewProps) => {
+  const { getWorker, allWorkers } = useWorkers();
   const [rptClient, setRptClient] = useState<string>('all');
   const [rptVehicle, setRptVehicle] = useState<string>('all');
+  const [rptWorker, setRptWorker] = useState<string>('all');
   const [rptDateFrom, setRptDateFrom] = useState<Date | undefined>();
   const [rptDateTo, setRptDateTo] = useState<Date | undefined>();
   const [rptShowCompleted, setRptShowCompleted] = useState(true);

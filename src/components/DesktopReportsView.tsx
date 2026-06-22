@@ -579,6 +579,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <span><strong className="text-foreground">{filteredTasks.length}</strong> tasks</span>
             <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
             <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
+          </div>
         </div>
         {workerTotals.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 mt-2">

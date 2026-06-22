@@ -14,12 +14,11 @@
  *   - minute-rounding via calcPeriodCost
  *   - DesktopClientsView's $0 hourly-rate fallback
  */
-import type { Client, Settings, Task, Vehicle } from '@/types';
+import type { Client, Settings, Task } from '@/types';
 import {
   computeSessionLaborDetails,
   computeSessionParts,
   computeTaskTotal,
-  computeVehicleTotal,
 } from '@/lib/billing';
 
 export interface FinancialsBreakdown {

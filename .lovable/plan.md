@@ -1,68 +1,71 @@
-## Audit findings (summary)
+# One billing engine. Every screen reads from it.
 
-The codebase has **one canonical billing engine** in `src/lib/billing.ts` (`computeTaskTotal`, `computeVehicleTotal`) and **5 inline re-implementations** scattered across surfaces. Mobile (`TaskCard`) and Reports (`DesktopReportsView`) use the canonical engine. Desktop tree, Desktop Clients, ManageClientsDialog, and the client PDF generator each re-roll the math — and each diverges from canonical in different ways.
+Goal: **every number** shown to a user — chip totals, vehicle totals, client totals, PDF rows, portal rows, reports rows, invoice rows — comes from `src/lib/billing.ts`. No surface adds, multiplies, rounds, or discounts on its own.
 
-### Critical bugs found
-1. **`DesktopClientsView` falls back to $0 hourly rate** when client has no override (should fall back to `settings.defaultHourlyRate`). Most clients have no override, so most clients show $0 labor in this view.
-2. **All 4 inline `getClientFinancials` / `getVehicleFinancials` ignore `importedSalary`** — XLS-imported tasks are mis-totaled or zeroed in client PDFs.
-3. **All 4 inline copies ignore `providedByClient: true` parts** — inflates parts revenue with client-supplied parts.
-4. **All 4 inline copies skip per-period `chargeMinimumHour` flags** — only check the legacy session-level flag.
-5. **All 4 inline copies use raw `duration / 3600`** — no minute rounding (canonical engine rounds to the nearest minute via `calcPeriodCost`).
-6. **Vehicle discount applied two different ways**: client portal pools all task labor then discounts once; desktop chips discount each task separately. For percentage discounts on multi-task vehicles, the per-task path systematically over-rounds.
-7. **`DesktopDashboard.getTaskCost` is missing `Math.ceil`** — produces fractional-dollar chip labels; `DesktopReportsView.getTaskCost` ceils correctly.
-8. **Mobile `handleCompleteWork` doesn't stamp `createdBy` on parts** (desktop does).
-9. **`TaskCard` settings prop typed as `{ defaultHourlyRate: number }`** — the 4 service rates are accessed via unsafe `(settings as any)` casts.
+## The contract (in `src/lib/billing.ts`, already exists)
 
-### Dead code
-- `Task.chargeMinimumHour` (deprecated, no readers — only `WorkSession.chargeMinimumHour` is live)
-- Local re-declarations of `formatCurrency`/`formatDuration` in `DesktopClientsView` and `ManageClientsDialog`
-- 4 `getClientFinancials`/`getVehicleFinancials` blocks that only exist to feed `generateClientPDF`
+| Need | Call | Returns |
+|---|---|---|
+| Per-session labor breakdown (line items in a bill) | `computeSessionLaborDetails(session, client, settings)` | base / minHourAdj / cloning / programming / addKey / allKeysLost / labor / services / total |
+| Per-session billable parts (skips `providedByClient`) | `computeSessionParts(session)` | number |
+| Per-task raw total (no discount) | `computeTaskTotal(task, client, settings)` | labor / services / parts / total |
+| Per-task chip total (allocated share of vehicle discount) | `computeTaskTotalAllocated(task, vehicle, allVehicleTasks, client, settings)` | labor / services / parts / discount / total |
+| Per-vehicle total (pooled discount, single ceil) | `computeVehicleTotal(vehicle, vehicleTasks, client, settings)` | labor / services / parts / discount / total |
+| Per-client total | **sum of `computeVehicleTotal` across that client's vehicles** | — |
+| Rates with client overrides → settings fallback | `resolveRates(client, settings)` | 5 rates |
+| Dollar rounding | `ceilDollars(n)` | int |
+| Time (seconds → minutes → dollars) | `calcPeriodCost(seconds, hourly)` | int |
 
----
+Anything not in this table is **off-limits** to surface code.
 
-## Refactor plan
+## Banned in surface code (search-and-destroy)
 
-### Step 1 — Centralize the client-PDF totals
-Make every `generateClientPDF` in the codebase call the same source-of-truth helpers:
+- `duration / 3600` or `duration / 60` — must go through `calcPeriodCost` (which `computeSessionLabor` already uses).
+- `Math.ceil(...)` on a money amount — use `ceilDollars`.
+- Local `formatCurrency` / `formatDuration` — import from `@/lib/formatTime`.
+- `(settings as any).default*Rate` — use `resolveRates`.
+- Reading `client?.hourlyRate || settings.defaultHourlyRate` inline — use `resolveRates`.
+- Reading `part.price * part.quantity` directly — use `computeSessionParts`.
+- Applying `vehicle.discountValue` inline — use `applyLaborDiscount` or `computeVehicleTotal`.
+- Aggregating client totals from tasks directly — sum `computeVehicleTotal` instead, so PDF rows and PDF total always reconcile.
 
-- `DesktopDashboard.generateClientPDF` → use `calculateClientCosts(client, vehicles, tasks, settings, ...)` for per-client totals and `computeVehicleTotal` for per-vehicle rows.
-- `DesktopClientsView.generateClientPDF` → same.
-- `ManageClientsDialog.generateClientPDF` → same.
+## Files to clean (one pass each)
 
-Delete the local `getClientFinancials` / `getVehicleFinancials` blocks (~200 lines removed) and the local `formatCurrency` / `formatDuration` re-declarations.
+1. **`src/pages/DesktopDashboard.tsx`** — `getTaskCost` → `computeTaskTotalAllocated(...).total`. `getVehicleStats` → `computeVehicleTotal`. Any inline labor/parts math out.
+2. **`src/components/DesktopReportsView.tsx`** — `getTaskCost` → `computeTaskTotalAllocated`. Itemized rows → `computeSessionLaborDetails` + `computeSessionParts`. Recharts data points → same.
+3. **`src/components/TaskCard.tsx`** (mobile chip) — total → `computeTaskTotalAllocated`. Time → `task.sessions.flatMap(s=>s.periods).reduce(... .duration)` formatted with `formatDuration`.
+4. **`src/components/TaskInlineEditor.tsx`** — any live-preview cost → `computeTaskTotal` (preview, no vehicle context yet) or `computeTaskTotalAllocated` if vehicle known.
+5. **`src/pages/ClientPortal.tsx`** + **`src/lib/clientPortalUtils.ts`** — replace local cost helpers with `computeVehicleTotal` per vehicle, sum for client total. Keep only PIN/format helpers.
+6. **`src/components/DesktopInvoiceView.tsx`** — when sourced from tasks, route through `computeTaskTotalAllocated` + `computeVehicleTotal`. Manual-entry mode untouched.
+7. **`src/components/DesktopClientsView.tsx`** + **`src/components/ManageClientsDialog.tsx`** — confirm last pass's `clientFinancials.ts` wiring is the only path; delete any leftover inline math, local `formatCurrency`/`formatDuration`, and the $0 hourly-rate fallback bug.
+8. **`src/lib/billPdfRenderer.ts`** + **`src/lib/billPdfLayout.ts`** — line items: `computeSessionLaborDetails`; parts: `computeSessionParts`; vehicle subtotal: `computeVehicleTotal`. No local math.
+9. **`src/lib/clientFinancials.ts`** — keep as the legacy-shape adapter for PDF callers, but make `aggregate` call `computeTaskTotal` per task (already does for the most part) so there's literally one math path.
 
-### Step 2 — Align discount application
-Decide once: discount is a **vehicle-level pool**, not per-task. Change `DesktopDashboard.getTaskCost` and `DesktopReportsView.getTaskCost` to display per-task labor un-discounted, and show the vehicle discount on the vehicle row only (which `computeVehicleTotal` already produces). The chip total for a task becomes its raw labor + parts; the vehicle subtotal shows the pooled discount.
+## Verification (must all hold after the pass)
 
-If the user prefers to keep per-task discount badges in the UI, instead document this and remove the pooled path from `computeVehicleTotal` / `calculateClientCosts` so all surfaces agree. **I need your call on this — see clarifying question below.**
+- For any vehicle V with tasks T₁…Tₙ and a discount:
+  `sum(computeTaskTotalAllocated(Tᵢ, V, T, client, settings).total) ∈ [computeVehicleTotal(V,...).total, computeVehicleTotal(V,...).total + (n-1)]`
+  (documented ceil bias; chips never under-report vs. vehicle total).
+- For any client C: `clientTotal = Σ computeVehicleTotal(V, ...)` across C's vehicles — same number on dashboard, portal, PDF, reports.
+- An imported task (`importedSalary` set) shows `importedSalary` as its total on every surface, regardless of sessions/parts.
+- A `providedByClient: true` part contributes **$0** to parts on every surface.
+- A period with `chargeMinimumHour: true` and `duration < 3600` charges `ceilDollars(hourly)` once; never double-bumped with session-level flag.
 
-### Step 3 — Fix `getTaskCost` rounding
-Add `Math.ceil` (or use the existing `ceilDollars` helper) to `DesktopDashboard.getTaskCost` so chip dollars match Reports and the printed bill.
+## Tests added to `src/lib/__tests__/billing.test.ts`
 
-### Step 4 — Fix worker attribution on mobile
-In `Index.tsx handleCompleteWork`, stamp `createdBy` on each part before assigning (`parts.map(p => p.createdBy ? p : { ...p, createdBy: getCurrentUserId() || undefined })`), matching the desktop handler.
+- **Cross-surface invariant**: build a fixture client with 2 vehicles (one with a 15% discount, one with a $25 amount discount, mixed imported + normal + providedByClient parts). Assert:
+  - `sum(computeTaskTotalAllocated.total)` per vehicle ∈ `[vehicleTotal, vehicleTotal + n-1]`.
+  - Client total = sum of `computeVehicleTotal.total`.
+  - Imported task ignores its parts/sessions.
+  - providedByClient parts excluded.
 
-### Step 5 — Tighten `TaskCard` settings type
-Replace `{ defaultHourlyRate: number }` with a `Pick<Settings, ...all 5 rates>` so the `(settings as any)` casts disappear and the compiler catches future omissions.
+## Out of scope
 
-### Step 6 — Delete dead code
-- Remove `Task.chargeMinimumHour` from the `Task` type and any leftover writers.
-- Remove the 4 inline finance helpers and 2 local format helpers after Step 1.
+- No discount model change (pooled, allocated per task — same as today).
+- No UI redesign.
+- No DB / type changes.
+- No new helpers — everything needed already exists in `billing.ts`.
 
-### Step 7 — Verify
-After each step, manually check three spots:
-- Desktop chip on a task with a `percent` vehicle discount.
-- Client-PDF totals for an imported (XLS) task.
-- Client-PDF totals for a task with `providedByClient: true` parts.
+## Files touched
 
----
-
-## Clarifying questions before I implement
-
-1. **Discount semantics** — when a vehicle has a 10% discount and 3 tasks, do you want:
-   - **(A)** Discount shown only on the vehicle subtotal (pooled, the way the client portal does it today), OR
-   - **(B)** Discount shown per-task chip (current desktop behavior, slightly over-rounded)?
-
-2. **Rollout** — implement all 7 steps now, or split into two passes (bug fixes first, dead-code removal second)?
-
-3. **Backwards compatibility** — any in-the-wild bills/PDFs you've already sent that you want preserved bit-for-bit? If yes, I'll skip Step 2 and only fix the bugs in Step 1, 3, 4.
+Code: 9 files listed above. Tests: 1 file. Net effect: ~400 lines of duplicate math deleted; every screen pulls from one engine.

@@ -255,6 +255,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
               <CollapsibleTrigger className="flex items-center gap-3 flex-1 cursor-pointer hover:opacity-80 transition-opacity">
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${expandedSessions.has(session.id) ? '' : '-rotate-90'}`} />
                 <h4 className="font-semibold text-sm">Session {sessionIndex + 1}</h4>
+                {session.createdBy && <WorkerChip worker={getWorker(session.createdBy)} size="xs" />}
                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{formattedDate}</span>
                 {!expandedSessions.has(session.id) && (
                   <span className="text-xs text-muted-foreground ml-2">

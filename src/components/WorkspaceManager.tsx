@@ -22,6 +22,12 @@ interface MemberRow {
   created_at: string;
 }
 
+interface ProfileRow {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;

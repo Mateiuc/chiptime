@@ -21,6 +21,7 @@ import { contactsService } from '@/services/contactsService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { calcPeriodCost } from '@/lib/formatTime';
 import { getCurrentUserId } from '@/lib/currentUser';
+import { applyDepositOnPaid } from '@/lib/deposit';
 
 
 
@@ -497,12 +498,16 @@ const Index = () => {
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid', paidAt: new Date() });
+    const task = tasks.find(t => t.id === taskId);
+    const client = task ? clients.find(c => c.id === task.clientId) || null : null;
+    const clientTasks = task ? tasks.filter(t => t.clientId === task.clientId) : [];
+    const depositApplied = task
+      ? applyDepositOnPaid(task, vehicles, clientTasks, client, settings)
+      : undefined;
+    updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
     toast({ title: 'Payment Recorded' });
 
     // Sync portal so client sees updated status immediately
-    const task = tasks.find(t => t.id === taskId);
-    const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'paid' as const } : t

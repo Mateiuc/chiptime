@@ -40,6 +40,7 @@ import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
+import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
 
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
@@ -574,10 +575,14 @@ const DesktopDashboard = () => {
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid', paidAt: new Date() });
-    toast({ title: 'Payment Recorded' });
     const task = tasks.find(t => t.id === taskId);
-    const client = task ? clients.find(c => c.id === task.clientId) : null;
+    const client = task ? clients.find(c => c.id === task.clientId) || null : null;
+    const clientTasks = task ? tasks.filter(t => t.clientId === task.clientId) : [];
+    const depositApplied = task
+      ? applyDepositOnPaid(task, vehicles, clientTasks, client, settings)
+      : undefined;
+    updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
+    toast({ title: 'Payment Recorded' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
@@ -760,8 +765,8 @@ const DesktopDashboard = () => {
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
-    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
-    const clientDeposit = client.prepaidAmount || 0;
+    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + remainingVehicleDeposit(v, tasks), 0);
+    const clientDeposit = remainingClientDeposit(client, tasks);
     const totalDeposits = vehicleDeposits + clientDeposit;
     if (totalDeposits > 0) {
       doc.setFont('helvetica', 'normal');
@@ -802,7 +807,7 @@ const DesktopDashboard = () => {
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);
         doc.setFont('helvetica', 'normal'); yPos += 5;
-        const vDeposit = vehicle.prepaidAmount || 0;
+        const vDeposit = remainingVehicleDeposit(vehicle, tasks);
         if (vDeposit > 0) {
           doc.setTextColor(200, 0, 0);
           doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos); yPos += 5;
@@ -1059,7 +1064,7 @@ const DesktopDashboard = () => {
                 const taskCount = clientVehicles.flatMap(v => v.tasks).length;
                 const isSelected = selectedClientId === client.id;
                 const clientColor = getVehicleColorScheme(client.id);
-                const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
+                const clientDeposits = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0) + remainingClientDeposit(client, tasks);
                 const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                 const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
                 const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
@@ -1121,7 +1126,7 @@ const DesktopDashboard = () => {
                           <span>{taskCount} tasks</span>
                         </div>
                         {clientRevenue > 0 && (() => {
-                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0) + (client.prepaidAmount || 0);
+                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0) + remainingClientDeposit(client, tasks);
                           const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                           const isFullyPaid = unpaidRevenue === 0;
                           const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
@@ -1396,8 +1401,8 @@ const DesktopDashboard = () => {
                           const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0);
                           const clientDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks), 0);
                           const clientRevenue = Math.max(0, clientGross - clientDiscount);
-                          const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
-                          const clientDep = client.prepaidAmount || 0;
+                          const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0);
+                          const clientDep = remainingClientDeposit(client, tasks);
                           const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
                           const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
                           const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);
@@ -1451,7 +1456,7 @@ const DesktopDashboard = () => {
                       const vehicleUnpaidGross = vehicleTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
                       const vehicleUnpaidDiscount = getVehicleDiscount(vehicle, vehicleTasks.filter(t => t.status !== 'paid'));
                       const vehicleUnpaid = Math.max(0, vehicleUnpaidGross - vehicleUnpaidDiscount);
-                      const deposit = vehicle.prepaidAmount || 0;
+                      const deposit = remainingVehicleDeposit(vehicle, tasks);
                       const vehicleFullyPaid = vehicleUnpaid === 0 && vehicleCost > 0;
                       const balanceDue = Math.max(0, vehicleUnpaid - deposit);
 

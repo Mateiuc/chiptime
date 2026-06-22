@@ -252,7 +252,7 @@ const DesktopDashboard = () => {
 
     if (targetSession) {
       targetSession.description = description;
-      targetSession.parts = parts;
+      targetSession.parts = parts.map(p => p.createdBy ? p : { ...p, createdBy: currentUserId || undefined });
       targetSession.completedAt = new Date();
       targetSession.periods = targetSession.periods.map((p, i) => ({
         ...p,

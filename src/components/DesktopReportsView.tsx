@@ -14,8 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
-import { applyLaborDiscount } from '@/lib/discount';
-import { computeTaskTotal } from '@/lib/billing';
+import { computeTaskCost } from '@/lib/billing';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 
@@ -171,12 +170,10 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
+  // Single source of truth: src/lib/billing.ts (pooled vehicle discount).
   const getTaskCost = (task: Task) => {
-    const vehicle = vehicles.find(v => v.id === task.vehicleId);
     const client = clients.find(c => c.id === task.clientId) || null;
-    const t = computeTaskTotal(task, client, settings);
-    const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
-    return Math.ceil(laborAfter + t.parts);
+    return computeTaskCost(task, vehicles, tasks, client, settings);
   };
 
   const getTaskSeconds = (task: Task) =>

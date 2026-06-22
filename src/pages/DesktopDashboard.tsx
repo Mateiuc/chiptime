@@ -574,7 +574,13 @@ const DesktopDashboard = () => {
   };
 
   const handleMarkPaid = (taskId: string) => {
-    updateTask(taskId, { status: 'paid', paidAt: new Date() });
+    const task = tasks.find(t => t.id === taskId);
+    const client = task ? clients.find(c => c.id === task.clientId) || null : null;
+    const clientTasks = task ? tasks.filter(t => t.clientId === task.clientId) : [];
+    const depositApplied = task
+      ? applyDepositOnPaid(task, vehicles, clientTasks, client, settings)
+      : undefined;
+    updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
     toast({ title: 'Payment Recorded' });
     const task = tasks.find(t => t.id === taskId);
     const client = task ? clients.find(c => c.id === task.clientId) : null;

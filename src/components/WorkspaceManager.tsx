@@ -66,7 +66,7 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
     if (ids.length > 0) {
       const { data: profs } = await supabase
         .from('profiles')
-        .select('id, email, display_name')
+        .select('id, email, display_name, nickname')
         .in('id', ids);
       const map: Record<string, ProfileRow> = {};
       ((profs as any) || []).forEach((p: ProfileRow) => { map[p.id] = p; });

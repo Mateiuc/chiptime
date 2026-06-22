@@ -22,8 +22,6 @@ interface TaskInlineEditorProps {
 
 export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlineEditorProps) => {
   const { toast } = useNotifications();
-export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlineEditorProps) => {
-  const { toast } = useNotifications();
   const { getWorker } = useWorkers();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(

@@ -49,6 +49,7 @@ export interface Part {
   price: number;
   description?: string;
   providedByClient?: boolean; // true = client brought the part, excluded from revenue
+  createdBy?: string; // user_id of the worker who added this line item
 }
 
 export interface SessionPhoto {
@@ -67,6 +68,7 @@ export interface WorkPeriod {
   endTime: Date;
   duration: number; // seconds
   chargeMinimumHour?: boolean; // charge this period as minimum 1 hour if under 60min
+  createdBy?: string; // user_id of the worker who ran this timer interval
 }
 
 export interface WorkSession {
@@ -82,6 +84,7 @@ export interface WorkSession {
   isProgramming?: boolean; // Apply programming rate to this session
   isAddKey?: boolean; // Apply add key rate to this session
   isAllKeysLost?: boolean; // Apply all keys lost rate to this session
+  createdBy?: string; // user_id of the worker who started this session
 }
 
 export type TaskStatus = 'pending' | 'in-progress' | 'paused' | 'completed' | 'billed' | 'paid';

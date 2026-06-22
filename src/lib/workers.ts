@@ -62,7 +62,7 @@ interface ProfileRow {
  * Returns a getter that resolves a user_id to a WorkerDisplay.
  */
 export function useWorkers() {
-  const { workspace } = useAuth();
+  const { workspace, user } = useAuth();
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
 
   useEffect(() => {
@@ -87,14 +87,27 @@ export function useWorkers() {
     return () => { cancelled = true; };
   }, [workspace?.id]);
 
+  // Fallback for the signed-in user when their profile row hasn't loaded yet
+  // (e.g. first render). Uses Google/email metadata so the chip never shows "—".
+  const selfFallback = (uid: string): ProfileRow | null => {
+    if (!user || user.id !== uid) return null;
+    const meta: any = user.user_metadata || {};
+    return {
+      id: uid,
+      email: user.email || null,
+      display_name: meta.full_name || meta.name || null,
+      nickname: null,
+    };
+  };
+
   const getWorker = (uid?: string | null): WorkerDisplay => {
     if (!uid) return UNKNOWN;
-    const p = profiles[uid];
+    const p = profiles[uid] || selfFallback(uid);
     const colors = makeColors(uid);
     return {
       id: uid,
       firstName: labelFrom(p?.nickname, p?.display_name, p?.email),
-      fullName: p?.display_name || p?.email || 'Unknown',
+      fullName: p?.display_name || p?.email || 'Worker',
       email: p?.email || null,
       ...colors,
     };

@@ -387,8 +387,10 @@ const DesktopDashboard = () => {
             startTime: p.startTime,
             endTime: p.endTime,
             duration: p.duration,
+            createdBy: currentUserId || undefined,
           })),
           parts: [],
+          createdBy: currentUserId || undefined,
         };
 
         const task: Task = {
@@ -403,6 +405,7 @@ const DesktopDashboard = () => {
           createdAt: s.date,
           importedSalary: s.relSalary,
           sessions: [workSession],
+          createdBy: currentUserId || undefined,
         };
 
         newTasks.push(task);

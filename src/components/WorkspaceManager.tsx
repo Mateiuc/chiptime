@@ -162,13 +162,26 @@ export const WorkspaceManager = ({ open, onOpenChange }: Props) => {
 
           <div className="space-y-2">
             <Label className="text-sm">Members ({members.length})</Label>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {members.map((m) => (
-                <div key={m.user_id} className="flex justify-between">
-                  <span className="font-mono truncate">{m.user_id === user?.id ? 'You' : m.user_id.slice(0, 8) + '…'}</span>
-                  <span>{m.role}</span>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              {members.map((m) => {
+                const p = profiles[m.user_id];
+                const name = p?.display_name || p?.email || 'Unknown user';
+                const showEmail = !!(p?.display_name && p?.email && p.display_name !== p.email);
+                const isYou = m.user_id === user?.id;
+                return (
+                  <div key={m.user_id} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">
+                        {name}{isYou && <span className="text-xs text-muted-foreground font-normal"> (You)</span>}
+                      </div>
+                      {showEmail && (
+                        <div className="text-[11px] text-muted-foreground truncate">{p!.email}</div>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{m.role}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

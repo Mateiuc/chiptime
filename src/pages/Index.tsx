@@ -287,6 +287,7 @@ const Index = () => {
         startTime: activeTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       // Add period to the active session (create one if missing)
@@ -300,6 +301,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;

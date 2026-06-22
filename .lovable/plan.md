@@ -1,71 +1,77 @@
-# One billing engine. Every screen reads from it.
+# Phase 3 — Clean up remaining billing duplicates and bugs
 
-Goal: **every number** shown to a user — chip totals, vehicle totals, client totals, PDF rows, portal rows, reports rows, invoice rows — comes from `src/lib/billing.ts`. No surface adds, multiplies, rounds, or discounts on its own.
+A read-only audit found **10 issues** where surface code still bypasses `src/lib/billing.ts` or uses stale fields. Some are display-only, but four cause real number mismatches between the PDF, portal, and dashboard.
 
-## The contract (in `src/lib/billing.ts`, already exists)
+## Issues grouped by severity
 
-| Need | Call | Returns |
-|---|---|---|
-| Per-session labor breakdown (line items in a bill) | `computeSessionLaborDetails(session, client, settings)` | base / minHourAdj / cloning / programming / addKey / allKeysLost / labor / services / total |
-| Per-session billable parts (skips `providedByClient`) | `computeSessionParts(session)` | number |
-| Per-task raw total (no discount) | `computeTaskTotal(task, client, settings)` | labor / services / parts / total |
-| Per-task chip total (allocated share of vehicle discount) | `computeTaskTotalAllocated(task, vehicle, allVehicleTasks, client, settings)` | labor / services / parts / discount / total |
-| Per-vehicle total (pooled discount, single ceil) | `computeVehicleTotal(vehicle, vehicleTasks, client, settings)` | labor / services / parts / discount / total |
-| Per-client total | **sum of `computeVehicleTotal` across that client's vehicles** | — |
-| Rates with client overrides → settings fallback | `resolveRates(client, settings)` | 5 rates |
-| Dollar rounding | `ceilDollars(n)` | int |
-| Time (seconds → minutes → dollars) | `calcPeriodCost(seconds, hourly)` | int |
+### A. Real money bugs (numbers disagree across surfaces)
 
-Anything not in this table is **off-limits** to surface code.
+1. **`billPdfRenderer.ts:195–201`** — per-session row amount computed as `(seconds/3600) * hourlyRate`. Skips minute-rounding and `chargeMinimumHour`, so itemised rows don't add up to the subtotal.
+   → Use `computeSessionLaborDetails(session, client, settings).total` per row.
 
-## Banned in surface code (search-and-destroy)
+2. **`billPdfRenderer.ts:210–222`** — itemised parts list shows `price * quantity` for **all** parts, ignoring `providedByClient`. Totals block (which uses `computeSessionParts`) excludes them → rows disagree with TOTAL.
+   → Skip or annotate `providedByClient` parts as `$0 (client supplied)`.
 
-- `duration / 3600` or `duration / 60` — must go through `calcPeriodCost` (which `computeSessionLabor` already uses).
-- `Math.ceil(...)` on a money amount — use `ceilDollars`.
-- Local `formatCurrency` / `formatDuration` — import from `@/lib/formatTime`.
-- `(settings as any).default*Rate` — use `resolveRates`.
-- Reading `client?.hourlyRate || settings.defaultHourlyRate` inline — use `resolveRates`.
-- Reading `part.price * part.quantity` directly — use `computeSessionParts`.
-- Applying `vehicle.discountValue` inline — use `applyLaborDiscount` or `computeVehicleTotal`.
-- Aggregating client totals from tasks directly — sum `computeVehicleTotal` instead, so PDF rows and PDF total always reconcile.
+3. **`clientPortalUtils.ts:233–237`** — `ceilDollars` applied **per session** before summing into the discount base, inflating the discount base by up to `(sessions − 1)` dollars vs `computeVehicleTotal`.
+   → Remove the per-session ceiling; ceil only the final display value.
 
-## Files to clean (one pass each)
+4. **`DesktopClientsView.tsx:123`, `ManageClientsDialog.tsx:183 & 251`, `DesktopDashboard.tsx:750 & 785`** — copy-pasted `baseLab` formula subtracts only `cloning + programming`, silently merging `addKey + allKeysLost` into the "Labor Cost" PDF line.
+   → Subtract all four service buckets; add matching `if (totalAddKey > 0)` / `if (totalAllKeysLost > 0)` PDF rows so the breakdown stays itemised.
 
-1. **`src/pages/DesktopDashboard.tsx`** — `getTaskCost` → `computeTaskTotalAllocated(...).total`. `getVehicleStats` → `computeVehicleTotal`. Any inline labor/parts math out.
-2. **`src/components/DesktopReportsView.tsx`** — `getTaskCost` → `computeTaskTotalAllocated`. Itemized rows → `computeSessionLaborDetails` + `computeSessionParts`. Recharts data points → same.
-3. **`src/components/TaskCard.tsx`** (mobile chip) — total → `computeTaskTotalAllocated`. Time → `task.sessions.flatMap(s=>s.periods).reduce(... .duration)` formatted with `formatDuration`.
-4. **`src/components/TaskInlineEditor.tsx`** — any live-preview cost → `computeTaskTotal` (preview, no vehicle context yet) or `computeTaskTotalAllocated` if vehicle known.
-5. **`src/pages/ClientPortal.tsx`** + **`src/lib/clientPortalUtils.ts`** — replace local cost helpers with `computeVehicleTotal` per vehicle, sum for client total. Keep only PIN/format helpers.
-6. **`src/components/DesktopInvoiceView.tsx`** — when sourced from tasks, route through `computeTaskTotalAllocated` + `computeVehicleTotal`. Manual-entry mode untouched.
-7. **`src/components/DesktopClientsView.tsx`** + **`src/components/ManageClientsDialog.tsx`** — confirm last pass's `clientFinancials.ts` wiring is the only path; delete any leftover inline math, local `formatCurrency`/`formatDuration`, and the $0 hourly-rate fallback bug.
-8. **`src/lib/billPdfRenderer.ts`** + **`src/lib/billPdfLayout.ts`** — line items: `computeSessionLaborDetails`; parts: `computeSessionParts`; vehicle subtotal: `computeVehicleTotal`. No local math.
-9. **`src/lib/clientFinancials.ts`** — keep as the legacy-shape adapter for PDF callers, but make `aggregate` call `computeTaskTotal` per task (already does for the most part) so there's literally one math path.
+### B. Stale-cache reads (display drift)
 
-## Verification (must all hold after the pass)
+5. **`TaskCard.tsx:301`** and **`DesktopDashboard.tsx:695`** — `task.totalTime` used as authoritative duration. It's a cached integer that drifts when sessions are edited.
+   → Sum `period.duration` directly (same pattern as `getTaskSeconds` in `DesktopReportsView.tsx:180`).
 
-- For any vehicle V with tasks T₁…Tₙ and a discount:
-  `sum(computeTaskTotalAllocated(Tᵢ, V, T, client, settings).total) ∈ [computeVehicleTotal(V,...).total, computeVehicleTotal(V,...).total + (n-1)]`
-  (documented ceil bias; chips never under-report vs. vehicle total).
-- For any client C: `clientTotal = Σ computeVehicleTotal(V, ...)` across C's vehicles — same number on dashboard, portal, PDF, reports.
-- An imported task (`importedSalary` set) shows `importedSalary` as its total on every surface, regardless of sessions/parts.
-- A `providedByClient: true` part contributes **$0** to parts on every surface.
-- A period with `chargeMinimumHour: true` and `duration < 3600` charges `ceilDollars(hourly)` once; never double-bumped with session-level flag.
+6. **`TaskCard.tsx:266–268`** — mini-PDF renders `providedByClient` parts at full price (same as issue 2, different file).
+   → Same fix.
 
-## Tests added to `src/lib/__tests__/billing.test.ts`
+### C. Unsafe rate fallback
 
-- **Cross-surface invariant**: build a fixture client with 2 vehicles (one with a 15% discount, one with a $25 amount discount, mixed imported + normal + providedByClient parts). Assert:
-  - `sum(computeTaskTotalAllocated.total)` per vehicle ∈ `[vehicleTotal, vehicleTotal + n-1]`.
-  - Client total = sum of `computeVehicleTotal.total`.
-  - Imported task ignores its parts/sessions.
-  - providedByClient parts excluded.
+7. **`billPdfRenderer.ts:70`** — `client?.hourlyRate || settings.defaultHourlyRate` inline.
+   → Use `resolveRates(client, settings).hourly`.
+
+### D. Dead code
+
+8. **`clientFinancials.ts:117–124`** — `getVehicleTotalWithDiscount` is a one-line wrapper around `computeVehicleTotal` with **zero callers** outside its own test.
+   → Delete the export; update the test to import `computeVehicleTotal` directly.
+
+### E. Type hygiene (optional, low risk)
+
+9. **`types/index.ts` + `billing.ts:75–78`** — `Settings` declares `defaultCloningRate?`/`defaultProgrammingRate?`/`defaultAddKeyRate?`/`defaultAllKeysLostRate?` as `number?` already, so the `(settings as any)` casts in `resolveRates` are unnecessary.
+   → Remove the `as any` casts.
+
+## Items confirmed clean (no action)
+
+- `task.billedAmount` — already gone everywhere.
+- `status === 'billed'/'paid'` branching dollar math — none found.
+- Local `formatCurrency`/`formatDuration` redefinitions — none.
+- `importedSalary` lock — respected in billing, portal, and financials.
+- `computeTaskCost` wiring in `DesktopReportsView` and `TaskCard` chip — correct.
+- Supabase edge functions — no billing math.
+
+## Files to edit
+
+| File | Changes |
+|---|---|
+| `src/lib/billPdfRenderer.ts` | Fixes 1, 2, 7 |
+| `src/lib/clientPortalUtils.ts` | Fix 3 |
+| `src/components/DesktopClientsView.tsx` | Fix 4 (one site) |
+| `src/components/ManageClientsDialog.tsx` | Fix 4 (two sites) |
+| `src/pages/DesktopDashboard.tsx` | Fix 4 (two sites) + Fix 5 (drill-down row) |
+| `src/components/TaskCard.tsx` | Fixes 5, 6 |
+| `src/lib/clientFinancials.ts` | Fix 8 (delete dead export) |
+| `src/lib/billing.ts` + `src/types/index.ts` | Fix 9 (remove `as any` casts) |
+| `src/lib/__tests__/billing.test.ts` | Update import if the test referenced the removed wrapper; extend invariant test to cover `providedByClient` rows in the PDF renderer path |
 
 ## Out of scope
 
-- No discount model change (pooled, allocated per task — same as today).
-- No UI redesign.
-- No DB / type changes.
-- No new helpers — everything needed already exists in `billing.ts`.
+- No discount model change.
+- No new helpers in `billing.ts` — all fixes route to existing functions.
+- `calculateClientCosts` full replacement by `computeVehicleTotal` (would require a mapping layer for the `SessionCostDetail[]` shape consumed by `ClientCostBreakdown`); minimum fix is just removing the over-ceiling (issue 3). I will not refactor that shape in this pass.
+- No UI / layout changes.
 
-## Files touched
+## Verification
 
-Code: 9 files listed above. Tests: 1 file. Net effect: ~400 lines of duplicate math deleted; every screen pulls from one engine.
+- Existing cross-surface invariant test in `billing.test.ts` already asserts chip-sum ≈ vehicle total; will extend it with a `providedByClient: true` part and an Add Key + All Keys Lost session to lock in fixes 2/4/6.
+- Manual: open a client with (a) a session under 1h with `chargeMinimumHour`, (b) one `providedByClient` part, (c) an Add Key job. Generate the bill PDF and the client report PDF; confirm itemised rows sum to the displayed TOTAL on both.

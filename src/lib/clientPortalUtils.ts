@@ -158,6 +158,14 @@ export function calculateClientCosts(
     defaultAllKeysLostRate,
   };
   const clientVehicles = vehicles.filter(v => v.clientId === client.id);
+  // Surface deposits as REMAINING amounts (original minus what's been
+  // consumed by paid tasks via the ledger in `lib/deposit.ts`). This way
+  // every downstream consumer — bill PDFs, client portal payload, the
+  // cost breakdown — automatically shows the depleted figure.
+  const remClientDeposit = remainingClientDeposit(client, tasks);
+  const clientForSummary = (client.prepaidAmount || 0) !== remClientDeposit
+    ? { ...client, prepaidAmount: remClientDeposit }
+    : client;
   
   let grandTotalLabor = 0;
   let grandTotalParts = 0;
@@ -303,8 +311,12 @@ export function calculateClientCosts(
     grandTotalMinHourAdj += totalMinHourAdj;
     grandTotalDiscount += totalDiscount;
 
+    const remVehicleDeposit = remainingVehicleDeposit(vehicle, vehicleTasks);
+    const vehicleForSummary = (vehicle.prepaidAmount || 0) !== remVehicleDeposit
+      ? { ...vehicle, prepaidAmount: remVehicleDeposit }
+      : vehicle;
     return {
-      vehicle,
+      vehicle: vehicleForSummary,
       sessions,
       totalLabor,
       totalParts,
@@ -321,7 +333,7 @@ export function calculateClientCosts(
   });
 
   return {
-    client,
+    client: clientForSummary,
     vehicles: vehicleSummaries.filter(v => v.sessions.length > 0),
     grandTotalLabor,
     grandTotalParts,

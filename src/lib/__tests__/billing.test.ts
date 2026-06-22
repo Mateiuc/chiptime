@@ -252,4 +252,22 @@ describe("cross-surface invariant — chips reconcile to vehicle total", () => {
     })]);
     expect(computeTaskTotal(onlyClientParts, client, settings).parts).toBe(0);
   });
+
+  it("addKey + allKeysLost services are included in totalLaborCost path", () => {
+    // Sanity for the PDF baseLab fix: services must flow through services bucket.
+    const c2: Client = {
+      ...client,
+      addKeyRate: 75,
+      allKeysLostRate: 125,
+    } as Client;
+    const s = session({
+      periods: [period(0)],
+      isAddKey: true,
+      isAllKeysLost: true,
+    });
+    const r = computeTaskTotal(task([s]), c2, settings);
+    expect(r.services).toBe(200);
+    expect(r.labor).toBe(0);
+    expect(r.total).toBe(200);
+  });
 });

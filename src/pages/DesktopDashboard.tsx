@@ -631,7 +631,9 @@ const DesktopDashboard = () => {
     const vehicle = vehicles.find(v => v.id === task.vehicleId);
     const t = computeTaskTotal(task, client, settings);
     const { laborAfter } = applyLaborDiscount(t.labor + t.services, vehicle);
-    return laborAfter + t.parts;
+    // Match DesktopReportsView and ceilDollars convention so chip totals
+    // never show fractional dollars.
+    return Math.ceil(laborAfter + t.parts);
   };
 
   // Pre-discount cost (for headline display alongside Discount/Deposit chips).
@@ -713,87 +715,11 @@ const DesktopDashboard = () => {
   const getSessionDuration = (session: WorkSession) =>
     (session.periods || []).reduce((sum, p) => sum + (p.duration || 0), 0);
 
-  // --- Client financials for PDF ---
-  const getClientFinancials = (clientId: string) => {
-    const clientTasks = tasks.filter(t => t.clientId === clientId);
-    const client = clients.find(c => c.id === clientId);
-    const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
-    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
-    clientTasks.forEach(task => {
-      totalTime += task.totalTime;
-      task.sessions.forEach(session => {
-        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const baseCost = (sessionDuration / 3600) * hourlyRate;
-        let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
-        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
-        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-        if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
-        if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
-        totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
-        totalMinHourAdj += minAdj;
-        totalCloning += cloneCost;
-        totalProgramming += progCost;
-        totalAddKey += addKeyCost;
-        totalAllKeysLost += allKeysLostCost;
-      });
-      task.sessions.forEach(session => {
-        session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
-      });
-    });
-    return {
-      totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
-      totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost,
-      completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
-      activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
-      totalTasks: clientTasks.length,
-    };
-  };
-
-  const getVehicleStats = (vehicleId: string) => {
-    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
-    return { active: vehicleTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length, total: vehicleTasks.length };
-  };
-
-  const getVehicleFinancials = (vehicleId: string, clientId: string) => {
-    const vehicleTasks = tasks.filter(t => t.vehicleId === vehicleId);
-    const client = clients.find(c => c.id === clientId);
-    const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
-    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
-    vehicleTasks.forEach(task => {
-      task.sessions.forEach(session => {
-        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        const baseCost = (sessionDuration / 3600) * hourlyRate;
-        let minAdj = 0, cloneCost = 0, progCost = 0, addKeyCost = 0, allKeysLostCost = 0;
-        if (session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * hourlyRate;
-        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
-        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-        if (session.isAddKey && addKeyRate > 0) addKeyCost = addKeyRate;
-        if (session.isAllKeysLost && allKeysLostRate > 0) allKeysLostCost = allKeysLostRate;
-        totalLaborCost += baseCost + minAdj + cloneCost + progCost + addKeyCost + allKeysLostCost;
-        totalMinHourAdj += minAdj;
-        totalCloning += cloneCost;
-        totalProgramming += progCost;
-        totalAddKey += addKeyCost;
-        totalAllKeysLost += allKeysLostCost;
-      });
-      totalTime += task.totalTime;
-      task.sessions.forEach(session => {
-        session.parts?.forEach(part => { totalPartsCost += part.price * part.quantity; });
-      });
-    });
-    return { totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost, totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost, taskCount: vehicleTasks.length };
-  };
+  // --- Client/Vehicle financials for PDF — routed through canonical engine ---
+  const getClientFinancials = (clientId: string) =>
+    sharedGetClientFinancials(clientId, clients, tasks, settings);
+  const getVehicleFinancials = (vehicleId: string, clientId: string) =>
+    sharedGetVehicleFinancials(vehicleId, clientId, clients, tasks, settings);
 
   const generateClientPDF = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);

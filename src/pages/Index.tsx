@@ -21,6 +21,7 @@ import { contactsService } from '@/services/contactsService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { calcPeriodCost } from '@/lib/formatTime';
 import { getCurrentUserId } from '@/lib/currentUser';
+import { applyDepositOnPaid } from '@/lib/deposit';
 
 
 

@@ -40,6 +40,7 @@ import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
+import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
 
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';

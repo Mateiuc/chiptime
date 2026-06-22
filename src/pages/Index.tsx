@@ -171,6 +171,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;
@@ -197,6 +198,7 @@ const Index = () => {
         createdAt: new Date(),
         periods: [],
         parts: [],
+        createdBy: getCurrentUserId() || undefined,
       };
 
       const newTask: Task = {
@@ -212,6 +214,7 @@ const Index = () => {
         createdAt: new Date(),
         startTime: new Date(),
         activeSessionId: newSession.id,
+        createdBy: getCurrentUserId() || undefined,
       };
       
       // Apply auto-pause updates first if any, then add new task

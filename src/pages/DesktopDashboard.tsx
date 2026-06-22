@@ -582,8 +582,6 @@ const DesktopDashboard = () => {
       : undefined;
     updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
     toast({ title: 'Payment Recorded' });
-    const task = tasks.find(t => t.id === taskId);
-    const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
       syncPortalToCloud(client, vehicles, updatedTasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)

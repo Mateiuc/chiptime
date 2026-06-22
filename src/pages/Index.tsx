@@ -507,8 +507,6 @@ const Index = () => {
     toast({ title: 'Payment Recorded' });
 
     // Sync portal so client sees updated status immediately
-    const task = tasks.find(t => t.id === taskId);
-    const client = task ? clients.find(c => c.id === task.clientId) : null;
     if (client) {
       const updatedTasks = tasks.map(t =>
         t.id === taskId ? { ...t, status: 'paid' as const } : t

@@ -1757,19 +1757,25 @@ const DesktopDashboard = () => {
                                         : session.completedAt;
                                       return (
                                         <div key={session.id || sIdx} className={`rounded-md p-2 mt-1 ${sessionColor.session}`}>
-                                          <div className="flex items-center gap-2 text-xs flex-wrap">
-                                            <span className="font-medium">Session {sIdx + 1}</span>
-                                            {session.createdBy && <WorkerChip worker={getWorker(session.createdBy)} size="xs" />}
-                                            <span className="font-mono">{formatDuration(sDur)}</span>
-                                            {periodStart && (
-                                              <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(periodStart, periodEnd)}</span>
-                                            )}
-                                            {session.description && <span className="text-muted-foreground">— {session.description}</span>}
-                                            {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}
-                                            {session.isCloning && <Badge variant="outline" className="text-[10px] px-1">Cloning</Badge>}
-                                            {session.isProgramming && <Badge variant="outline" className="text-[10px] px-1">Programming</Badge>}
-                                            {session.isAddKey && <Badge variant="outline" className="text-[10px] px-1">Add Key</Badge>}
-                                            {session.isAllKeysLost && <Badge variant="outline" className="text-[10px] px-1">All Keys Lost</Badge>}
+                                          <div className="flex items-center justify-between gap-2 text-xs">
+                                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                              <span className="font-medium">Session {sIdx + 1}</span>
+                                              <span className="font-mono">{formatDuration(sDur)}</span>
+                                              {periodStart && (
+                                                <span className="text-[11px] text-muted-foreground font-mono">{formatSessionRange(periodStart, periodEnd)}</span>
+                                              )}
+                                              {session.description && <span className="text-muted-foreground">— {session.description}</span>}
+                                              {session.chargeMinimumHour && <Badge variant="outline" className="text-[10px] px-1">Min 1hr</Badge>}
+                                              {session.isCloning && <Badge variant="outline" className="text-[10px] px-1">Cloning</Badge>}
+                                              {session.isProgramming && <Badge variant="outline" className="text-[10px] px-1">Programming</Badge>}
+                                              {session.isAddKey && <Badge variant="outline" className="text-[10px] px-1">Add Key</Badge>}
+                                              {session.isAllKeysLost && <Badge variant="outline" className="text-[10px] px-1">All Keys Lost</Badge>}
+                                            </div>
+                                            <WorkerChip
+                                              worker={getWorker(session.createdBy || task.createdBy)}
+                                              size="sm"
+                                              className="shrink-0"
+                                            />
                                           </div>
                                           {/* Parts inline */}
                                           {(session.parts || []).length > 0 && (

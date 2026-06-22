@@ -336,7 +336,9 @@ const Index = () => {
     
     if (targetSession) {
       targetSession.description = description;
-      targetSession.parts = parts;
+      // Stamp createdBy on parts (matches desktop handler in DesktopDashboard).
+      const uid = getCurrentUserId() || undefined;
+      targetSession.parts = parts.map(p => (p.createdBy ? p : { ...p, createdBy: uid }));
       targetSession.completedAt = new Date();
       // Apply per-period chargeMinimumHour flags
       targetSession.periods = targetSession.periods.map((p, i) => ({

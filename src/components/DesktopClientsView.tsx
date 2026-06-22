@@ -14,6 +14,8 @@ import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound,
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { getClientFinancials as sharedGetClientFinancials } from '@/lib/clientFinancials';
+import { formatCurrency, formatDuration } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
 
 interface DesktopClientsViewProps {
@@ -68,52 +70,8 @@ export const DesktopClientsView = ({
     return { active, total: vTasks.length };
   };
 
-  const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  const formatDuration = (seconds: number) => { const totalMin = Math.round(seconds / 60); const h = Math.floor(totalMin / 60); const m = totalMin % 60; return `${h}h ${m}m`; };
-
-  const getClientFinancials = (clientId: string) => {
-    const clientTasks = tasks.filter(t => t.clientId === clientId);
-    const client = clients.find(c => c.id === clientId);
-    const rate = client?.hourlyRate || 0;
-    const cloningRate = client?.cloningRate || settings.defaultCloningRate || 0;
-    const programmingRate = client?.programmingRate || settings.defaultProgrammingRate || 0;
-    const addKeyRate = client?.addKeyRate || settings.defaultAddKeyRate || 0;
-    const allKeysLostRate = client?.allKeysLostRate || settings.defaultAllKeysLostRate || 0;
-    let totalLaborCost = 0, totalPartsCost = 0, totalTime = 0;
-    let totalMinHourAdj = 0, totalCloning = 0, totalProgramming = 0, totalAddKey = 0, totalAllKeysLost = 0;
-    clientTasks.forEach(task => {
-      task.sessions.forEach(session => {
-        const sessionDuration = session.periods.reduce((sum, p) => sum + p.duration, 0);
-        // P0 #3 fix: respect per-period flags before applying session-level bump.
-        const hasPeriodFlags = session.periods.some(p => p.chargeMinimumHour);
-        const baseCost = session.periods.reduce((s, p) => {
-          if (p.chargeMinimumHour && p.duration < 3600) return s + rate;
-          return s + (p.duration / 3600) * rate;
-        }, 0);
-        let minAdj = 0, cloneCost = 0, progCost = 0, akCost = 0, aklCost = 0;
-        if (!hasPeriodFlags && session.chargeMinimumHour && sessionDuration < 3600) minAdj = ((3600 - sessionDuration) / 3600) * rate;
-        if (session.isCloning && cloningRate > 0) cloneCost = cloningRate;
-        if (session.isProgramming && programmingRate > 0) progCost = programmingRate;
-        if (session.isAddKey && addKeyRate > 0) akCost = addKeyRate;
-        if (session.isAllKeysLost && allKeysLostRate > 0) aklCost = allKeysLostRate;
-        totalLaborCost += baseCost + minAdj + cloneCost + progCost + akCost + aklCost;
-        totalMinHourAdj += minAdj;
-        totalCloning += cloneCost;
-        totalProgramming += progCost;
-        totalAddKey += akCost;
-        totalAllKeysLost += aklCost;
-      });
-      totalTime += task.totalTime;
-      task.sessions.forEach(s => s.parts?.forEach(p => { totalPartsCost += p.price * p.quantity; }));
-    });
-    return {
-      totalTime, totalLaborCost, totalPartsCost, totalCost: totalLaborCost + totalPartsCost,
-      totalMinHourAdj, totalCloning, totalProgramming, totalAddKey, totalAllKeysLost,
-      completedTasks: clientTasks.filter(t => ['completed', 'billed', 'paid'].includes(t.status)).length,
-      activeTasks: clientTasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status)).length,
-      totalTasks: clientTasks.length,
-    };
-  };
+  const getClientFinancials = (clientId: string) =>
+    sharedGetClientFinancials(clientId, clients, tasks, settings);
 
   const handleStartEdit = (client: Client) => {
     setEditingClientId(client.id);

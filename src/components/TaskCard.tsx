@@ -1,4 +1,4 @@
-import { Task, Client, Vehicle, WorkSession, WorkPeriod, SessionPhoto } from '@/types';
+import { Task, Client, Vehicle, WorkSession, WorkPeriod, SessionPhoto, Settings } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,9 +32,10 @@ interface TaskCardProps {
   task: Task;
   client: Client | undefined;
   vehicle: Vehicle | undefined;
-  settings: {
-    defaultHourlyRate: number;
-  };
+  settings: Pick<Settings,
+    'defaultHourlyRate' | 'defaultCloningRate' | 'defaultProgrammingRate' |
+    'defaultAddKeyRate' | 'defaultAllKeysLostRate'
+  >;
   onMarkBilled: (taskId: string) => void;
   onMarkPaid: (taskId: string) => void;
   onRestartTimer: (taskId: string) => void;

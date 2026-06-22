@@ -579,8 +579,19 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <span><strong className="text-foreground">{filteredTasks.length}</strong> tasks</span>
             <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
             <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
-          </div>
         </div>
+        {workerTotals.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">By worker:</span>
+            {workerTotals.map(({ uid, seconds, cost }) => (
+              <div key={uid || 'unknown'} className="flex items-center gap-1.5 text-xs">
+                <WorkerChip worker={getWorker(uid)} size="xs" />
+                <span className="font-mono text-muted-foreground">{(seconds / 3600).toFixed(1)}h</span>
+                <span className="font-mono font-semibold">{formatCurrency(cost)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">

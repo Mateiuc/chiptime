@@ -230,7 +230,11 @@ export function calculateClientCosts(
         const sessionProgrammingCost = d.programming;
         const sessionAddKeyCost = d.addKey;
         const sessionAllKeysLostCost = d.allKeysLost;
-        const laborCost = ceilDollars(d.total);
+        // Do NOT ceil per-session — must accumulate raw totals into
+        // unbilledLabor so the discount base matches computeVehicleTotal
+        // (which sums un-ceiled per-task totals before applying the discount).
+        // Per-session display value is still derived from d.total directly.
+        const laborCost = d.total;
         const sessionPartsCost = computeSessionParts(session);
 
         const sessionDiscount = 0;

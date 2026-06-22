@@ -1,36 +1,31 @@
 ## Goal
+Show real member names (and emails) in the Workspace & Account dialog instead of truncated user-id hashes like `cd11787d…`.
 
-Now that lens selection is managed centrally in Settings → Camera, remove the redundant in-overlay "Lens" switchers and clean unused helpers. Also fix the web photo-session overlay where the bottom Cancel / Capture / Torch buttons are clipped by the phone's native navigation bar.
+## Why a small backend change is needed
+Currently `WorkspaceManager` lists rows from `workspace_members`, which only stores `user_id`. The client cannot query `auth.users` directly, so there is no source for names/emails today. We need a readable `profiles` table.
 
 ## Changes
 
-### 1. `src/lib/webPhotoCapture.ts` — clean + safe-area fix
-- Remove the "Lens" button, its label updater, and the `nextRearCameraId` / `listRearCameras` / `saveRearCameraId` / `lensKindLabel` imports.
-- Keep only: `pickMainRearCameraId` (reads Settings choice), the video stream, Cancel / Torch / Capture buttons.
-- Bottom bar fix:
-  - Add `padding-bottom: max(16px, env(safe-area-inset-bottom))` to the button bar so it sits above the phone's nav-bar.
-  - Add matching `padding-top: max(env(safe-area-inset-top), 0px)` so the top of the overlay does not slip under the status bar.
-  - Use `100dvh` (dynamic viewport) by switching from `inset:0` to `top/left/right:0; height:100dvh; width:100vw;` so URL bars / nav bars are accounted for on mobile browsers.
+### 1. New migration — `profiles` table
+- Create `public.profiles` with: `id uuid primary key references auth.users(id) on delete cascade`, `email text`, `display_name text`, `created_at timestamptz default now()`, `updated_at timestamptz default now()`.
+- `GRANT SELECT ON public.profiles TO authenticated; GRANT ALL TO service_role;` (no `anon`).
+- `ENABLE ROW LEVEL SECURITY`.
+- Policies:
+  - Self: `auth.uid() = id` for SELECT/UPDATE.
+  - Workspace visibility for SELECT: a member can see profiles of other users that share at least one workspace with them, via a SECURITY DEFINER helper `public.shares_workspace(_a uuid, _b uuid) returns boolean` that checks `workspace_members` (avoids RLS recursion).
+- Trigger `handle_new_user()` (SECURITY DEFINER) on `auth.users` AFTER INSERT → inserts `id, email, raw_user_meta_data->>'full_name'` (fallback to `name` or email local-part) into `profiles`. Also update on email change.
+- Backfill: `INSERT INTO public.profiles (id, email, display_name) SELECT id, email, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email,'@',1)) FROM auth.users ON CONFLICT DO NOTHING;`
 
-### 2. `src/components/VinScanner.tsx` — remove in-overlay lens switcher
-- Drop imports of `nextRearCameraId`, `listRearCameras`, `saveRearCameraId`, `lensKindLabel`, and the `RearCamera` type.
-- Drop `RefreshCw` from the lucide import.
-- Remove state: `currentCameraId`, `currentLensKind`, `rearCameraCount`.
-- Remove the `switchLens()` function.
-- Remove the post-stream code block that calls `listRearCameras()` to populate the lens label (lines ~249–260).
-- Remove the "Lens Switcher" Button block in the JSX (lines ~789–803). Keep Torch and Zoom controls untouched.
-- `startCamera` signature: drop the `overrideDeviceId` parameter (no longer used internally).
-
-### 3. `src/lib/cameraSelect.ts` — drop now-unused exports
-- Remove `nextRearCameraId()` (no remaining caller).
-- Keep everything else (`listRearCameras`, `pickMainRearCameraId`, `saveRearCameraId`, `getSavedRearCameraId`, `clearSavedRearCameraId`, `clearProbedCameras`, `lensKindLabel`, `RearCamera`, `RearLensKind`) — all still used by `CameraSettingsSection.tsx` and the two camera consumers.
+### 2. `src/components/WorkspaceManager.tsx`
+- After loading `workspace_members`, fetch matching profiles: `supabase.from('profiles').select('id, email, display_name').in('id', memberIds)`.
+- Render each member as: `display_name || email || 'Unknown'`, with the role on the right. Mark the current user with a trailing `(You)` instead of replacing the name.
+- Keep the existing layout/styles; just swap the truncated id span for the resolved name (and a smaller muted email line if `display_name` exists and differs from email).
 
 ### Out of scope
-- No change to `CameraSettingsSection.tsx` or to the native (Capacitor) photo path.
-- No OCR / upload / business logic changes.
-- No change to where photos are stored or how the session flow works.
+- No change to invite flow, roles, or `AuthContext`.
+- No editable profile UI (display_name stays as whatever was captured at signup; can be added later).
 
 ## Verification
-- Open a work session → Take photo: overlay fills the screen, Cancel / Torch / Capture all fully visible above the phone nav bar; lens used = the one saved in Settings (no Lens button shown).
-- Open VIN scan: no Lens button in the camera overlay; Torch + Zoom still work; the camera used = Settings choice.
-- Settings → Camera: list, Test, Use this, Auto-detect all still work.
+- Open Workspace & Account on mobile: both members show as a real name or email, role on the right; current user shows `(You)`.
+- New signups automatically appear with their name on next dialog open (trigger populates `profiles`).
+- Security scan: `profiles` is RLS-protected, only visible to self or workspace co-members.

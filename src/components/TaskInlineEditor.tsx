@@ -9,6 +9,9 @@ import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatD
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getSessionColorScheme } from '@/lib/sessionColors';
+import { getCurrentUserId } from '@/lib/currentUser';
+import { useWorkers } from '@/lib/workers';
+import { WorkerChip } from '@/components/WorkerChip';
 
 interface TaskInlineEditorProps {
   task: Task;

@@ -168,7 +168,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
       toast({ title: "Cannot add period", description: "Time slot conflicts", variant: "destructive" });
       return;
     }
-    const newPeriod: WorkPeriod = { id: `period-${Date.now()}`, startTime, endTime, duration: 3600 };
+    const newPeriod: WorkPeriod = { id: `period-${Date.now()}`, startTime, endTime, duration: 3600, createdBy: getCurrentUserId() || undefined };
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, periods: [...s.periods, newPeriod] } : s));
     toast({ title: "Period added", description: `${formatTime(startTime)} - ${formatTime(endTime)}` });
   };

@@ -20,6 +20,7 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { contactsService } from '@/services/contactsService';
 import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { calcPeriodCost } from '@/lib/formatTime';
+import { getCurrentUserId } from '@/lib/currentUser';
 
 
 
@@ -123,6 +124,7 @@ const Index = () => {
         startTime: runningTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       // Add period to the active session
@@ -169,6 +171,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;
@@ -195,6 +198,7 @@ const Index = () => {
         createdAt: new Date(),
         periods: [],
         parts: [],
+        createdBy: getCurrentUserId() || undefined,
       };
 
       const newTask: Task = {
@@ -210,6 +214,7 @@ const Index = () => {
         createdAt: new Date(),
         startTime: new Date(),
         activeSessionId: newSession.id,
+        createdBy: getCurrentUserId() || undefined,
       };
       
       // Apply auto-pause updates first if any, then add new task
@@ -233,6 +238,7 @@ const Index = () => {
       startTime: activeTask.startTime,
       endTime: new Date(),
       duration: elapsed,
+      createdBy: getCurrentUserId() || undefined,
     };
 
     // Add period to the active session (create one if missing)
@@ -246,6 +252,7 @@ const Index = () => {
         createdAt: new Date(),
         periods: [],
         parts: [],
+        createdBy: getCurrentUserId() || undefined,
       };
       updatedSessions.push(newSession);
       activeSessionId = newSession.id;
@@ -280,6 +287,7 @@ const Index = () => {
         startTime: activeTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       // Add period to the active session (create one if missing)
@@ -293,6 +301,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;
@@ -391,6 +400,7 @@ const Index = () => {
         startTime: runningTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       let updatedSessions = [...(runningTask.sessions || [])];
@@ -402,6 +412,7 @@ const Index = () => {
           createdAt: new Date(),
           periods: [],
           parts: [],
+          createdBy: getCurrentUserId() || undefined,
         };
         updatedSessions.push(newSession);
         activeSessionId = newSession.id;
@@ -441,6 +452,7 @@ const Index = () => {
         createdAt: new Date(),
         periods: [],
         parts: [],
+        createdBy: getCurrentUserId() || undefined,
       };
       updatedSessions.push(newSession);
       activeSessionId = newSession.id;

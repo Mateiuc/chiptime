@@ -1,46 +1,18 @@
-Two-part fix: restore worker names AND let each user set a short nickname.
+Plan:
 
-### Part A — Fix missing name (root cause)
-The `authenticated` role has no `SELECT` grant on `public.profiles` or `public.workspace_members`. Client queries silently return no rows, so `firstName` defaults to "—" and the chip shows only the dot.
+1. Fix worker attribution when timers start/resume
+   - Update the desktop timer start/resume logic so every new session is stamped with the current worker id.
+   - When a timer period is created on stop/auto-pause, stamp that period with the same current worker id.
+   - If a task/session was created before worker attribution existed, fill missing `createdBy` with the current user when that worker starts or stops the session.
 
-Migration:
-```sql
-GRANT SELECT ON public.profiles TO authenticated;
-GRANT ALL ON public.profiles TO service_role;
-GRANT SELECT ON public.workspace_members TO authenticated;
-GRANT ALL ON public.workspace_members TO service_role;
+2. Fix the visible chip fallback
+   - Update `useWorkers().getWorker()` so if a user id exists but the profile map has not loaded yet, the chip shows a short fallback instead of a blank/unknown-looking value.
+   - Keep the intended priority: nickname (`Chip`) first, then first display name (`Ciprian`), then email local-part.
 
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS nickname text;
-```
+3. Keep mobile consistent
+   - The mobile page has separate timer logic and currently does not stamp worker ids in several paths, so apply the same worker-id stamping there too.
+   - This prevents future sessions started from the phone view from showing no worker.
 
-RLS already restricts who can read each row, so the grants are safe.
-
-### Part B — Nickname editor
-- `profiles.nickname` is the new column (short label, ~12 chars).
-- In `WorkspaceManager.tsx` (the "Workspace & Account" dialog already used as the workers/settings panel), add:
-  - For the **current user**: an inline input "Your nickname" that updates their own `profiles.nickname` (RLS already allows self-update).
-  - For each **member row**: show the nickname after the name when present (e.g. `Ciprian Mateiuc · "Chip"`). Admins (owner/admin) get a pencil/inline input to edit other members' nicknames — requires a new RLS policy so admins can update co-members' profiles.
-
-New policy:
-```sql
-CREATE POLICY "Workspace admins can update co-member profiles"
-ON public.profiles FOR UPDATE TO authenticated
-USING (EXISTS (
-  SELECT 1 FROM public.workspace_members me
-  JOIN public.workspace_members them ON me.workspace_id = them.workspace_id
-  WHERE me.user_id = auth.uid()
-    AND me.role IN ('owner','admin')
-    AND them.user_id = profiles.id
-))
-WITH CHECK (true);
-```
-
-### Part C — Use nickname in chip
-- Extend `ProfileRow` in `src/lib/workers.ts` to include `nickname`.
-- `firstNameFrom(...)` becomes `labelFrom(nickname, display_name, email)` — prefer nickname, then first word of display_name, then email local-part.
-- Chip already uses `worker.firstName`, no other changes needed.
-
-### Out of scope
-- No PDF/portal changes.
-- No per-workspace overrides (nickname is global per user; sufficient for one-shop usage).
+4. Verify
+   - Check the profile request already returns `nickname: "Chip"`, so no database change is needed.
+   - Verify the session row renders the chip using `Chip` once `createdBy` is present.

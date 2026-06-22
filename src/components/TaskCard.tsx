@@ -13,6 +13,7 @@ import {
   computeTaskTotalAllocated,
   resolveRates,
 } from '@/lib/billing';
+import { remainingVehicleDeposit } from '@/lib/deposit';
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';

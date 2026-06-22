@@ -559,6 +559,7 @@ const DesktopDashboard = () => {
       needsFollowUp: false,
       sessions: [],
       createdAt: new Date(),
+      createdBy: currentUserId || undefined,
     } as any);
     toast({ title: 'Vehicle & Task Created' });
   };

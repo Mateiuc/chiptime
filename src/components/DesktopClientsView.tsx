@@ -120,10 +120,16 @@ export const DesktopClientsView = ({
     doc.text(`Total Tasks: ${financials.totalTasks}`, 25, y); y += 6;
     doc.text(`Total Vehicles: ${clientVehicles.length}`, 25, y); y += 6;
     doc.text(`Total Labor: ${formatDuration(financials.totalTime)}`, 25, y); y += 6;
-    const baseLab = financials.totalLaborCost - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    const baseLab = financials.totalLaborCost
+      - (financials.totalCloning || 0)
+      - (financials.totalProgramming || 0)
+      - (financials.totalAddKey || 0)
+      - (financials.totalAllKeysLost || 0);
     doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, y); y += 6;
     if (financials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, y); y += 6; }
     if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, y); y += 6; }
+    if (financials.totalAddKey > 0) { doc.text(`Add Key: ${formatCurrency(financials.totalAddKey)}`, 25, y); y += 6; }
+    if (financials.totalAllKeysLost > 0) { doc.text(`All Keys Lost: ${formatCurrency(financials.totalAllKeysLost)}`, 25, y); y += 6; }
     doc.text(`Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, y); y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, y); y += 6;

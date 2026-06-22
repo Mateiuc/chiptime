@@ -265,7 +265,10 @@ export const TaskCard = ({
         hasParts = true;
         session.parts.forEach(part => {
           doc.setFontSize(10);
-          doc.text(`${part.quantity}x ${part.name} - ${formatCurrency(part.price * part.quantity)}`, 25, yPos);
+          const partLine = part.providedByClient
+            ? `${part.quantity}x ${part.name} - $0 (client supplied)`
+            : `${part.quantity}x ${part.name} - ${formatCurrency(part.price * part.quantity)}`;
+          doc.text(partLine, 25, yPos);
           yPos += 6;
           
           if (part.description) {
@@ -298,7 +301,11 @@ export const TaskCard = ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     yPos += 8;
-    doc.text(`Labor (${formatDuration(task.totalTime)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(baseLabor)}`, 20, yPos);
+    const totalSeconds = (task.sessions || []).reduce(
+      (s, ss) => s + (ss.periods || []).reduce((p, pp) => p + (pp.duration || 0), 0),
+      0
+    );
+    doc.text(`Labor (${formatDuration(totalSeconds)} @ ${formatCurrency(hourlyRate)}/hr): ${formatCurrency(baseLabor)}`, 20, yPos);
     yPos += 7;
     if (totalMinHourAdj > 0) {
       doc.text(`Min 1 Hour adjustment (x${minHourCount}): ${formatCurrency(totalMinHourAdj)}`, 20, yPos);
@@ -310,6 +317,14 @@ export const TaskCard = ({
     }
     if (totalProgramming > 0) {
       doc.text(`Programming (x${programmingCount}): ${formatCurrency(totalProgramming)}`, 20, yPos);
+      yPos += 7;
+    }
+    if (totalAddKey > 0) {
+      doc.text(`Add Key (x${addKeyCount}): ${formatCurrency(totalAddKey)}`, 20, yPos);
+      yPos += 7;
+    }
+    if (totalAllKeysLost > 0) {
+      doc.text(`All Keys Lost (x${allKeysLostCount}): ${formatCurrency(totalAllKeysLost)}`, 20, yPos);
       yPos += 7;
     }
     doc.text(`Parts: ${formatCurrency(partsCost)}`, 20, yPos);

@@ -692,7 +692,7 @@ const DesktopDashboard = () => {
       description: t.sessions?.find(s => s.description)?.description || '—',
       date: new Date(t.createdAt).toLocaleDateString(),
       rawDate: new Date(t.createdAt).getTime(),
-      timeWorked: formatDuration(t.totalTime || 0),
+      timeWorked: formatDuration((t.sessions || []).reduce((s, ss) => s + (ss.periods || []).reduce((p, pp) => p + (pp.duration || 0), 0), 0)),
       client: clients.find(c => c.id === t.clientId)?.name || 'Unknown',
       cost: getTaskCost(t),
       status: t.status,
@@ -747,10 +747,16 @@ const DesktopDashboard = () => {
     doc.text(`Total Tasks: ${financials.totalTasks} (${financials.activeTasks} active, ${financials.completedTasks} completed)`, 25, yPos); yPos += 6;
     doc.text(`Total Vehicles: ${clientVehicles.length}`, 25, yPos); yPos += 6;
     doc.text(`Total Labor Time: ${formatDuration(financials.totalTime)}`, 25, yPos); yPos += 6;
-    const baseLab = financials.totalLaborCost - (financials.totalCloning || 0) - (financials.totalProgramming || 0);
+    const baseLab = financials.totalLaborCost
+      - (financials.totalCloning || 0)
+      - (financials.totalProgramming || 0)
+      - (financials.totalAddKey || 0)
+      - (financials.totalAllKeysLost || 0);
     doc.text(`Labor Cost: ${formatCurrency(baseLab)}`, 25, yPos); yPos += 6;
     if (financials.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(financials.totalCloning)}`, 25, yPos); yPos += 6; }
     if (financials.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(financials.totalProgramming)}`, 25, yPos); yPos += 6; }
+    if (financials.totalAddKey > 0) { doc.text(`Add Key: ${formatCurrency(financials.totalAddKey)}`, 25, yPos); yPos += 6; }
+    if (financials.totalAllKeysLost > 0) { doc.text(`All Keys Lost: ${formatCurrency(financials.totalAllKeysLost)}`, 25, yPos); yPos += 6; }
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
@@ -782,10 +788,16 @@ const DesktopDashboard = () => {
         if (vehicle.color) { doc.text(`Color: ${vehicle.color}`, 30, yPos); yPos += 5; }
         doc.text(`Tasks: ${vStats.total} (${vStats.active} active)`, 30, yPos); yPos += 5;
         doc.text(`Total Time: ${formatDuration(vFin.totalTime)}`, 30, yPos); yPos += 5;
-        const vBaseLab = vFin.totalLaborCost - (vFin.totalCloning || 0) - (vFin.totalProgramming || 0);
+        const vBaseLab = vFin.totalLaborCost
+          - (vFin.totalCloning || 0)
+          - (vFin.totalProgramming || 0)
+          - (vFin.totalAddKey || 0)
+          - (vFin.totalAllKeysLost || 0);
         doc.text(`Labor Cost: ${formatCurrency(vBaseLab)}`, 30, yPos); yPos += 5;
         if (vFin.totalCloning > 0) { doc.text(`Cloning: ${formatCurrency(vFin.totalCloning)}`, 30, yPos); yPos += 5; }
         if (vFin.totalProgramming > 0) { doc.text(`Programming: ${formatCurrency(vFin.totalProgramming)}`, 30, yPos); yPos += 5; }
+        if (vFin.totalAddKey > 0) { doc.text(`Add Key: ${formatCurrency(vFin.totalAddKey)}`, 30, yPos); yPos += 5; }
+        if (vFin.totalAllKeysLost > 0) { doc.text(`All Keys Lost: ${formatCurrency(vFin.totalAllKeysLost)}`, 30, yPos); yPos += 5; }
         doc.text(`Parts Cost: ${formatCurrency(vFin.totalPartsCost)}`, 30, yPos); yPos += 5;
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);

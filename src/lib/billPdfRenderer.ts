@@ -20,7 +20,7 @@ import type { Task, Client, Vehicle, SessionPhoto, Settings as SettingsType } fr
 import { formatCurrency } from '@/lib/formatTime';
 import { applyLaborDiscount } from '@/lib/discount';
 import { stripDiacritics } from '@/lib/pdfUtils';
-import { computeSessionLaborDetails, computeSessionParts, ceilDollars } from '@/lib/billing';
+import { computeSessionLaborDetails, computeSessionParts, ceilDollars, resolveRates } from '@/lib/billing';
 import { photoStorageService } from '@/services/photoStorageService';
 import {
   paintBillBackground,
@@ -67,7 +67,10 @@ export function computeBillTotals(
   vehicle: Vehicle | undefined,
   settings: RendererSettings,
 ): BillTotals {
-  const hourlyRate = client?.hourlyRate || settings.defaultHourlyRate;
+  // Build a SettingsType-shaped value so computeSessionLaborDetails / resolveRates
+  // pick up every fallback rate (RendererSettings is a structural subset).
+  const settingsForBilling = settings as unknown as SettingsType;
+  const hourlyRate = resolveRates(client ?? null, settingsForBilling).hourly;
 
   let baseLabor = 0;
   let totalMinHourAdj = 0;
@@ -80,10 +83,6 @@ export function computeBillTotals(
   let programmingCount = 0;
   let addKeyCount = 0;
   let allKeysLostCount = 0;
-
-  // Build a SettingsType-shaped value so computeSessionLaborDetails picks up
-  // every fallback rate (RendererSettings is a structural subset).
-  const settingsForBilling = settings as unknown as SettingsType;
 
   (task.sessions || []).forEach((session) => {
     const d = computeSessionLaborDetails(session, client ?? null, settingsForBilling);
@@ -186,6 +185,7 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
 export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
   const { task, client, vehicle, settings } = opts;
   const totals = computeBillTotals(task, client, vehicle, settings);
+  const settingsForBilling = settings as unknown as SettingsType;
 
   const doc = new jsPDF({ format: 'letter' });
 
@@ -193,12 +193,15 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
   const flowRows: FlowRow[] = [];
   (task.sessions || []).forEach((session) => {
     const sessionDuration = (session.periods || []).reduce((t, p) => t + p.duration, 0);
-    const sessionCost = (sessionDuration / 3600) * totals.hourlyRate;
+    // Single source of truth: time-based labor portion only (services and
+    // min-hour adjustments render as separate option rows so the breakdown
+    // stays itemised and reconciles to the totals block).
+    const d = computeSessionLaborDetails(session, client ?? null, settingsForBilling);
     flowRows.push({
       kind: 'session',
       description: stripDiacritics(session.description || 'Work session'),
       time: formatDurationHHMM(sessionDuration),
-      amount: formatCurrency(sessionCost),
+      amount: formatCurrency(d.baseLabor),
     });
   });
   if (totals.totalMinHourAdj > 0) flowRows.push({ kind: 'option', label: `Min 1 Hour adjustment (x${totals.minHourCount})`, amount: formatCurrency(totals.totalMinHourAdj) });
@@ -212,13 +215,21 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     [] as NonNullable<Task['sessions'][number]['parts']>,
   );
   allParts.forEach((part) => {
+    // Honor providedByClient — these parts contribute $0 to the totals block
+    // (via computeSessionParts); the itemised row must also show $0 so the
+    // detail rows reconcile to TOTAL.
     const condition = (part.description || '').trim();
+    const isClientSupplied = !!part.providedByClient;
+    const descParts = [
+      condition || null,
+      isClientSupplied ? 'client supplied' : null,
+    ].filter(Boolean) as string[];
     flowRows.push({
       kind: 'part',
       name: stripDiacritics(part.name),
-      description: condition ? stripDiacritics(condition) : null,
+      description: descParts.length > 0 ? stripDiacritics(descParts.join(' · ')) : null,
       quantity: `${part.quantity}`,
-      amount: formatCurrency(part.price * part.quantity),
+      amount: formatCurrency(isClientSupplied ? 0 : part.price * part.quantity),
     });
   });
 

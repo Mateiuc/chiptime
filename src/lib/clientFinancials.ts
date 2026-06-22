@@ -14,12 +14,11 @@
  *   - minute-rounding via calcPeriodCost
  *   - DesktopClientsView's $0 hourly-rate fallback
  */
-import type { Client, Settings, Task, Vehicle } from '@/types';
+import type { Client, Settings, Task } from '@/types';
 import {
   computeSessionLaborDetails,
   computeSessionParts,
   computeTaskTotal,
-  computeVehicleTotal,
 } from '@/lib/billing';
 
 export interface FinancialsBreakdown {
@@ -108,19 +107,6 @@ export function getVehicleFinancials(
     ...aggregate(vehicleTasks, client, settings),
     taskCount: vehicleTasks.length,
   };
-}
-
-/**
- * Convenience: per-vehicle total with the vehicle-level discount applied
- * (pooled across all tasks). Mirrors `computeVehicleTotal` in billing.ts.
- */
-export function getVehicleTotalWithDiscount(
-  vehicle: Vehicle | null | undefined,
-  vehicleTasks: Task[],
-  client: Client | null | undefined,
-  settings: Settings
-) {
-  return computeVehicleTotal(vehicle, vehicleTasks, client, settings);
 }
 
 // Re-export for callers that also need per-task totals.

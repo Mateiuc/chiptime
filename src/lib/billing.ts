@@ -72,10 +72,10 @@ export function ceilDollars(amount: number): number {
 export function resolveRates(client: Client | null | undefined, settings: Settings) {
   return {
     hourly: num(client?.hourlyRate) || num(settings.defaultHourlyRate),
-    cloning: num(client?.cloningRate) || num((settings as any).defaultCloningRate),
-    programming: num(client?.programmingRate) || num((settings as any).defaultProgrammingRate),
-    addKey: num(client?.addKeyRate) || num((settings as any).defaultAddKeyRate),
-    allKeysLost: num(client?.allKeysLostRate) || num((settings as any).defaultAllKeysLostRate),
+    cloning: num(client?.cloningRate) || num(settings.defaultCloningRate),
+    programming: num(client?.programmingRate) || num(settings.defaultProgrammingRate),
+    addKey: num(client?.addKeyRate) || num(settings.defaultAddKeyRate),
+    allKeysLost: num(client?.allKeysLostRate) || num(settings.defaultAllKeysLostRate),
   };
 }
 

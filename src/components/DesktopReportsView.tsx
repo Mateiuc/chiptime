@@ -832,6 +832,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('date')}>Date <SortIcon field="date" /></th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('client')}>Client <SortIcon field="client" /></th>
                     <th className="text-left py-2">Vehicle</th>
+                    <th className="text-left py-2">Worker</th>
                     <th className="text-left py-2">Description</th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('status')}>Status <SortIcon field="status" /></th>
                     <th className="text-right py-2">Time</th>
@@ -844,6 +845,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2">{format(r.date, 'MMM d, yyyy')}</td>
                       <td className="py-2">{r.client}</td>
                       <td className="py-2">{r.vehicle}</td>
+                      <td className="py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {r.workerIds.length === 0 ? <span className="text-muted-foreground text-xs">—</span> :
+                            r.workerIds.map(uid => <WorkerChip key={uid} worker={getWorker(uid)} size="xs" />)}
+                        </div>
+                      </td>
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
                       <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
@@ -853,7 +860,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 font-semibold">
-                    <td colSpan={5} className="py-2">Totals</td>
+                    <td colSpan={6} className="py-2">Totals</td>
                     <td className="py-2 text-right font-mono text-xs">{formatDuration(Math.round(totalHours * 3600))}</td>
                     <td className="py-2 text-right font-mono">{formatCurrency(totalRevenue)}</td>
                   </tr>

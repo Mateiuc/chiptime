@@ -207,6 +207,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return tasks.filter(t => {
       if (rptClient !== 'all' && t.clientId !== rptClient) return false;
       if (rptVehicle !== 'all' && t.vehicleId !== rptVehicle) return false;
+      if (rptWorker !== 'all' && !getTaskWorkerIds(t).includes(rptWorker)) return false;
       const d = new Date(t.createdAt);
       if (rptDateFrom && d < rptDateFrom) return false;
       if (rptDateTo) {
@@ -220,7 +221,28 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       if (['pending', 'in-progress', 'paused'].includes(t.status) && !rptShowActive) return false;
       return true;
     });
-  }, [tasks, rptClient, rptVehicle, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+  }, [tasks, rptClient, rptVehicle, rptWorker, rptDateFrom, rptDateTo, rptShowCompleted, rptShowBilled, rptShowPaid, rptShowActive]);
+
+  // Per-worker totals for the summary chip row.
+  const workerTotals = useMemo(() => {
+    const map: Record<string, { seconds: number; cost: number }> = {};
+    filteredTasks.forEach(t => {
+      const ids = getTaskWorkerIds(t);
+      const fallback = ids.length === 0 ? [''] : ids;
+      const seconds = getTaskSeconds(t);
+      const cost = getTaskCost(t);
+      // Equal split across involved workers — keeps totals additive.
+      const share = 1 / fallback.length;
+      fallback.forEach(uid => {
+        if (!map[uid]) map[uid] = { seconds: 0, cost: 0 };
+        map[uid].seconds += seconds * share;
+        map[uid].cost += cost * share;
+      });
+    });
+    return Object.entries(map)
+      .map(([uid, v]) => ({ uid, ...v }))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredTasks]);
 
   const revenueOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};

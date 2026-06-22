@@ -124,6 +124,7 @@ const Index = () => {
         startTime: runningTask.startTime,
         endTime: new Date(),
         duration: elapsed,
+        createdBy: getCurrentUserId() || undefined,
       };
 
       // Add period to the active session

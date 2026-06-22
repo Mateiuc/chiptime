@@ -164,7 +164,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [drillCars, setDrillCars] = useState<DrillState | null>(null);
 
   const resetFilters = () => {
-    setRptClient('all'); setRptVehicle('all');
+    setRptClient('all'); setRptVehicle('all'); setRptWorker('all');
     setRptDateFrom(undefined); setRptDateTo(undefined);
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);

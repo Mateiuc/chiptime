@@ -67,6 +67,17 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
+  workerIds: string[];
+}
+
+function getTaskWorkerIds(t: Task): string[] {
+  const set = new Set<string>();
+  if (t.createdBy) set.add(t.createdBy);
+  (t.sessions || []).forEach(s => {
+    if (s.createdBy) set.add(s.createdBy);
+    (s.periods || []).forEach(p => { if (p.createdBy) set.add(p.createdBy); });
+  });
+  return Array.from(set);
 }
 
 interface DrillState {

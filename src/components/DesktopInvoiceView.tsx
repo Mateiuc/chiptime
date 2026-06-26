@@ -425,6 +425,39 @@ export const DesktopInvoiceView = ({ settings }: Props) => {
               );
             })}
 
+            {/* Parts */}
+            {(() => {
+              let py = 78 + activeLineItems.length * 8;
+              return parts.filter(p => p.name).map(part => {
+                const partY = py;
+                const hasDesc = !!part.description;
+                const block = (
+                  <div key={part.id}>
+                    <span className="absolute" style={{ left: 22 * scale, top: partY * scale, maxWidth: previewDescMaxW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {part.name}
+                    </span>
+                    {hasDesc && (
+                      <span className="absolute italic" style={{ left: 24 * scale, top: (partY + 6) * scale, maxWidth: previewDescMaxW, color: 'rgb(100,100,100)', fontSize: `${9 * scale * 0.35}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {part.description}
+                      </span>
+                    )}
+                    {hasAnyTime && (
+                      <span className="absolute" style={{ left: 131 * scale, top: partY * scale }}>
+                        {part.quantity}
+                      </span>
+                    )}
+                    {hasAnyAmount && (
+                      <span className="absolute text-right" style={{ right: (LETTER_WIDTH_MM - 193) * scale, top: partY * scale }}>
+                        {formatCurrency(part.price * part.quantity)}
+                      </span>
+                    )}
+                  </div>
+                );
+                py += hasDesc ? 14 : 8;
+                return block;
+              });
+            })()}
+
             {/* Total */}
             <span className="absolute font-bold" style={{ right: (LETTER_WIDTH_MM - 145.9) * scale, top: 258 * scale, fontSize: `${16 * scale * 0.35}px` }}>
               TOTAL:

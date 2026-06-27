@@ -1,18 +1,36 @@
-## Problem
-The live invoice preview in `DesktopInvoiceView.tsx` only renders line items, not Parts. The screenshot shows 4 parts (Front rotors, Rear rotors, Shipping, Tax/Shop) totaling $766 — the total updates correctly, but only the first line item appears in the preview. The generated PDF already renders parts correctly (lines 182–205).
+## Finding
 
-## Fix
-In the preview panel (around lines 394–426), after the `activeLineItems.map(...)` block, add a parallel `parts.map(...)` block that mirrors the PDF's parts rendering:
+Backend currently has Cory's task `7d65446c…` as **in-progress** with `startTime` and `activeSessionId` still set. Desktop is showing exactly what the backend has. So either mobile never pushed the stop, or another device (desktop) pushed a stale snapshot afterwards that overwrote mobile's stop.
 
-- Continue y-position from where line items ended: `yBase = 78 + activeLineItems.length * 8 + i * 8` (extra spacing when a part has a description, matching the PDF's `yPos += 6` for description).
-- For each part with a `name`:
-  - Render `part.name` at the description column.
-  - If `part.description`, render it on the next line in smaller italic muted text.
-  - If `hasAnyTime`, render `part.quantity` in the time column.
-  - If `hasAnyAmount`, render `formatCurrency(part.price * part.quantity)` in the amount column.
+User rule: **mobile is the master** — desktop must never overwrite mobile.
 
-Use the same `scale`, column offsets, and font sizing already used for line items so the preview stays pixel-aligned with the PDF.
+## Plan
 
-## Scope
-- Single file: `src/components/DesktopInvoiceView.tsx`, preview JSX only.
-- No changes to PDF generation, state, or totals (already correct).
+### 1. Desktop becomes strictly read + targeted writes
+- Keep `cloudPushEnabled = false` on desktop mount (already in place) so background autosaves never run.
+- Remove/disable the "Save to Cloud" full-snapshot push button on desktop. Desktop will no longer push entire snapshots — that path is what can clobber a fresh mobile stop.
+- Allow only narrow, intentional desktop writes (mark billed, mark paid, edit a single task) and route those through a per-task patch that re-pulls fresh data, applies the field change to that one task, and pushes — never sending stale `in-progress`/`startTime`/`activeSessionId` for tasks the desktop didn't touch.
+
+### 2. Mobile push hardening (mobile = master)
+- On Stop → Complete Work, await the task update and the immediate cloud push before closing the dialog, so the user sees confirmation only after the backend accepted the change.
+- If the push fails, show an explicit "Not synced — retry" toast instead of silently queuing.
+
+### 3. Desktop auto-refresh
+- Pull on tab focus / visibility change and on a short interval (e.g. 60s) so mobile changes show up on desktop without manual reload.
+- Pause auto-pull while an inline edit dialog is open to avoid disrupting the user.
+
+### 4. Self-heal stuck "active" tasks on pull
+- When desktop pulls, if a task has `status: in-progress` but its active session already has `completedAt` (or no `startTime` field server-side and a completed session), normalize the in-memory view to `completed`. This is display-only — no write back from desktop.
+- Mobile, being master, can write a corrective update if the user re-opens the task.
+
+### 5. One-time repair for Cory's stuck task
+- From the mobile device, re-open Cory's task and tap Stop → Save again so mobile pushes the correct `completed` state. After that, desktop will reflect it on its next pull.
+
+### 6. Verify
+- Confirm in the backend that Cory's task flips to `completed`, `startTime` cleared, `activeSessionId` cleared.
+- Confirm desktop active tab no longer lists Cory after auto-refresh.
+
+## Out of scope
+- No schema changes.
+- No changes to billing/reports math.
+- No mobile UI redesign.

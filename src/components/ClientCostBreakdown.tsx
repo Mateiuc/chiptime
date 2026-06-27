@@ -148,6 +148,31 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     setAllCollapsed(!allCollapsed);
   };
 
+  const handlePrintVehicle = async (vehicleSummary: typeof filteredVehicles[number]) => {
+    try {
+      const fullVehicle = costSummary.vehicles.find(
+        v => v.vehicle.vin === vehicleSummary.vehicle.vin,
+      );
+      if (!fullVehicle) return;
+      const bundle = vehicleSummaryToTaskBundle(fullVehicle, costSummary.client.name);
+      const doc = await renderBillPdf({
+        task: bundle.task,
+        client: bundle.client,
+        vehicle: bundle.vehicle,
+        settings: bundle.settings,
+      });
+      const vehicleName = [bundle.vehicle.year, bundle.vehicle.make, bundle.vehicle.model]
+        .filter(Boolean)
+        .join(' ') || 'Vehicle';
+      const dateStr = new Date().toISOString().slice(0, 10);
+      doc.save(`bill-${vehicleName.replace(/\s+/g, '_')}-${dateStr}.pdf`);
+      toast({ title: 'Bill PDF saved' });
+    } catch (e) {
+      console.error('Print vehicle failed:', e);
+      toast({ title: 'Failed to generate bill', variant: 'destructive' });
+    }
+  };
+
   const formatDate = (date: Date | string) => {
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return 'N/A';

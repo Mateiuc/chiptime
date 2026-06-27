@@ -593,6 +593,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     // Phase 2: pure status flip — totals are always live (or importedSalary).
     updateTask(taskId, { status: 'billed' });
+    cloudPatchTask(taskId, { status: 'billed' });
     toast({ title: 'Task Marked as Billed' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
@@ -609,7 +610,9 @@ const DesktopDashboard = () => {
     const depositApplied = task
       ? applyDepositOnPaid(task, vehicles, clientTasks, client, settings)
       : undefined;
-    updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
+    const paidAt = depositApplied?.at || new Date();
+    updateTask(taskId, { status: 'paid', paidAt, depositApplied });
+    cloudPatchTask(taskId, { status: 'paid', paidAt, depositApplied });
     toast({ title: 'Payment Recorded' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
@@ -618,6 +621,7 @@ const DesktopDashboard = () => {
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
+
 
   const handleDelete = async (taskId: string) => {
     await photoStorageService.deleteAllPhotosForTask(taskId);

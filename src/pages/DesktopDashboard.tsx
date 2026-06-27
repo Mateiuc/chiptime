@@ -35,6 +35,7 @@ import { PhoneContact } from '@/services/contactsService';
 import jsPDF from 'jspdf';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { appSyncService } from '@/services/appSyncService';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';

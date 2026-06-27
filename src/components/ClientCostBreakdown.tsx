@@ -314,6 +314,16 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                         </p>
                       )}
                     </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => { e.stopPropagation(); handlePrintVehicle(vehicleSummary); }}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handlePrintVehicle(vehicleSummary); } }}
+                      className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background/80 text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      title="Print bill"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {vehicleSummary.vehicleTotal > 0 && (
                         <span className={`text-sm font-bold ${

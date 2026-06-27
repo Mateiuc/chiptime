@@ -8,9 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/formatTime';
-import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, ExternalLink, X } from 'lucide-react';
+import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, ExternalLink, X, Printer } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
+import { renderBillPdf } from '@/lib/billPdfRenderer';
+import { vehicleSummaryToTaskBundle } from '@/lib/portalToTask';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;

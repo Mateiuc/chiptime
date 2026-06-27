@@ -337,7 +337,3 @@ export const appSyncService = {
     }
   },
 };
-
-// Re-export Task for the patch helper signature.
-import type { Task as _Task } from '@/types';
-type Task = _Task;

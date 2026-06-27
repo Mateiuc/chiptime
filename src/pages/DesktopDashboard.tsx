@@ -976,11 +976,14 @@ const DesktopDashboard = () => {
               <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
               Reload
             </Button>
-            <Button size="sm" onClick={handleSaveToCloud} disabled={saving}
-              className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
-              <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
-              Save
-            </Button>
+            {/* Bulk "Save to Cloud" removed: it could overwrite mobile's
+                concurrent edits. Desktop now pushes per-task patches
+                automatically on Mark Billed / Mark Paid / inline edits. */}
+            {saving && (
+              <span className="text-xs text-primary-foreground/80 px-2">
+                Syncing…
+              </span>
+            )}
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
               { view: 'clients' as const, icon: Users, label: 'Clients' },

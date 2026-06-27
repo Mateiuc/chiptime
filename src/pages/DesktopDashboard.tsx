@@ -88,6 +88,7 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
+  const editingNowRef = useRef(false);
 
   useEffect(() => {
     setCloudPushEnabled(false);
@@ -97,6 +98,25 @@ const DesktopDashboard = () => {
   useEffect(() => {
     refresh();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-pull from cloud when the tab regains focus / becomes visible, and
+  // on a short interval. Mobile is the master; desktop must stay current
+  // with mobile's edits without requiring a manual Reload click.
+  useEffect(() => {
+    const safeRefresh = () => {
+      if (editingNowRef.current) return; // don't yank data out from under an open edit
+      refresh().catch(() => {});
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') safeRefresh(); };
+    window.addEventListener('focus', safeRefresh);
+    document.addEventListener('visibilitychange', onVisible);
+    const interval = setInterval(safeRefresh, 60_000);
+    return () => {
+      window.removeEventListener('focus', safeRefresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(interval);
+    };
+  }, [refresh]);
 
   // Ongoing backfill: stamp every Task/Session/Period/Part missing `createdBy`
   // with the current user. Runs whenever new unstamped items appear (e.g. data
@@ -151,14 +171,19 @@ const DesktopDashboard = () => {
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
   }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
 
-  const handleSaveToCloud = async () => {
-    setSaving(true);
+  /**
+   * Desktop cloud writes are PER-TASK PATCHES, never full snapshots.
+   * This pulls fresh cloud data, applies `updates` to ONLY this task id,
+   * and pushes the result back. Mobile's concurrent edits to OTHER tasks
+   * are preserved verbatim. Mobile remains the master for timer state.
+   */
+  const cloudPatchTask = async (taskId: string, updates: Partial<Task>) => {
     try {
-      const snapshot: SyncData = { clients, vehicles, tasks, settings };
-      await pushNow(snapshot);
-      toast({ title: 'Saved to Cloud' });
+      setSaving(true);
+      await appSyncService.patchTaskInCloud(taskId, updates);
     } catch (err: any) {
-      toast({ title: 'Save Failed', description: err.message, variant: 'destructive' });
+      console.error('[Desktop] patchTaskInCloud failed:', err);
+      toast({ title: 'Cloud save failed', description: err?.message || 'Please reload and try again.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -168,6 +193,8 @@ const DesktopDashboard = () => {
     await refresh();
     toast({ title: 'Reloaded from Cloud' });
   };
+
+
 
   const { toast } = useNotifications();
 

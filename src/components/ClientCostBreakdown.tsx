@@ -8,9 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/formatTime';
-import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, ExternalLink, X } from 'lucide-react';
+import { Car, Clock, Wrench, DollarSign, Camera, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, ExternalLink, X, Printer } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
+import { renderBillPdf } from '@/lib/billPdfRenderer';
+import { vehicleSummaryToTaskBundle } from '@/lib/portalToTask';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
@@ -144,6 +146,31 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
       setCollapsedVehicles(new Set(filteredVehicles.map((_, i) => i)));
     }
     setAllCollapsed(!allCollapsed);
+  };
+
+  const handlePrintVehicle = async (vehicleSummary: typeof filteredVehicles[number]) => {
+    try {
+      const fullVehicle = costSummary.vehicles.find(
+        v => v.vehicle.vin === vehicleSummary.vehicle.vin,
+      );
+      if (!fullVehicle) return;
+      const bundle = vehicleSummaryToTaskBundle(fullVehicle, costSummary.client.name);
+      const doc = await renderBillPdf({
+        task: bundle.task,
+        client: bundle.client,
+        vehicle: bundle.vehicle,
+        settings: bundle.settings,
+      });
+      const vehicleName = [bundle.vehicle.year, bundle.vehicle.make, bundle.vehicle.model]
+        .filter(Boolean)
+        .join(' ') || 'Vehicle';
+      const dateStr = new Date().toISOString().slice(0, 10);
+      doc.save(`bill-${vehicleName.replace(/\s+/g, '_')}-${dateStr}.pdf`);
+      toast({ title: 'Bill PDF saved' });
+    } catch (e) {
+      console.error('Print vehicle failed:', e);
+      toast({ title: 'Failed to generate bill', variant: 'destructive' });
+    }
   };
 
   const formatDate = (date: Date | string) => {
@@ -286,6 +313,16 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                           {v.vin}
                         </p>
                       )}
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => { e.stopPropagation(); handlePrintVehicle(vehicleSummary); }}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handlePrintVehicle(vehicleSummary); } }}
+                      className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background/80 text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      title="Print bill"
+                    >
+                      <Printer className="h-4 w-4" />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {vehicleSummary.vehicleTotal > 0 && (

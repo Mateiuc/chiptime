@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp, Square } from 'lucide-react';
 import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -35,6 +35,7 @@ import { PhoneContact } from '@/services/contactsService';
 import jsPDF from 'jspdf';
 import { stripDiacritics, mergePdfs } from '@/lib/pdfUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { appSyncService } from '@/services/appSyncService';
 import { resolveDiagnosticPdfUrl } from '@/services/diagnosticPdfService';
 import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -87,6 +88,7 @@ const DesktopDashboard = () => {
     settings: settingsHook,
   });
   const [saving, setSaving] = useState(false);
+  const editingNowRef = useRef(false);
 
   useEffect(() => {
     setCloudPushEnabled(false);
@@ -96,6 +98,25 @@ const DesktopDashboard = () => {
   useEffect(() => {
     refresh();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-pull from cloud when the tab regains focus / becomes visible, and
+  // on a short interval. Mobile is the master; desktop must stay current
+  // with mobile's edits without requiring a manual Reload click.
+  useEffect(() => {
+    const safeRefresh = () => {
+      if (editingNowRef.current) return; // don't yank data out from under an open edit
+      refresh().catch(() => {});
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') safeRefresh(); };
+    window.addEventListener('focus', safeRefresh);
+    document.addEventListener('visibilitychange', onVisible);
+    const interval = setInterval(safeRefresh, 60_000);
+    return () => {
+      window.removeEventListener('focus', safeRefresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(interval);
+    };
+  }, [refresh]);
 
   // Ongoing backfill: stamp every Task/Session/Period/Part missing `createdBy`
   // with the current user. Runs whenever new unstamped items appear (e.g. data
@@ -150,14 +171,19 @@ const DesktopDashboard = () => {
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
   }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
 
-  const handleSaveToCloud = async () => {
-    setSaving(true);
+  /**
+   * Desktop cloud writes are PER-TASK PATCHES, never full snapshots.
+   * This pulls fresh cloud data, applies `updates` to ONLY this task id,
+   * and pushes the result back. Mobile's concurrent edits to OTHER tasks
+   * are preserved verbatim. Mobile remains the master for timer state.
+   */
+  const cloudPatchTask = async (taskId: string, updates: Partial<Task>) => {
     try {
-      const snapshot: SyncData = { clients, vehicles, tasks, settings };
-      await pushNow(snapshot);
-      toast({ title: 'Saved to Cloud' });
+      setSaving(true);
+      await appSyncService.patchTaskInCloud(taskId, updates);
     } catch (err: any) {
-      toast({ title: 'Save Failed', description: err.message, variant: 'destructive' });
+      console.error('[Desktop] patchTaskInCloud failed:', err);
+      toast({ title: 'Cloud save failed', description: err?.message || 'Please reload and try again.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -167,6 +193,8 @@ const DesktopDashboard = () => {
     await refresh();
     toast({ title: 'Reloaded from Cloud' });
   };
+
+
 
   const { toast } = useNotifications();
 
@@ -565,6 +593,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     // Phase 2: pure status flip — totals are always live (or importedSalary).
     updateTask(taskId, { status: 'billed' });
+    cloudPatchTask(taskId, { status: 'billed' });
     toast({ title: 'Task Marked as Billed' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
@@ -581,7 +610,9 @@ const DesktopDashboard = () => {
     const depositApplied = task
       ? applyDepositOnPaid(task, vehicles, clientTasks, client, settings)
       : undefined;
-    updateTask(taskId, { status: 'paid', paidAt: depositApplied?.at || new Date(), depositApplied });
+    const paidAt = depositApplied?.at || new Date();
+    updateTask(taskId, { status: 'paid', paidAt, depositApplied });
+    cloudPatchTask(taskId, { status: 'paid', paidAt, depositApplied });
     toast({ title: 'Payment Recorded' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
@@ -590,6 +621,7 @@ const DesktopDashboard = () => {
         .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
     }
   };
+
 
   const handleDelete = async (taskId: string) => {
     await photoStorageService.deleteAllPhotosForTask(taskId);
@@ -948,11 +980,14 @@ const DesktopDashboard = () => {
               <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
               Reload
             </Button>
-            <Button size="sm" onClick={handleSaveToCloud} disabled={saving}
-              className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
-              <Upload className={`h-4 w-4 mr-1 ${saving ? 'animate-pulse' : ''}`} />
-              Save
-            </Button>
+            {/* Bulk "Save to Cloud" removed: it could overwrite mobile's
+                concurrent edits. Desktop now pushes per-task patches
+                automatically on Mark Billed / Mark Paid / inline edits. */}
+            {saving && (
+              <span className="text-xs text-primary-foreground/80 px-2">
+                Syncing…
+              </span>
+            )}
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
               { view: 'clients' as const, icon: Users, label: 'Clients' },

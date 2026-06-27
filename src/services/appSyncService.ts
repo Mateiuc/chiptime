@@ -296,4 +296,44 @@ export const appSyncService = {
     if (!localUpdatedAt) return true;
     return new Date(remoteUpdatedAt) > new Date(localUpdatedAt);
   },
+
+  /**
+   * SAFE per-task patch (desktop = secondary; mobile = master).
+   *
+   * Instead of pushing the entire local snapshot — which can clobber a
+   * mobile Stop/Save that landed in between — this:
+   *   1. Pulls fresh cloud data.
+   *   2. Applies `updates` to ONLY the named task id (shallow merge).
+   *   3. Pushes the modified snapshot back with the optimistic version
+   *      that came from step 1.
+   *
+   * Other tasks (and clients/vehicles/settings) come straight from the
+   * fresh remote, so a stale desktop view can never overwrite mobile work
+   * on another task. Retries once on version conflict.
+   */
+  async patchTaskInCloud(
+    taskId: string,
+    updates: Partial<Task>,
+    retryDepth = 0,
+  ): Promise<{ patchedTask: Task | null; snapshot: SyncData } | null> {
+    const fresh = await this.pullFromCloud();
+    if (!fresh) return null;
+    const snap = fresh.data;
+    let patched: Task | null = null;
+    const nextTasks = (snap.tasks || []).map(t => {
+      if (t.id !== taskId) return t;
+      patched = { ...t, ...updates } as Task;
+      return patched;
+    });
+    const nextSnap: SyncData = { ...snap, tasks: nextTasks };
+    try {
+      await this.pushToCloud(nextSnap);
+      return { patchedTask: patched, snapshot: nextSnap };
+    } catch (err) {
+      if (err instanceof VersionConflictError && retryDepth < 2) {
+        return this.patchTaskInCloud(taskId, updates, retryDepth + 1);
+      }
+      throw err;
+    }
+  },
 };

@@ -192,6 +192,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       )}
 
 
+      {isAdmin && (
+      <>
       {/* Payment Methods */}
       <Card>
         <CardHeader>
@@ -253,6 +255,9 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </CardContent>
       </Card>
 
+      </>
+      )}
+
       {/* Camera */}
       <Card>
         <CardHeader>
@@ -274,6 +279,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       </Card>
 
       {/* Client Portal Branding */}
+      {isAdmin && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Client Portal Branding</CardTitle>
@@ -408,6 +414,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Save */}
       <div className="flex justify-end">

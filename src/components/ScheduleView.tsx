@@ -208,7 +208,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                       </Button>
                     )}
                     {canEdit && (
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(entry); setDialogOpen(true); }}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(entry); setVoiceInitial(null); setVoiceTranscript(undefined); setDialogOpen(true); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}

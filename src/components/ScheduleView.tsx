@@ -32,7 +32,7 @@ const formatWhen = (d?: Date): string => {
   });
 };
 
-export const ScheduleView = ({ schedule, clients, vehicles, tasks, onAdd, onUpdate, onDelete, onStartTask }: Props) => {
+export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
   const { getWorker } = useWorkers();
@@ -151,13 +151,17 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, onAdd, onUpda
         onOpenChange={setDialogOpen}
         clients={clients}
         vehicles={vehicles}
+        tasks={tasks}
+        settings={settings}
         initial={editing}
         onSave={(entry) => {
           if (editing) onUpdate(editing.id, entry);
           else onAdd(entry);
         }}
         onDelete={editing ? onDelete : undefined}
+        onAddVehicle={onAddVehicle}
       />
+
     </div>
   );
 };

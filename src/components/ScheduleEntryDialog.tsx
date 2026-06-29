@@ -118,14 +118,16 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
   const handleSaveNewVehicle = async () => {
     if (!clientId) return;
     const vinTrimmed = nvVin.trim().toUpperCase();
-    if (!vinTrimmed) {
-      toast({ title: 'Missing VIN', variant: 'destructive' });
+    if (!vinTrimmed && !nvMake.trim() && !nvModel.trim()) {
+      toast({ title: 'Need VIN, Make, or Model', description: 'Provide at least one to identify the vehicle', variant: 'destructive' });
       return;
     }
-    const activeTasks = tasks.filter(t => !['billed', 'paid'].includes(t.status));
-    if (activeTasks.find(t => t.carVin.toUpperCase() === vinTrimmed)) {
-      toast({ title: 'Duplicate VIN', description: 'Already in an active task', variant: 'destructive' });
-      return;
+    if (vinTrimmed) {
+      const activeTasks = tasks.filter(t => !['billed', 'paid'].includes(t.status));
+      if (activeTasks.find(t => t.carVin.toUpperCase() === vinTrimmed)) {
+        toast({ title: 'Duplicate VIN', description: 'Already in an active task', variant: 'destructive' });
+        return;
+      }
     }
     const newVehicle: Vehicle = {
       id: crypto.randomUUID(),
@@ -147,6 +149,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
       setNvSaving(false);
     }
   };
+
 
   const handleSave = () => {
     if (!clientId || !vehicleId || !requestedWork.trim()) return;

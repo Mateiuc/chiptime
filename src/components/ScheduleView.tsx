@@ -36,12 +36,42 @@ const formatWhen = (d?: Date): string => {
   });
 };
 
-export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle }: Props) => {
+export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
+  const [scanForVehicleId, setScanForVehicleId] = useState<string | null>(null);
   const { getWorker } = useWorkers();
   const uid = useCurrentUserId();
   const { toast } = useNotifications();
+
+  const handleVinScanned = async (scanned: string) => {
+    const vid = scanForVehicleId;
+    setScanForVehicleId(null);
+    if (!vid) return;
+    const vin = scanned.trim().toUpperCase();
+    if (!validateVin(vin)) {
+      toast({ title: 'Invalid VIN', description: 'Must be 17 characters', variant: 'destructive' });
+      return;
+    }
+    const activeTasks = tasks.filter(t => !['billed', 'paid'].includes(t.status));
+    if (activeTasks.find(t => t.carVin.toUpperCase() === vin)) {
+      toast({ title: 'Duplicate VIN', description: 'Already in an active task', variant: 'destructive' });
+      return;
+    }
+    const veh = vehicles.find(v => v.id === vid);
+    const updates: Partial<Vehicle> = { vin };
+    if (veh && (!veh.make || !veh.model || !veh.year)) {
+      const decoded = await decodeVin(vin);
+      if (decoded) {
+        if (!veh.make && decoded.make) updates.make = decoded.make;
+        if (!veh.model && decoded.model) updates.model = decoded.model;
+        if (!veh.year && decoded.year) updates.year = decoded.year;
+      }
+    }
+    onUpdateVehicle(vid, updates);
+    toast({ title: 'VIN saved', description: vin });
+  };
+
 
   const visible = useMemo(() => {
     return schedule

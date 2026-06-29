@@ -667,7 +667,7 @@ const DesktopDashboard = () => {
       : undefined;
     const paidAt = depositApplied?.at || new Date();
     updateTask(taskId, { status: 'paid', paidAt, depositApplied });
-    cloudPatchTask(taskId, { status: 'paid', paidAt, depositApplied });
+    // No cloud push here — Save button does that explicitly.
     toast({ title: 'Payment Recorded' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);

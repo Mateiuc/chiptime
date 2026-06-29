@@ -25,6 +25,7 @@ interface Props {
   onSave: (entry: ScheduleEntry) => void;
   onDelete?: (id: string) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  aiTranscript?: string;
 }
 
 const toLocalDate = (d?: Date) => {

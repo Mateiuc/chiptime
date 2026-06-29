@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
-import { Client, Vehicle, Task, Settings } from '@/types';
+import { Client, Vehicle, Task, Settings, ScheduleEntry } from '@/types';
 import { dlog } from '@/lib/devLog';
 
 const LOCAL_UPDATED_AT_KEY = 'app_sync_local_updated_at';
@@ -11,6 +11,7 @@ export interface SyncData {
   vehicles: Vehicle[];
   tasks: Task[];
   settings: Settings;
+  schedule?: ScheduleEntry[];
 }
 
 /**
@@ -39,6 +40,7 @@ function normalizeRaw(raw: any): SyncData {
     tasks: Array.isArray(raw?.tasks) ? raw.tasks.filter((t: any) => isObj(t) && t.id) : [],
     clients: Array.isArray(raw?.clients) ? raw.clients.filter((c: any) => isObj(c) && c.id) : [],
     vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles.filter((v: any) => isObj(v) && v.id) : [],
+    schedule: Array.isArray(raw?.schedule) ? raw.schedule.filter((s: any) => isObj(s) && s.id) : [],
     settings: raw?.settings || { defaultHourlyRate: 75 },
   };
 }

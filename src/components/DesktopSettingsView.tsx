@@ -65,6 +65,23 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Notifications — available to all members */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Popup Notifications</Label>
+              <p className="text-xs text-muted-foreground">Show confirmation toasts</p>
+            </div>
+            <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {isAdmin && (
       <div className="grid grid-cols-2 gap-6">
         {/* Default Hourly Rate */}
         <Card>

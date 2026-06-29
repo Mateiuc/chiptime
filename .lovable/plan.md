@@ -1,21 +1,35 @@
-## Changes
+## Problem
+On desktop, `ScheduleEntryDialog` renders as a narrow `max-w-md` panel pinned to the left edge (looks like a side sheet), with all fields stacked single-column — wastes horizontal space and looks broken.
 
-### 1. Reorder tabs — Schedule after Completed
-File: `src/pages/Index.tsx` (mobile)
-- In the Tabs section (lines ~743–766), reorder the `<TabsTrigger>`s to: **Active → Completed → Schedule**, and move the `<TabsContent value="schedule">` block accordingly. Set `defaultValue="active"` (already is).
+## Fix
+File: `src/components/ScheduleEntryDialog.tsx`
 
-Desktop (`DesktopDashboard.tsx`) uses a sidebar nav, not tabs. Reorder the sidebar nav items so Schedule sits after the equivalent "completed/tree" item (find the nav items array and move the `schedule` entry to follow the active/completed cluster).
+Make the dialog responsive: stays mobile-friendly on small screens, becomes a polished centered modal with a 2-column grid on desktop.
 
-### 2. Replace VIN scan icon with QrCode + "VIN" label
-File: `src/components/ScheduleView.tsx`
-- Replace the `Scan` lucide import with `QrCode`.
-- Change the icon-only button into a small pill button:
-  - `<Button size="sm" className="h-7 px-2 gap-1 ...">` with `<QrCode className="h-3.5 w-3.5" />` + `<span className="text-[11px] font-semibold">VIN</span>`.
-  - Keep the pulsing amber variant when the vehicle has no VIN; ghost/outline when re-scanning an existing VIN.
-  - Keep tooltip/title: "Scan VIN now" / "Re-scan VIN".
+1. **DialogContent sizing**
+   - Change `max-w-md` → `max-w-md sm:max-w-2xl lg:max-w-3xl`
+   - Keep `max-h-[90vh] overflow-y-auto`
+   - Add subtle `p-0` wrapper + sticky header/footer so the form scrolls cleanly
 
-No behavior changes — same `setScanForVehicleId(vehicle.id)` onClick, same `VinScanner` flow.
+2. **Header**
+   - Sticky top bar with title + subtle subtitle (e.g. "Plan upcoming work for a client")
+   - Border-bottom, padded
+
+3. **Body layout** — 2-column grid on `sm:` and up:
+   - **Left column**: Client, Vehicle (+ inline new-vehicle card spans full width when open), Assigned worker
+   - **Right column**: Date + Time (kept as their own 2-col mini grid), Requested work (textarea, taller), Notes
+   - On mobile: single column (current behavior)
+   - Use `grid grid-cols-1 sm:grid-cols-2 gap-4 p-5`
+
+4. **New-vehicle inline card**
+   - When open, make it span both columns (`sm:col-span-2`) so the make/model/year/color grid has room
+   - Tighten spacing; keep current fields & logic untouched
+
+5. **Footer**
+   - Sticky bottom bar, border-top, right-aligned Save/Cancel, Delete stays left
+   - Slightly larger Save button
 
 ## Out of scope
-- No changes to the VIN scanner itself.
-- No changes to the new-vehicle inline form.
+- No logic changes (save handler, VIN decode, validation all unchanged)
+- No changes to `ScheduleView` or mobile usage — the dialog already adapts via responsive classes
+- No changes to the VIN scanner overlay

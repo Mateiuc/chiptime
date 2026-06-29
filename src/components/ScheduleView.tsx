@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Play, Pencil, Calendar, User as UserIcon } from 'lucide-react';
-import { ScheduleEntry, Client, Vehicle, Task, WorkSession } from '@/types';
+import { ScheduleEntry, Client, Vehicle, Task, WorkSession, Settings } from '@/types';
 import { ScheduleEntryDialog } from './ScheduleEntryDialog';
 import { useWorkers } from '@/lib/workers';
 import { useCanEdit, useCurrentUserId } from '@/lib/permissions';
@@ -14,11 +14,14 @@ interface Props {
   clients: Client[];
   vehicles: Vehicle[];
   tasks: Task[];
+  settings: Settings;
   onAdd: (entry: ScheduleEntry) => void;
   onUpdate: (id: string, updates: Partial<ScheduleEntry>) => void;
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
+  onAddVehicle: (v: Vehicle) => Promise<void> | void;
 }
+
 
 const formatWhen = (d?: Date): string => {
   if (!d) return 'Unscheduled';

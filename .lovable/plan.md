@@ -1,16 +1,17 @@
-## Problem
-After selecting a job in the desktop Schedule view, the right pane shows the editor with no way to get back to the calendar overview. Clicking the same job again or clicking on whitespace doesn't deselect it.
+## Plan
 
-## Fix
+### Scope
 Single file: `src/components/DesktopScheduleView.tsx`.
 
-Add a **"← Back to calendar"** button in the editor header (left side, before `selectionLabel`). Clicking it:
-- If `dirty`, confirm "Discard unsaved changes?" first.
-- Sets `selectedId = null` and `isDraft = false` → right pane re-renders the calendar overview.
+### Change
+Move the **"Calendar"** back-to-overview button from the sticky editor header (currently at the top-left before the title) into the bottom action bar, placing it to the left of the **Delete** button.
 
-Also make the left-list cards toggle: clicking the currently-selected card deselects it (same back-to-calendar behavior). This gives two intuitive ways back.
+### Why
+Keeps all navigation/exit actions grouped at the bottom near Save/Reset/Delete, matching the user's suggestion.
 
-No other changes — calendar state (`previewDate`, `showUnscheduled`) is preserved because it lives on the component, so returning shows the same month/day the user was last on.
+### Implementation
+1. Remove the `Calendar` `<Button>` block from the header area (around line 572).
+2. Insert the same button at the start of the bottom action bar (around line 711), before the conditional Delete button.
+3. Keep the same behavior: if `dirty`, confirm "Discard unsaved changes?" before setting `selectedId = null` and returning to the calendar overview.
 
-## Out of scope
-Mobile schedule, editor layout, list styling.
+No other changes.

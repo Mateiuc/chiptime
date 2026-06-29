@@ -1,35 +1,37 @@
 ## Problem
-On desktop, `ScheduleEntryDialog` renders as a narrow `max-w-md` panel pinned to the left edge (looks like a side sheet), with all fields stacked single-column — wastes horizontal space and looks broken.
+The edit job still opens as a modal dialog on desktop, which looks bad. User wants the desktop schedule editor to follow the **Clients view pattern**: master-detail split, edit happens inline in the right pane — no popup at all.
 
 ## Fix
-File: `src/components/ScheduleEntryDialog.tsx`
 
-Make the dialog responsive: stays mobile-friendly on small screens, becomes a polished centered modal with a 2-column grid on desktop.
+### 1. New component: `src/components/DesktopScheduleView.tsx`
+Desktop-only schedule view with a 2-pane split layout (mirrors `DesktopClientsView`):
 
-1. **DialogContent sizing**
-   - Change `max-w-md` → `max-w-md sm:max-w-2xl lg:max-w-3xl`
-   - Keep `max-h-[90vh] overflow-y-auto`
-   - Add subtle `p-0` wrapper + sticky header/footer so the form scrolls cleanly
+- **Left pane (~360px)**: scrollable list of schedule entries
+  - Header: title + count + `+ Add` button
+  - Each card: client name, vehicle, scheduled-when badge, requested-work preview, assigned worker chip
+  - Clicking a card selects it (highlight). Clicking `+ Add` creates a new draft entry and selects it.
+  - Compact VIN scan button + Start button on each card (same actions as mobile `ScheduleView`).
 
-2. **Header**
-   - Sticky top bar with title + subtle subtitle (e.g. "Plan upcoming work for a client")
-   - Border-bottom, padded
+- **Right pane (flex-1)**: inline editor for the selected entry
+  - If none selected → empty state ("Select a job to edit, or click + Add").
+  - Otherwise renders the full form **inline as a Card** (not a Dialog):
+    - Two-column grid: Client / Vehicle / Worker on left, Date+Time / Requested work / Notes on right.
+    - New-vehicle inline sub-form spans full width when opened (reuses same logic).
+    - Sticky footer in the card with Delete (left), Save / Cancel (right). Save commits; Cancel reverts unsaved edits or discards the draft.
+  - Local draft state; "unsaved changes" indicator on Save button when dirty.
 
-3. **Body layout** — 2-column grid on `sm:` and up:
-   - **Left column**: Client, Vehicle (+ inline new-vehicle card spans full width when open), Assigned worker
-   - **Right column**: Date + Time (kept as their own 2-col mini grid), Requested work (textarea, taller), Notes
-   - On mobile: single column (current behavior)
-   - Use `grid grid-cols-1 sm:grid-cols-2 gap-4 p-5`
+Reuses all existing handlers passed in (`onAdd`, `onUpdate`, `onDelete`, `onStartTask`, `onAddVehicle`, `onUpdateVehicle`) and the same `VinScanner` flow.
 
-4. **New-vehicle inline card**
-   - When open, make it span both columns (`sm:col-span-2`) so the make/model/year/color grid has room
-   - Tighten spacing; keep current fields & logic untouched
+### 2. Wire it up in `src/pages/DesktopDashboard.tsx`
+- Where `<ScheduleView ... />` is currently rendered for the desktop "schedule" view, swap it for `<DesktopScheduleView ... />` (same props).
+- Mobile (`src/pages/Index.tsx`) continues to use the existing `ScheduleView` / `ScheduleEntryDialog` — unchanged.
 
-5. **Footer**
-   - Sticky bottom bar, border-top, right-aligned Save/Cancel, Delete stays left
-   - Slightly larger Save button
+### 3. Leave existing files alone
+- `ScheduleEntryDialog.tsx` stays (still used by mobile).
+- `ScheduleView.tsx` stays (still used by mobile).
+- No logic changes to add/update/delete/start, no type changes.
 
 ## Out of scope
-- No logic changes (save handler, VIN decode, validation all unchanged)
-- No changes to `ScheduleView` or mobile usage — the dialog already adapts via responsive classes
-- No changes to the VIN scanner overlay
+- Mobile schedule UI
+- Any backend/sync changes
+- VIN scanner internals

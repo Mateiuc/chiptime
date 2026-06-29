@@ -349,7 +349,7 @@ export const DesktopScheduleView = ({
             <h2 className="font-bold text-sm">Scheduled jobs</h2>
             <p className="text-[11px] text-muted-foreground">{visible.length} pending</p>
           </div>
-          <Button size="sm" onClick={handleNewDraft}>
+          <Button size="sm" onClick={() => handleNewDraft()}>
             <Plus className="h-4 w-4 mr-1" /> Add
           </Button>
         </div>

@@ -104,21 +104,6 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </CardContent>
         </Card>
 
-        {/* Notifications */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Popup Notifications</Label>
-                <p className="text-xs text-muted-foreground">Show confirmation toasts</p>
-              </div>
-              <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Default Cloning Rate */}
         <Card>

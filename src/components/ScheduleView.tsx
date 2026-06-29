@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Pencil, Calendar, User as UserIcon, Scan } from 'lucide-react';
+import { Plus, Play, Pencil, Calendar, User as UserIcon, QrCode } from 'lucide-react';
 import { ScheduleEntry, Client, Vehicle, Task, WorkSession, Settings } from '@/types';
 import { ScheduleEntryDialog } from './ScheduleEntryDialog';
 import { useWorkers } from '@/lib/workers';

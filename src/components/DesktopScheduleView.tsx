@@ -461,13 +461,106 @@ export const DesktopScheduleView = ({
       {/* RIGHT: editor */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {!selectedId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
-            <CalendarDays className="h-12 w-12 opacity-40" />
-            <div className="text-center">
-              <p className="font-medium text-foreground">No job selected</p>
-              <p className="text-sm">Pick a job from the list, or click <span className="font-semibold">+ Add</span> to plan one.</p>
+          <ScrollArea className="flex-1">
+            <div className="p-6 max-w-3xl mx-auto space-y-6">
+              <div>
+                <h2 className="font-bold text-lg flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5 text-primary" /> Schedule overview
+                </h2>
+                <p className="text-xs text-muted-foreground">Pick a day to see the cars scheduled, or click a job in the list on the left.</p>
+              </div>
+
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="rounded-lg border-2 bg-card p-2 shrink-0">
+                  <CalendarUI
+                    mode="single"
+                    selected={previewDate}
+                    onSelect={(d) => { if (d) { setPreviewDate(d); setShowUnscheduled(false); } }}
+                    modifiers={{ hasJobs: daysWithJobs, overdue: overdueDays }}
+                    modifiersClassNames={{
+                      hasJobs: 'font-bold relative after:content-[""] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary',
+                      overdue: 'text-orange-600 dark:text-orange-400 after:!bg-orange-500',
+                    }}
+                    className="pointer-events-auto"
+                  />
+                  <div className="px-2 pb-2 pt-1 flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> scheduled</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> overdue</span>
+                    {unscheduled.length > 0 && (
+                      <button
+                        onClick={() => setShowUnscheduled(s => !s)}
+                        className={`ml-auto px-2 py-0.5 rounded-full border text-[11px] ${showUnscheduled ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
+                      >
+                        Unscheduled ({unscheduled.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-sm flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      {showUnscheduled
+                        ? `Unscheduled (${unscheduled.length})`
+                        : previewDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                      {!showUnscheduled && (
+                        <Badge variant="secondary" className="h-5 text-[10px]">{previewEntries.length}</Badge>
+                      )}
+                    </h3>
+                    {!showUnscheduled && (
+                      <Button size="sm" variant="outline" onClick={() => handleNewDraft(previewKey)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add on this day
+                      </Button>
+                    )}
+                  </div>
+
+                  {previewEntries.length === 0 ? (
+                    <div className="rounded-lg border-2 border-dashed p-8 text-center text-sm text-muted-foreground">
+                      {showUnscheduled ? 'No unscheduled jobs.' : 'No jobs scheduled for this day.'}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {previewEntries.map(entry => {
+                        const client = clients.find(c => c.id === entry.clientId);
+                        const vehicle = vehicles.find(v => v.id === entry.vehicleId);
+                        const worker = entry.assignedTo ? getWorker(entry.assignedTo) : null;
+                        const time = entry.scheduledAt
+                          ? new Date(entry.scheduledAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                          : '—';
+                        const isOverdue = entry.scheduledAt && new Date(entry.scheduledAt) < new Date();
+                        return (
+                          <button
+                            key={entry.id}
+                            onClick={() => handleSelectEntry(entry.id)}
+                            className={`w-full text-left rounded-lg border-2 p-3 flex items-center gap-3 transition hover:bg-accent/40 ${
+                              isOverdue ? 'border-orange-400/60 bg-orange-500/5' : 'border-border bg-card'
+                            }`}
+                          >
+                            <div className="w-16 shrink-0 text-center">
+                              <div className="font-bold text-sm tabular-nums">{time}</div>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-sm truncate">{client?.name || 'Unknown'}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle' : 'Unknown vehicle'}
+                              </div>
+                              <div className="text-xs text-foreground/70 truncate mt-0.5">{entry.requestedWork}</div>
+                            </div>
+                            {worker && (
+                              <Badge variant="outline" className="gap-1 text-[10px] h-5 shrink-0" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
+                                <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
+                              </Badge>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          </ScrollArea>
         ) : (
           <>
             <div className="px-6 py-3 border-b flex items-center justify-between bg-background">

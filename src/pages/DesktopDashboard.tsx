@@ -17,7 +17,9 @@ import { AddClientPage } from '@/components/AddClientPage';
 import { AddVehiclePage } from '@/components/AddVehiclePage';
 import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
-import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow } from '@/hooks/useStorage';
+import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow, useSchedule } from '@/hooks/useStorage';
+import { ScheduleView } from '@/components/ScheduleView';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -71,11 +73,13 @@ const DesktopDashboard = () => {
   const vehiclesHook = useVehicles();
   const tasksHook = useTasks();
   const settingsHook = useSettings();
+  const scheduleHook = useSchedule();
 
   const { clients, addClient, updateClient, deleteClient } = clientsHook;
   const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
   const { tasks, setTasks, addTask, updateTask, deleteTask } = tasksHook;
   const { settings, setSettings } = settingsHook;
+  const { schedule, addEntry: addScheduleEntry, updateEntry: updateScheduleEntry, deleteEntry: deleteScheduleEntry } = scheduleHook;
 
   const { user } = useAuth();
   const currentUserId = user?.id;
@@ -86,6 +90,7 @@ const DesktopDashboard = () => {
     vehicles: vehiclesHook,
     tasks: tasksHook,
     settings: settingsHook,
+    schedule: scheduleHook,
   });
   const [saving, setSaving] = useState(false);
   const editingNowRef = useRef(false);
@@ -253,7 +258,7 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
-  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients' | 'addClient' | 'addVehicle'>('tree');
+  const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients' | 'addClient' | 'addVehicle' | 'schedule'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -1064,6 +1069,7 @@ const DesktopDashboard = () => {
 
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
+              { view: 'schedule' as const, icon: CalendarIcon, label: 'Schedule' },
               { view: 'clients' as const, icon: Users, label: 'Clients' },
               { view: 'invoices' as const, icon: Receipt, label: 'Invoices' },
               { view: 'reports' as const, icon: BarChart3, label: 'Reports' },
@@ -1092,6 +1098,19 @@ const DesktopDashboard = () => {
       {desktopView === 'settings' ? (
         <div className="flex-1 overflow-y-auto">
           <DesktopSettingsView settings={settings} onSave={setSettings} />
+        </div>
+      ) : desktopView === 'schedule' ? (
+        <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
+          <ScheduleView
+            schedule={schedule}
+            clients={clients}
+            vehicles={vehicles}
+            tasks={tasks}
+            onAdd={addScheduleEntry}
+            onUpdate={updateScheduleEntry}
+            onDelete={deleteScheduleEntry}
+            onStartTask={(task) => { addTask(task); setDesktopView('tree'); }}
+          />
         </div>
       ) : desktopView === 'reports' ? (
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />

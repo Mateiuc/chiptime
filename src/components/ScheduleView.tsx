@@ -254,15 +254,16 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
 
       <ScheduleEntryDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(o) => { setDialogOpen(o); if (!o) { setVoiceInitial(null); setVoiceTranscript(undefined); } }}
         clients={clients}
         vehicles={vehicles}
         tasks={tasks}
         settings={settings}
-        initial={editing}
+        initial={editing || voiceInitial}
+        aiTranscript={voiceTranscript}
         onSave={(entry) => {
           if (editing) onUpdate(editing.id, entry);
-          else onAdd(entry);
+          else onAdd({ ...entry, id: crypto.randomUUID() });
         }}
         onDelete={editing ? onDelete : undefined}
         onAddVehicle={onAddVehicle}

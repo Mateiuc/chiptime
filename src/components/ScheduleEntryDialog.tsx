@@ -43,7 +43,7 @@ const toLocalTime = (d?: Date) => {
 
 const NEW_VEHICLE = '__new__';
 
-export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tasks, settings, initial, onSave, onDelete, onAddVehicle }: Props) => {
+export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tasks, settings, initial, onSave, onDelete, onAddVehicle, aiTranscript }: Props) => {
   const { allWorkers } = useWorkers();
   const { toast } = useNotifications();
   const [clientId, setClientId] = useState('');

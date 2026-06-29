@@ -233,9 +233,10 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
                   setNvVin(v);
                   if (v.length === 17 && validateVin(v)) handleDecodeVin(v);
                 }}
-                placeholder="Or enter VIN manually"
+                placeholder="VIN (optional — can scan later)"
                 maxLength={17}
               />
+              <p className="text-[11px] text-muted-foreground">No VIN? Save now and scan later from the schedule card.</p>
               {nvDecoding && (
                 <p className="text-xs text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Decoding VIN…</p>
               )}

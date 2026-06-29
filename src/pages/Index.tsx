@@ -9,7 +9,8 @@ import { AddClientDialog } from '@/components/AddClientDialog';
 import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
-import { useClients, useVehicles, useTasks, useSettings, useCloudSync } from '@/hooks/useStorage';
+import { useClients, useVehicles, useTasks, useSettings, useCloudSync, useSchedule } from '@/hooks/useStorage';
+import { ScheduleView } from '@/components/ScheduleView';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -30,11 +31,13 @@ const Index = () => {
   const vehiclesHook = useVehicles();
   const tasksHook = useTasks();
   const settingsHook = useSettings();
+  const scheduleHook = useSchedule();
 
   const { clients, addClient, updateClient, deleteClient } = clientsHook;
   const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
   const { tasks, addTask, updateTask, deleteTask, batchUpdateTasks } = tasksHook;
   const { settings, setSettings } = settingsHook;
+  const { schedule, addEntry: addScheduleEntry, updateEntry: updateScheduleEntry, deleteEntry: deleteScheduleEntry } = scheduleHook;
   const { toast } = useNotifications();
 
   // Cloud sync: pull on mount if remote is newer
@@ -43,6 +46,7 @@ const Index = () => {
     vehicles: vehiclesHook,
     tasks: tasksHook,
     settings: settingsHook,
+    schedule: scheduleHook,
   });
 
   // Perform one-time migration from IndexedDB to Capacitor Preferences

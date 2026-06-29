@@ -742,29 +742,13 @@ const Index = () => {
       <main className="px-4 py-3 space-y-3 pb-6">
         <Tabs defaultValue="active" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="schedule">Schedule ({schedule.filter(s => s.status !== 'started').length})</TabsTrigger>
             <TabsTrigger value="active">Active ({activeTasks.length})</TabsTrigger>
             <TabsTrigger value="completed">
               Completed ({completedTasks.length})
             </TabsTrigger>
+            <TabsTrigger value="schedule">Schedule ({schedule.filter(s => s.status !== 'started').length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="schedule" className="space-y-4 mt-4">
-            <ScheduleView
-              schedule={schedule}
-              clients={clients}
-              vehicles={vehicles}
-              tasks={tasks}
-              settings={settings}
-              onAdd={addScheduleEntry}
-              onUpdate={updateScheduleEntry}
-              onDelete={deleteScheduleEntry}
-              onStartTask={addTask}
-              onAddVehicle={addVehicle}
-              onUpdateVehicle={updateVehicle}
-            />
-
-          </TabsContent>
 
           <TabsContent value="active" className="space-y-4 mt-4">
             {Object.keys(activeTasksByClient).length === 0 ? (

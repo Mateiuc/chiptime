@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Pencil, Calendar, User as UserIcon } from 'lucide-react';
+import { Plus, Play, Pencil, Calendar, User as UserIcon, Scan } from 'lucide-react';
 import { ScheduleEntry, Client, Vehicle, Task, WorkSession, Settings } from '@/types';
 import { ScheduleEntryDialog } from './ScheduleEntryDialog';
 import { useWorkers } from '@/lib/workers';
 import { useCanEdit, useCurrentUserId } from '@/lib/permissions';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
+import VinScanner from './VinScanner';
+import { decodeVin, validateVin } from '@/lib/vinDecoder';
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -20,7 +22,9 @@ interface Props {
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
 }
+
 
 
 const formatWhen = (d?: Date): string => {

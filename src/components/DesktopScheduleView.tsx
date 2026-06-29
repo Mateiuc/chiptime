@@ -137,6 +137,9 @@ export const DesktopScheduleView = ({
   const previewKey = dayKey(previewDate);
   const previewEntries = showUnscheduled ? unscheduled : (jobsByDay.get(previewKey) || []);
 
+  const selectedEntry = !isDraft && selectedId ? schedule.find(s => s.id === selectedId) : null;
+
+
 
   // Load entry into form on selection
   useEffect(() => {

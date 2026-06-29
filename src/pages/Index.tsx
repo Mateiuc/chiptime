@@ -761,6 +761,7 @@ const Index = () => {
               onDelete={deleteScheduleEntry}
               onStartTask={addTask}
               onAddVehicle={addVehicle}
+              onUpdateVehicle={updateVehicle}
             />
 
           </TabsContent>

@@ -187,6 +187,22 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
         </DialogHeader>
 
         <div className="overflow-y-auto px-5 py-4">
+          {aiTranscript && (
+            <div className="mb-3 rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-300">Voice draft — review before saving</p>
+              </div>
+              <Collapsible>
+                <CollapsibleTrigger className="text-xs text-amber-700 dark:text-amber-300 underline inline-flex items-center gap-1 hover:no-underline">
+                  Show what I heard <ChevronDown className="h-3 w-3" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <p className="mt-2 text-xs italic text-muted-foreground whitespace-pre-wrap break-words">"{aiTranscript}"</p>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* LEFT COLUMN */}
             <div className="space-y-3">

@@ -10,6 +10,8 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
+import { useIsMobile } from '@/hooks/use-mobile';
+import VoiceScheduleButton, { VoiceDraft } from './VoiceScheduleButton';
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -39,10 +41,44 @@ const formatWhen = (d?: Date): string => {
 export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
+  const [voiceInitial, setVoiceInitial] = useState<ScheduleEntry | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState<string | undefined>(undefined);
   const [scanForVehicleId, setScanForVehicleId] = useState<string | null>(null);
-  const { getWorker } = useWorkers();
+  const { getWorker, allWorkers } = useWorkers();
   const uid = useCurrentUserId();
   const { toast } = useNotifications();
+  const isMobile = useIsMobile();
+
+  const voiceContext = useMemo(() => ({
+    clients: clients.map(c => ({ id: c.id, name: c.name })),
+    vehicles: vehicles.map(v => ({
+      id: v.id, clientId: v.clientId,
+      make: v.make, model: v.model, year: v.year, color: v.color,
+    })),
+    workers: allWorkers().map(w => ({ id: w.id, firstName: w.firstName })),
+  }), [clients, vehicles, allWorkers]);
+
+  const handleVoiceParsed = (draft: VoiceDraft, transcript: string) => {
+    let scheduledAt: Date | undefined;
+    if (draft.date) {
+      const t = draft.time || '09:00';
+      scheduledAt = new Date(`${draft.date}T${t}:00`);
+    }
+    const synthetic: ScheduleEntry = {
+      id: 'voice-draft',
+      clientId: draft.clientId || '',
+      vehicleId: draft.vehicleId || '',
+      requestedWork: draft.requestedWork,
+      scheduledAt,
+      assignedTo: draft.assignedTo || undefined,
+      status: 'scheduled',
+      createdAt: new Date(),
+    };
+    setEditing(null);
+    setVoiceInitial(synthetic);
+    setVoiceTranscript(transcript);
+    setDialogOpen(true);
+  };
 
   const handleVinScanned = async (scanned: string) => {
     const vid = scanForVehicleId;
@@ -122,11 +158,16 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold">Scheduled jobs ({visible.length})</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add
-        </Button>
+        <div className="flex items-center gap-2">
+          {isMobile && (
+            <VoiceScheduleButton context={voiceContext} onParsed={handleVoiceParsed} />
+          )}
+          <Button size="sm" onClick={() => { setEditing(null); setVoiceInitial(null); setVoiceTranscript(undefined); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Add
+          </Button>
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -167,7 +208,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                       </Button>
                     )}
                     {canEdit && (
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(entry); setDialogOpen(true); }}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(entry); setVoiceInitial(null); setVoiceTranscript(undefined); setDialogOpen(true); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -213,15 +254,16 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
 
       <ScheduleEntryDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(o) => { setDialogOpen(o); if (!o) { setVoiceInitial(null); setVoiceTranscript(undefined); } }}
         clients={clients}
         vehicles={vehicles}
         tasks={tasks}
         settings={settings}
-        initial={editing}
+        initial={editing || voiceInitial}
+        aiTranscript={voiceTranscript}
         onSave={(entry) => {
           if (editing) onUpdate(editing.id, entry);
-          else onAdd(entry);
+          else onAdd({ ...entry, id: crypto.randomUUID() });
         }}
         onDelete={editing ? onDelete : undefined}
         onAddVehicle={onAddVehicle}

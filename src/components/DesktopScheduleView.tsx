@@ -113,7 +113,7 @@ export const DesktopScheduleView = ({
   useEffect(() => {
     if (isDraft) {
       setClientId(''); setVehicleId(''); setRequestedWork('');
-      setDateStr(''); setTimeStr(''); setAssignedTo('any'); setNotes('');
+      setDateStr(draftDefaultDate); setTimeStr(''); setAssignedTo('any'); setNotes('');
       setDirty(false); resetNewVehicle();
       return;
     }

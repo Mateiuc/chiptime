@@ -19,6 +19,7 @@ import { AddVehicleDialog } from '@/components/AddVehicleDialog';
 
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, setCloudPushEnabled, pushNow, useSchedule } from '@/hooks/useStorage';
 import { ScheduleView } from '@/components/ScheduleView';
+import { DesktopScheduleView } from '@/components/DesktopScheduleView';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';

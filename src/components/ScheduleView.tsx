@@ -10,7 +10,6 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
-import { useIsMobile } from '@/hooks/use-mobile';
 import VoiceScheduleButton, { VoiceDraft } from './VoiceScheduleButton';
 
 interface Props {
@@ -47,7 +46,6 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
   const { getWorker, allWorkers } = useWorkers();
   const uid = useCurrentUserId();
   const { toast } = useNotifications();
-  const isMobile = useIsMobile();
 
   const voiceContext = useMemo(() => ({
     clients: clients.map(c => ({ id: c.id, name: c.name })),
@@ -161,9 +159,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold">Scheduled jobs ({visible.length})</h2>
         <div className="flex items-center gap-2">
-          {isMobile && (
-            <VoiceScheduleButton context={voiceContext} onParsed={handleVoiceParsed} />
-          )}
+          <VoiceScheduleButton context={voiceContext} onParsed={handleVoiceParsed} />
           <Button size="sm" onClick={() => { setEditing(null); setVoiceInitial(null); setVoiceTranscript(undefined); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Add
           </Button>

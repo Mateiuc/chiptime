@@ -73,20 +73,22 @@ const Index = () => {
   // (no page reload — avoids cloud sync overwriting the freshly imported data)
   useEffect(() => {
     const handleImportComplete = async () => {
-      const [freshClients, freshVehicles, freshTasks, freshSettings] = await Promise.all([
+      const [freshClients, freshVehicles, freshTasks, freshSettings, freshSchedule] = await Promise.all([
         capacitorStorage.getClients(),
         capacitorStorage.getVehicles(),
         capacitorStorage.getTasks(),
         capacitorStorage.getSettings(),
+        capacitorStorage.getSchedule(),
       ]);
       clientsHook.replaceAll(freshClients);
       vehiclesHook.replaceAll(freshVehicles);
       tasksHook.replaceAll(freshTasks);
       settingsHook.replaceAll(freshSettings);
+      scheduleHook.replaceAll(freshSchedule);
     };
     window.addEventListener('chiptime:import-complete', handleImportComplete);
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
-  }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
+  }, [clientsHook, vehiclesHook, tasksHook, settingsHook, scheduleHook]);
 
 
   const [showAddVehicle, setShowAddVehicle] = useState(false);
@@ -739,12 +741,26 @@ const Index = () => {
 
       <main className="px-4 py-3 space-y-3 pb-6">
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="schedule">Schedule ({schedule.filter(s => s.status !== 'started').length})</TabsTrigger>
             <TabsTrigger value="active">Active ({activeTasks.length})</TabsTrigger>
             <TabsTrigger value="completed">
               Completed ({completedTasks.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="schedule" className="space-y-4 mt-4">
+            <ScheduleView
+              schedule={schedule}
+              clients={clients}
+              vehicles={vehicles}
+              tasks={tasks}
+              onAdd={addScheduleEntry}
+              onUpdate={updateScheduleEntry}
+              onDelete={deleteScheduleEntry}
+              onStartTask={addTask}
+            />
+          </TabsContent>
 
           <TabsContent value="active" className="space-y-4 mt-4">
             {Object.keys(activeTasksByClient).length === 0 ? (

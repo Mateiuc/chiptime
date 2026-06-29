@@ -107,7 +107,36 @@ export const DesktopScheduleView = ({
       });
   }, [schedule]);
 
-  const selectedEntry = !isDraft && selectedId ? schedule.find(s => s.id === selectedId) : null;
+  const dayKey = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const { jobsByDay, unscheduled, daysWithJobs, overdueDays } = useMemo(() => {
+    const map = new Map<string, ScheduleEntry[]>();
+    const unsc: ScheduleEntry[] = [];
+    for (const e of visible) {
+      if (!e.scheduledAt) { unsc.push(e); continue; }
+      const k = dayKey(new Date(e.scheduledAt));
+      const arr = map.get(k) || [];
+      arr.push(e);
+      map.set(k, arr);
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const withJobs: Date[] = [];
+    const overdue: Date[] = [];
+    map.forEach((_v, k) => {
+      const [y, m, d] = k.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      withJobs.push(date);
+      if (date < today) overdue.push(date);
+    });
+    return { jobsByDay: map, unscheduled: unsc, daysWithJobs: withJobs, overdueDays: overdue };
+  }, [visible]);
+
+  const previewKey = dayKey(previewDate);
+  const previewEntries = showUnscheduled ? unscheduled : (jobsByDay.get(previewKey) || []);
+
 
   // Load entry into form on selection
   useEffect(() => {

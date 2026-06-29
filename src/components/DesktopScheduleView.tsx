@@ -194,7 +194,8 @@ export const DesktopScheduleView = ({
   };
 
   // List actions
-  const handleNewDraft = () => {
+  const handleNewDraft = (defaultDate?: string) => {
+    setDraftDefaultDate(defaultDate || '');
     setIsDraft(true);
     setSelectedId(DRAFT_ID);
   };

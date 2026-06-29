@@ -534,6 +534,7 @@ export const useCloudSync = (deps: {
   vehicles: { replaceAll: (v: Vehicle[]) => void; loading?: boolean };
   tasks: { replaceAll: (t: Task[]) => void; loading?: boolean };
   settings: { replaceAll: (s: Settings) => void; loading?: boolean };
+  schedule?: { replaceAll: (s: ScheduleEntry[]) => void; loading?: boolean };
 }) => {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -550,6 +551,7 @@ export const useCloudSync = (deps: {
         if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
         if (d.tasks) deps.tasks.replaceAll(d.tasks);
         if (d.settings) deps.settings.replaceAll(d.settings);
+        if (deps.schedule && Array.isArray(d.schedule)) deps.schedule.replaceAll(d.schedule);
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         dlog('[CloudSync] Applied remote data');

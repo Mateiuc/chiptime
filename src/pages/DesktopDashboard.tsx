@@ -648,7 +648,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     // Phase 2: pure status flip — totals are always live (or importedSalary).
     updateTask(taskId, { status: 'billed' });
-    cloudPatchTask(taskId, { status: 'billed' });
+    // No cloud push here — Save button does that explicitly.
     toast({ title: 'Task Marked as Billed' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);

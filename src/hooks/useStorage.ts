@@ -480,6 +480,54 @@ export const useSettings = () => {
   return { settings, setSettings, replaceAll, loading };
 };
 
+export const useSchedule = () => {
+  const [schedule, setScheduleState] = useState<ScheduleEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const loaded = await capacitorStorage.getSchedule();
+        setScheduleState(loaded);
+      } catch (e) {
+        console.error('Failed to load schedule:', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const setSchedule = async (next: ScheduleEntry[]) => {
+    try {
+      await capacitorStorage.setSchedule(next);
+      setScheduleState(next);
+      await immediatePushToCloud({});
+    } catch (e) { console.error('Failed to save schedule:', e); }
+  };
+
+  const addEntry = async (entry: ScheduleEntry) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule([...current, entry]);
+  };
+
+  const updateEntry = async (id: string, updates: Partial<ScheduleEntry>) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule(current.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteEntry = async (id: string) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule(current.filter(s => s.id !== id));
+  };
+
+  const replaceAll = (next: ScheduleEntry[]) => {
+    setScheduleState(next);
+    capacitorStorage.setSchedule(next);
+  };
+
+  return { schedule, setSchedule, addEntry, updateEntry, deleteEntry, replaceAll, loading };
+};
+
 // Hook for cloud sync - pull on mount, provide refresh
 export const useCloudSync = (deps: {
   clients: { replaceAll: (c: Client[]) => void; loading?: boolean };

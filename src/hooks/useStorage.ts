@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { appSyncService, SyncData, VersionConflictError } from '@/services/appSyncService';
-import { Client, Vehicle, Task, Settings } from '@/types';
+import { Client, Vehicle, Task, Settings, ScheduleEntry } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { dlog } from '@/lib/devLog';
@@ -115,13 +115,14 @@ function mergeOnConflict(
 }
 
 async function readLocalSnapshot(): Promise<SyncData> {
-  const [clients, vehicles, tasks, settings] = await Promise.all([
+  const [clients, vehicles, tasks, settings, schedule] = await Promise.all([
     capacitorStorage.getClients(),
     capacitorStorage.getVehicles(),
     capacitorStorage.getTasks(),
     capacitorStorage.getSettings(),
+    capacitorStorage.getSchedule(),
   ]);
-  return { clients, vehicles, tasks, settings };
+  return { clients, vehicles, tasks, settings, schedule };
 }
 
 async function writeLocalSnapshot(snap: SyncData): Promise<void> {
@@ -130,6 +131,7 @@ async function writeLocalSnapshot(snap: SyncData): Promise<void> {
     capacitorStorage.setVehicles(snap.vehicles),
     capacitorStorage.setTasks(snap.tasks),
     capacitorStorage.setSettings(snap.settings),
+    capacitorStorage.setSchedule(snap.schedule || []),
   ]);
 }
 

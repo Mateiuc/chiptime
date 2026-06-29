@@ -1030,19 +1030,38 @@ const DesktopDashboard = () => {
                 className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
                 <Plus className="h-4 w-4 mr-1" /> Vehicle
               </Button>
-            <Button variant="outline" size="sm" onClick={handleReloadFromCloud} disabled={syncing}
+            <Button variant="outline" size="sm" onClick={handleReloadFromCloud} disabled={syncing || saving}
+              title={isDirty ? `Reload will discard ${dirtyCount} unsaved change${dirtyCount === 1 ? '' : 's'}` : 'Pull latest from Cloud'}
               className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
               <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
               Reload
             </Button>
-            {/* Bulk "Save to Cloud" removed: it could overwrite mobile's
-                concurrent edits. Desktop now pushes per-task patches
-                automatically on Mark Billed / Mark Paid / inline edits. */}
-            {saving && (
-              <span className="text-xs text-primary-foreground/80 px-2">
-                Syncing…
-              </span>
-            )}
+            <Button
+              size="sm"
+              onClick={handleSaveToCloud}
+              disabled={saving || syncing || !isDirty}
+              title={isDirty ? `Push ${dirtyCount} change${dirtyCount === 1 ? '' : 's'} to Cloud` : 'No unsaved changes'}
+              className={
+                isDirty
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-300 animate-pulse'
+                  : 'bg-primary-foreground/15 text-primary-foreground/60 border border-primary-foreground/20 cursor-not-allowed'
+              }
+            >
+              {saving ? (
+                <>
+                  <Upload className="h-4 w-4 mr-1 animate-pulse" /> Saving…
+                </>
+              ) : isDirty ? (
+                <>
+                  <Save className="h-4 w-4 mr-1" /> Save ({dirtyCount})
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-1" /> Saved
+                </>
+              )}
+            </Button>
+
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
               { view: 'clients' as const, icon: Users, label: 'Clients' },

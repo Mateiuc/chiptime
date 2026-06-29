@@ -41,10 +41,44 @@ const formatWhen = (d?: Date): string => {
 export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
+  const [voiceInitial, setVoiceInitial] = useState<ScheduleEntry | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState<string | undefined>(undefined);
   const [scanForVehicleId, setScanForVehicleId] = useState<string | null>(null);
-  const { getWorker } = useWorkers();
+  const { getWorker, allWorkers } = useWorkers();
   const uid = useCurrentUserId();
   const { toast } = useNotifications();
+  const isMobile = useIsMobile();
+
+  const voiceContext = useMemo(() => ({
+    clients: clients.map(c => ({ id: c.id, name: c.name })),
+    vehicles: vehicles.map(v => ({
+      id: v.id, clientId: v.clientId,
+      make: v.make, model: v.model, year: v.year, color: v.color,
+    })),
+    workers: allWorkers().map(w => ({ id: w.id, firstName: w.firstName })),
+  }), [clients, vehicles, allWorkers]);
+
+  const handleVoiceParsed = (draft: VoiceDraft, transcript: string) => {
+    let scheduledAt: Date | undefined;
+    if (draft.date) {
+      const t = draft.time || '09:00';
+      scheduledAt = new Date(`${draft.date}T${t}:00`);
+    }
+    const synthetic: ScheduleEntry = {
+      id: 'voice-draft',
+      clientId: draft.clientId || '',
+      vehicleId: draft.vehicleId || '',
+      requestedWork: draft.requestedWork,
+      scheduledAt,
+      assignedTo: draft.assignedTo || undefined,
+      status: 'scheduled',
+      createdAt: new Date(),
+    };
+    setEditing(null);
+    setVoiceInitial(synthetic);
+    setVoiceTranscript(transcript);
+    setDialogOpen(true);
+  };
 
   const handleVinScanned = async (scanned: string) => {
     const vid = scanForVehicleId;

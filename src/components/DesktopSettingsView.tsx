@@ -9,6 +9,7 @@ import { Save, Plus, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { BackupView } from './BackupView';
 import { CameraSettingsSection } from './CameraSettingsSection';
+import { useIsAdmin } from '@/lib/permissions';
 
 interface DesktopSettingsViewProps {
   settings: Settings;
@@ -16,6 +17,7 @@ interface DesktopSettingsViewProps {
 }
 
 export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewProps) => {
+  const isAdmin = useIsAdmin();
   const { toast } = useNotifications();
   const [defaultHourlyRate, setDefaultHourlyRate] = useState(settings.defaultHourlyRate?.toString() || '75');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
@@ -63,6 +65,23 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Notifications — available to all members */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Popup Notifications</Label>
+              <p className="text-xs text-muted-foreground">Show confirmation toasts</p>
+            </div>
+            <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {isAdmin && (
       <div className="grid grid-cols-2 gap-6">
         {/* Default Hourly Rate */}
         <Card>
@@ -85,21 +104,6 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </CardContent>
         </Card>
 
-        {/* Notifications */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Popup Notifications</Label>
-                <p className="text-xs text-muted-foreground">Show confirmation toasts</p>
-              </div>
-              <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Default Cloning Rate */}
         <Card>
@@ -185,7 +189,11 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </CardContent>
         </Card>
       </div>
+      )}
 
+
+      {isAdmin && (
+      <>
       {/* Payment Methods */}
       <Card>
         <CardHeader>
@@ -247,6 +255,9 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
         </CardContent>
       </Card>
 
+      </>
+      )}
+
       {/* Camera */}
       <Card>
         <CardHeader>
@@ -268,6 +279,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
       </Card>
 
       {/* Client Portal Branding */}
+      {isAdmin && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Client Portal Branding</CardTitle>
@@ -402,6 +414,7 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Save */}
       <div className="flex justify-end">

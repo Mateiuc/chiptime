@@ -1,48 +1,72 @@
-## Goal
-Revert desktop to fully manual cloud I/O. No automatic pulls, no automatic pushes. The user explicitly clicks **Reload** to pull from cloud and **Save** to push to cloud. Mobile stays as it is today (auto-sync, master).
 
-## Header buttons (in the empty slot the user circled)
+# Workspace-shared data, worker permissions, and Schedule module
 
-Two buttons, side by side, between **Vehicle** and **Clients**:
+Three connected pieces. Invite-code flow stays as-is.
 
-1. **Reload** — cloud-download icon. Pulls the latest cloud snapshot and replaces desktop state. Warns if there are unsaved local edits ("Reload will discard your unsaved changes. Continue?").
-2. **Save** — cloud-upload icon. Pushes current desktop state to the cloud.
-   - When there are unsaved changes → solid primary, label "Save (N)" where N = changed task count.
-   - When clean → ghost, label "Saved".
-   - While pushing → spinner + "Saving…".
+## 1. Shared workspace data (the foundation)
 
-A small "Last loaded / Last saved" timestamp sits under the pair.
+Today each user has their own local store and pushes a personal snapshot to `app_sync`. A "member" doesn't actually see the admin's cars.
 
-## Behavior
+Change sync to be keyed per **workspace** instead of per user:
 
-### Desktop (changed back to manual)
-- Remove auto-pull on window focus / visibility change.
-- Remove auto-pull on mount beyond the very first load (first load still pulls once so the page isn't empty).
-- Remove every implicit `cloudPatchTask` call from edit / stop / mark billed / mark paid / parts / etc. — those now mutate local state only and mark the task dirty.
-- **Reload** = pull cloud snapshot → replace local state → clear dirty set.
-- **Save** = for each dirty task, call existing `patchTaskInCloud` (per-task patch, NOT full snapshot, so mobile-only tasks are never touched) → clear dirty set on success.
-- Beforeunload guard when dirty.
+- `appSyncService` reads/writes `app_sync` row where `workspace_id = current workspace`, not per-user.
+- On first load for a new member, mobile pulls the workspace snapshot once, then continues with its normal auto-push on every mutation.
+- Desktop keeps its manual Reload / Save model — same code path, just scoped to the workspace row.
+- Conflict model stays "last write wins" (already accepted). Each task / session / period already carries `createdBy`, so attribution survives.
+- One-time migration script in-app: when a user opens the app and their personal `app_sync` row has data but the workspace row is empty, copy it over.
 
-### Mobile (unchanged)
-- `src/pages/Index.tsx` keeps auto-push on every mutation. No edits there.
+Every worker on mobile then sees and can work on every car in the workspace, in real time across devices (after their next push).
 
-## Conflict safety (lightweight)
-Per-task patch already protects mobile-only tasks. For tasks the desktop edited:
-- Save sends only the fields the desktop changed (existing patch API). It does not overwrite the whole row, so mobile's edits to other fields survive.
-- No prompts, no merges — keep it simple, matches the "I decide" model.
+## 2. Worker (non-admin) permissions
 
-## Files touched
+UI-level gates only — RLS stays as today since all data flows through the single workspace `app_sync` row.
 
-- `src/pages/DesktopDashboard.tsx`
-  - Add `dirtyTaskIds: Set<string>`, `lastLoadedAt`, `lastSavedAt`, `isLoading`, `isSaving` state.
-  - Remove the focus/visibility auto-pull effect added in the earlier "mobile as master" change.
-  - Replace every `cloudPatchTask(...)` call inside mutation handlers with a local `markDirty(taskId)` call.
-  - Add `handleReload()` and `handleSave()`.
-  - Render the two buttons in the header slot.
-- New `src/components/DesktopSyncControls.tsx` (~70 lines) — presentational Reload + Save pair with status text.
-- `src/hooks/useBeforeUnload.ts` (new, ~15 lines) — warns when dirty.
+Workers **can**:
+- View every client, vehicle, task, session, photo, part in the workspace
+- Add new clients and vehicles (stamped with `createdBy = their uid`)
+- Start / pause / stop work on **any** car, add sessions, photos, parts, notes
+- Use Settings → Camera, Notifications, OCR, Backup/Restore (all per-device, already local)
 
-## Out of scope
-- Mobile (`src/pages/Index.tsx`) is not touched.
-- No changes to billing, deposit, portal sync, or photo upload paths.
-- No automatic conflict prompts.
+Workers **cannot** (hidden / disabled in UI):
+- Edit or delete clients / vehicles / tasks they didn't create
+- Mark Billed / Mark Paid (admin/owner only)
+- See Workspace member management beyond their own nickname
+- See global billing rate settings, payment methods, portal branding (admin/owner only)
+- Invite codes screen (admin only — already the case)
+
+Add a tiny `useCanEdit(item)` helper: `isAdmin || item.createdBy === currentUserId`. Apply to Edit / Delete buttons across `TaskCard`, `EditTaskDialog`, client/vehicle lists, desktop dashboard rows.
+
+## 3. Schedule module (mobile + desktop)
+
+New top-level tab "Schedule" alongside Active / Completed / Billed / Paid.
+
+A schedule entry holds:
+- Client (pick existing or quick-add)
+- Vehicle (pick existing or quick-add — VIN optional at this stage)
+- Requested work (free text — what the client asked for)
+- When (optional date+time, or "unscheduled")
+- Assigned worker (optional — defaults to "anyone")
+- Status: `scheduled` → `started` → (auto-archived once the resulting Task is closed)
+
+Actions on each entry:
+- **Start** button → creates a real Task for that client+vehicle, copies the requested-work text into the first session description, starts the timer, marks the schedule entry as `started` and links it to the new task id. Same behaviour on mobile and desktop.
+- Edit / reschedule / delete (admin or creator)
+
+Storage: a new `schedule` array inside the same workspace snapshot — no new table needed, rides on the existing sync. Sorted by date, with an "Unscheduled" group at the top.
+
+## Technical notes
+
+- `src/services/appSyncService.ts` — switch key from user-scoped to `workspace_id`-scoped row; add one-time personal→workspace import.
+- `src/types/index.ts` — add `ScheduleEntry` type and `schedule: ScheduleEntry[]` on the root data shape.
+- `src/lib/permissions.ts` (new) — `useCanEdit`, `useIsAdmin` helpers reading from `AuthContext.workspace.role`.
+- `src/pages/Index.tsx` + `src/pages/DesktopDashboard.tsx` — new Schedule tab, list, add/edit dialog, Start handler.
+- `src/components/ScheduleEntryDialog.tsx` (new) — add/edit form reusing existing Client/Vehicle pickers.
+- `src/components/SettingsDialog.tsx` / `DesktopSettingsView.tsx` — hide admin-only sections (rates, payments, portal, members) when role is `member`.
+- `src/components/TaskCard.tsx`, `EditTaskDialog.tsx`, client/vehicle lists — gate Edit/Delete buttons via `useCanEdit`.
+- No DB schema migration required (`app_sync` already has `workspace_id`); confirm and adjust RLS policy only if the current one scopes by `user_id`.
+
+## Out of scope (explicit)
+
+- No changes to invite-code flow.
+- No worker editing of others' data.
+- No calendar grid view in v1 — just a chronological list with date headers. Calendar can come later if you want.

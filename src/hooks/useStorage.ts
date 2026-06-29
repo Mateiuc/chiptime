@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { appSyncService, SyncData, VersionConflictError } from '@/services/appSyncService';
-import { Client, Vehicle, Task, Settings } from '@/types';
+import { Client, Vehicle, Task, Settings, ScheduleEntry } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { dlog } from '@/lib/devLog';
@@ -115,13 +115,14 @@ function mergeOnConflict(
 }
 
 async function readLocalSnapshot(): Promise<SyncData> {
-  const [clients, vehicles, tasks, settings] = await Promise.all([
+  const [clients, vehicles, tasks, settings, schedule] = await Promise.all([
     capacitorStorage.getClients(),
     capacitorStorage.getVehicles(),
     capacitorStorage.getTasks(),
     capacitorStorage.getSettings(),
+    capacitorStorage.getSchedule(),
   ]);
-  return { clients, vehicles, tasks, settings };
+  return { clients, vehicles, tasks, settings, schedule };
 }
 
 async function writeLocalSnapshot(snap: SyncData): Promise<void> {
@@ -130,6 +131,7 @@ async function writeLocalSnapshot(snap: SyncData): Promise<void> {
     capacitorStorage.setVehicles(snap.vehicles),
     capacitorStorage.setTasks(snap.tasks),
     capacitorStorage.setSettings(snap.settings),
+    capacitorStorage.setSchedule(snap.schedule || []),
   ]);
 }
 
@@ -478,12 +480,61 @@ export const useSettings = () => {
   return { settings, setSettings, replaceAll, loading };
 };
 
+export const useSchedule = () => {
+  const [schedule, setScheduleState] = useState<ScheduleEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const loaded = await capacitorStorage.getSchedule();
+        setScheduleState(loaded);
+      } catch (e) {
+        console.error('Failed to load schedule:', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const setSchedule = async (next: ScheduleEntry[]) => {
+    try {
+      await capacitorStorage.setSchedule(next);
+      setScheduleState(next);
+      await immediatePushToCloud({});
+    } catch (e) { console.error('Failed to save schedule:', e); }
+  };
+
+  const addEntry = async (entry: ScheduleEntry) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule([...current, entry]);
+  };
+
+  const updateEntry = async (id: string, updates: Partial<ScheduleEntry>) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule(current.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteEntry = async (id: string) => {
+    const current = await capacitorStorage.getSchedule();
+    await setSchedule(current.filter(s => s.id !== id));
+  };
+
+  const replaceAll = (next: ScheduleEntry[]) => {
+    setScheduleState(next);
+    capacitorStorage.setSchedule(next);
+  };
+
+  return { schedule, setSchedule, addEntry, updateEntry, deleteEntry, replaceAll, loading };
+};
+
 // Hook for cloud sync - pull on mount, provide refresh
 export const useCloudSync = (deps: {
   clients: { replaceAll: (c: Client[]) => void; loading?: boolean };
   vehicles: { replaceAll: (v: Vehicle[]) => void; loading?: boolean };
   tasks: { replaceAll: (t: Task[]) => void; loading?: boolean };
   settings: { replaceAll: (s: Settings) => void; loading?: boolean };
+  schedule?: { replaceAll: (s: ScheduleEntry[]) => void; loading?: boolean };
 }) => {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -500,6 +551,7 @@ export const useCloudSync = (deps: {
         if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
         if (d.tasks) deps.tasks.replaceAll(d.tasks);
         if (d.settings) deps.settings.replaceAll(d.settings);
+        if (deps.schedule && Array.isArray(d.schedule)) deps.schedule.replaceAll(d.schedule);
         appSyncService.setLocalUpdatedAt(result.updatedAt);
         setLastSyncAt(result.updatedAt);
         dlog('[CloudSync] Applied remote data');

@@ -1102,22 +1102,20 @@ const DesktopDashboard = () => {
           <DesktopSettingsView settings={settings} onSave={setSettings} />
         </div>
       ) : desktopView === 'schedule' ? (
-        <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
-          <ScheduleView
-            schedule={schedule}
-            clients={clients}
-            vehicles={vehicles}
-            tasks={tasks}
-            settings={settings}
-            onAdd={addScheduleEntry}
-            onUpdate={updateScheduleEntry}
-            onDelete={deleteScheduleEntry}
-            onStartTask={(task) => { addTask(task); setDesktopView('tree'); }}
-            onAddVehicle={addVehicle}
-            onUpdateVehicle={updateVehicle}
-          />
+        <DesktopScheduleView
+          schedule={schedule}
+          clients={clients}
+          vehicles={vehicles}
+          tasks={tasks}
+          settings={settings}
+          onAdd={addScheduleEntry}
+          onUpdate={updateScheduleEntry}
+          onDelete={deleteScheduleEntry}
+          onStartTask={(task) => { addTask(task); setDesktopView('tree'); }}
+          onAddVehicle={addVehicle}
+          onUpdateVehicle={updateVehicle}
+        />
 
-        </div>
       ) : desktopView === 'reports' ? (
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />
       ) : desktopView === 'addClient' ? (

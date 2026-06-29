@@ -248,7 +248,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
                 <Input type="number" value={nvYear} onChange={e => setNvYear(e.target.value)} placeholder="Year" />
                 <Input value={nvColor} onChange={e => setNvColor(e.target.value)} placeholder="Color" />
               </div>
-              <Button size="sm" className="w-full" onClick={handleSaveNewVehicle} disabled={nvSaving || !nvVin.trim()}>
+              <Button size="sm" className="w-full" onClick={handleSaveNewVehicle} disabled={nvSaving || (!nvVin.trim() && !nvMake.trim() && !nvModel.trim())}>
                 {nvSaving ? 'Saving…' : 'Save vehicle'}
               </Button>
             </div>

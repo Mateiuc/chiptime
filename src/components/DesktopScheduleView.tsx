@@ -234,6 +234,10 @@ export const DesktopScheduleView = ({
 
   const handleSelectEntry = (id: string) => {
     if (dirty && !confirm('Discard unsaved changes?')) return;
+    if (!isDraft && selectedId === id) {
+      setSelectedId(null);
+      return;
+    }
     setIsDraft(false);
     setSelectedId(id);
   };

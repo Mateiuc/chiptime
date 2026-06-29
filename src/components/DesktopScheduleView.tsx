@@ -563,13 +563,30 @@ export const DesktopScheduleView = ({
           </ScrollArea>
         ) : (
           <>
-            <div className="px-6 py-3 border-b flex items-center justify-between bg-background">
-              <div className="min-w-0">
-                <h2 className="font-bold truncate">{selectionLabel}</h2>
-                <p className="text-xs text-muted-foreground">{isDraft ? 'Fill in the details and save.' : 'Edit job details.'}</p>
+            <div className="px-6 py-3 border-b flex items-center justify-between gap-3 bg-background">
+              <div className="flex items-center gap-3 min-w-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (dirty && !confirm('Discard unsaved changes?')) return;
+                    setIsDraft(false);
+                    setSelectedId(null);
+                    setDirty(false);
+                    resetNewVehicle();
+                  }}
+                  className="shrink-0"
+                >
+                  <CalendarDays className="h-4 w-4 mr-1" /> Calendar
+                </Button>
+                <div className="min-w-0">
+                  <h2 className="font-bold truncate">{selectionLabel}</h2>
+                  <p className="text-xs text-muted-foreground">{isDraft ? 'Fill in the details and save.' : 'Edit job details.'}</p>
+                </div>
               </div>
-              {dirty && <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400">Unsaved changes</Badge>}
+              {dirty && <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400 shrink-0">Unsaved changes</Badge>}
             </div>
+
 
             <ScrollArea className="flex-1">
               <div className="p-6 max-w-4xl">

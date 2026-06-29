@@ -891,6 +891,22 @@ const Index = () => {
               })
             )}
           </TabsContent>
+
+          <TabsContent value="schedule" className="space-y-4 mt-4">
+            <ScheduleView
+              schedule={schedule}
+              clients={clients}
+              vehicles={vehicles}
+              tasks={tasks}
+              settings={settings}
+              onAdd={addScheduleEntry}
+              onUpdate={updateScheduleEntry}
+              onDelete={deleteScheduleEntry}
+              onStartTask={addTask}
+              onAddVehicle={addVehicle}
+              onUpdateVehicle={updateVehicle}
+            />
+          </TabsContent>
         </Tabs>
       </main>
 

@@ -1071,8 +1071,8 @@ const DesktopDashboard = () => {
 
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
-              { view: 'schedule' as const, icon: CalendarIcon, label: 'Schedule' },
               { view: 'clients' as const, icon: Users, label: 'Clients' },
+              { view: 'schedule' as const, icon: CalendarIcon, label: 'Schedule' },
               { view: 'invoices' as const, icon: Receipt, label: 'Invoices' },
               { view: 'reports' as const, icon: BarChart3, label: 'Reports' },
               { view: 'settings' as const, icon: SettingsIcon, label: 'Settings' },

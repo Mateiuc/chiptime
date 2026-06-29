@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Pencil, Calendar, User as UserIcon, Scan } from 'lucide-react';
+import { Plus, Play, Pencil, Calendar, User as UserIcon, QrCode } from 'lucide-react';
 import { ScheduleEntry, Client, Vehicle, Task, WorkSession, Settings } from '@/types';
 import { ScheduleEntryDialog } from './ScheduleEntryDialog';
 import { useWorkers } from '@/lib/workers';
@@ -156,13 +156,14 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                   <div className="flex items-center gap-1 shrink-0">
                     {vehicle && (
                       <Button
-                        size="icon"
-                        variant={hasVin ? 'ghost' : 'default'}
-                        className={`h-7 w-7 ${!hasVin ? 'bg-amber-500 hover:bg-amber-600 text-white animate-pulse' : ''}`}
+                        size="sm"
+                        variant={hasVin ? 'outline' : 'default'}
+                        className={`h-7 px-2 gap-1 ${!hasVin ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse' : ''}`}
                         title={hasVin ? 'Re-scan VIN' : 'Scan VIN now'}
                         onClick={() => setScanForVehicleId(vehicle.id)}
                       >
-                        <Scan className="h-3.5 w-3.5" />
+                        <QrCode className="h-3.5 w-3.5" />
+                        <span className="text-[11px] font-bold">VIN</span>
                       </Button>
                     )}
                     {canEdit && (

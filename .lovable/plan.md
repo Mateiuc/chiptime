@@ -1,37 +1,37 @@
-## Problem
-The edit job still opens as a modal dialog on desktop, which looks bad. User wants the desktop schedule editor to follow the **Clients view pattern**: master-detail split, edit happens inline in the right pane — no popup at all.
+## Goal
+When no schedule entry is selected in the desktop Schedule view, the right pane currently shows an empty "No job selected" placeholder. Replace it with a calendar overview of scheduled cars.
 
-## Fix
+## Change
+Single file: `src/components/DesktopScheduleView.tsx` — replace the empty-state block (right pane when `!selectedId && !isDraft`) with a calendar layout.
 
-### 1. New component: `src/components/DesktopScheduleView.tsx`
-Desktop-only schedule view with a 2-pane split layout (mirrors `DesktopClientsView`):
+### Right pane layout (when nothing selected)
+Two stacked sections inside the right pane:
 
-- **Left pane (~360px)**: scrollable list of schedule entries
-  - Header: title + count + `+ Add` button
-  - Each card: client name, vehicle, scheduled-when badge, requested-work preview, assigned worker chip
-  - Clicking a card selects it (highlight). Clicking `+ Add` creates a new draft entry and selects it.
-  - Compact VIN scan button + Start button on each card (same actions as mobile `ScheduleView`).
+1. **Month calendar** (top, centered, ~max-w-md)
+   - Uses existing `@/components/ui/calendar` (`react-day-picker`).
+   - `mode="single"`, with internal state `previewDate` (defaults to today).
+   - `modifiers`:
+     - `hasJobs`: any day that has ≥1 entry in `visible` with a `scheduledAt`.
+     - `overdue`: days strictly before today that still have pending entries.
+   - `modifiersClassNames`:
+     - `hasJobs`: bold text + small primary dot (via `after:` pseudo or ring).
+     - `overdue`: orange ring/text matching existing overdue card styling.
+   - A tiny legend below the calendar: dot = scheduled, orange = overdue, "Unscheduled (N)" chip if any entries have no `scheduledAt` — clicking the chip lists them in the section below.
 
-- **Right pane (flex-1)**: inline editor for the selected entry
-  - If none selected → empty state ("Select a job to edit, or click + Add").
-  - Otherwise renders the full form **inline as a Card** (not a Dialog):
-    - Two-column grid: Client / Vehicle / Worker on left, Date+Time / Requested work / Notes on right.
-    - New-vehicle inline sub-form spans full width when opened (reuses same logic).
-    - Sticky footer in the card with Delete (left), Save / Cancel (right). Save commits; Cancel reverts unsaved edits or discards the draft.
-  - Local draft state; "unsaved changes" indicator on Save button when dirty.
+2. **Day agenda** (below calendar)
+   - Header: formatted long date for `previewDate` ("Mon, Jul 7") + count.
+   - Scrollable list of that day's entries (sorted by time). Each row:
+     - Time (HH:MM), client name, vehicle label, worker chip.
+     - Clicking the row calls `handleSelectEntry(entry.id)` — switches the right pane into the existing editor.
+   - Empty state for the day: "No jobs scheduled for this day." with a `+ Add` button that calls `handleNewDraft()` and pre-fills `dateStr` with the selected day (extend `handleNewDraft` to accept an optional default date).
 
-Reuses all existing handlers passed in (`onAdd`, `onUpdate`, `onDelete`, `onStartTask`, `onAddVehicle`, `onUpdateVehicle`) and the same `VinScanner` flow.
+### Derivation
+Add a `useMemo` keyed on `visible`:
+- `jobsByDay: Map<yyyy-mm-dd, ScheduleEntry[]>`
+- `unscheduled: ScheduleEntry[]`
+- Days arrays for `hasJobs` / `overdue` modifiers (built from `jobsByDay`).
 
-### 2. Wire it up in `src/pages/DesktopDashboard.tsx`
-- Where `<ScheduleView ... />` is currently rendered for the desktop "schedule" view, swap it for `<DesktopScheduleView ... />` (same props).
-- Mobile (`src/pages/Index.tsx`) continues to use the existing `ScheduleView` / `ScheduleEntryDialog` — unchanged.
-
-### 3. Leave existing files alone
-- `ScheduleEntryDialog.tsx` stays (still used by mobile).
-- `ScheduleView.tsx` stays (still used by mobile).
-- No logic changes to add/update/delete/start, no type changes.
-
-## Out of scope
-- Mobile schedule UI
-- Any backend/sync changes
-- VIN scanner internals
+### Out of scope
+- Mobile `ScheduleView` — unchanged.
+- No new components, no backend, no type changes, no styling overhaul of the existing editor pane or left list.
+- Drag-to-reschedule is not included.

@@ -207,21 +207,23 @@ const DesktopDashboard = () => {
   // After a backup import, re-read all data from storage and update React state directly
   useEffect(() => {
     const handleImportComplete = async () => {
-      const [freshClients, freshVehicles, freshTasks, freshSettings] = await Promise.all([
+      const [freshClients, freshVehicles, freshTasks, freshSettings, freshSchedule] = await Promise.all([
         capacitorStorage.getClients(),
         capacitorStorage.getVehicles(),
         capacitorStorage.getTasks(),
         capacitorStorage.getSettings(),
+        capacitorStorage.getSchedule(),
       ]);
       clientsHook.replaceAll(freshClients);
       vehiclesHook.replaceAll(freshVehicles);
       tasksHook.replaceAll(freshTasks);
       settingsHook.replaceAll(freshSettings);
+      scheduleHook.replaceAll(freshSchedule);
       setTimeout(() => snapshotBaseline(), 0);
     };
     window.addEventListener('chiptime:import-complete', handleImportComplete);
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
-  }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
+  }, [clientsHook, vehiclesHook, tasksHook, settingsHook, scheduleHook]);
 
   // Manual Reload: pull cloud snapshot into local state. Warns if dirty.
   const handleReloadFromCloud = async () => {

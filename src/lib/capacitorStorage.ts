@@ -1,11 +1,12 @@
 import { Preferences } from '@capacitor/preferences';
-import { Client, Vehicle, Task, Settings } from '@/types';
+import { Client, Vehicle, Task, Settings, ScheduleEntry } from '@/types';
 
 const STORAGE_KEYS = {
   CLIENTS: 'autotime_clients',
   VEHICLES: 'autotime_vehicles',
   TASKS: 'autotime_tasks',
   SETTINGS: 'autotime_settings',
+  SCHEDULE: 'autotime_schedule',
 } as const;
 
 class CapacitorStorage {
@@ -133,6 +134,30 @@ class CapacitorStorage {
       });
     } catch (error) {
       console.error('Failed to set settings in Preferences:', error);
+      throw error;
+    }
+  }
+
+  async getSchedule(): Promise<ScheduleEntry[]> {
+    try {
+      const { value } = await Preferences.get({ key: STORAGE_KEYS.SCHEDULE });
+      if (!value) return [];
+      const parsed = JSON.parse(value);
+      return this.reviveDates(parsed);
+    } catch (error) {
+      console.error('Failed to get schedule from Preferences:', error);
+      return [];
+    }
+  }
+
+  async setSchedule(schedule: ScheduleEntry[]): Promise<void> {
+    try {
+      await Preferences.set({
+        key: STORAGE_KEYS.SCHEDULE,
+        value: JSON.stringify(schedule),
+      });
+    } catch (error) {
+      console.error('Failed to set schedule in Preferences:', error);
       throw error;
     }
   }

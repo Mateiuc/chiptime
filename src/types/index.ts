@@ -137,6 +137,26 @@ export interface CloudSyncSettings {
   userEmail?: string;
 }
 
+/**
+ * A scheduled / pending job in the workshop pipeline.
+ * Workers add these to plan upcoming work. When ready, hitting "Start"
+ * converts the entry into a real Task and begins the timer.
+ */
+export interface ScheduleEntry {
+  id: string;
+  clientId: string;       // existing client (required)
+  vehicleId: string;      // existing vehicle (required)
+  requestedWork: string;  // what the client asked for
+  scheduledAt?: Date;     // optional date/time; undefined = unscheduled
+  assignedTo?: string;    // user_id of worker pinned to this job, or undefined = anyone
+  notes?: string;
+  status: 'scheduled' | 'started' | 'cancelled';
+  startedTaskId?: string; // set when converted to a Task
+  createdAt: Date;
+  createdBy?: string;
+}
+
+
 export interface PaymentMethod {
   label: string;
   url: string;

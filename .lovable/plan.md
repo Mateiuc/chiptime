@@ -1,39 +1,48 @@
 ## Goal
-Add a "Print" button on the client portal for each vehicle, placed between the VIN and the price, that downloads a PDF using the existing bill renderer.
+Revert desktop to fully manual cloud I/O. No automatic pulls, no automatic pushes. The user explicitly clicks **Reload** to pull from cloud and **Save** to push to cloud. Mobile stays as it is today (auto-sync, master).
 
-## Approach — minimal changes
-Instead of duplicating the bill renderer, reconstruct a synthetic `Task` from the portal's pre-computed `VehicleCostSummary` and pass it to the existing `renderBillPdf`. This keeps the change small and preserves the exact bill appearance.
+## Header buttons (in the empty slot the user circled)
 
-## Plan
+Two buttons, side by side, between **Vehicle** and **Clients**:
 
-### 1. Synthetic data helper
-Create a small mapping function (≤ 30 lines, can live in `ClientCostBreakdown.tsx` or a tiny `src/lib/portalToTask.ts`):
-- Takes a `VehicleCostSummary`.
-- Returns a `Task` with synthetic `WorkSession`s where:
-  - `periods` are built from `SessionCostDetail.periods`.
-  - `parts` are copied directly.
-  - `description` is copied.
-  - `chargeMinimumHour`, `isCloning`, `isProgramming`, `isAddKey`, `isAllKeysLost` are inferred from whether the corresponding pre-computed cost is > 0.
-- Also returns a reconstructed `Vehicle` and `Client` from the summary.
+1. **Reload** — cloud-download icon. Pulls the latest cloud snapshot and replaces desktop state. Warns if there are unsaved local edits ("Reload will discard your unsaved changes. Continue?").
+2. **Save** — cloud-upload icon. Pushes current desktop state to the cloud.
+   - When there are unsaved changes → solid primary, label "Save (N)" where N = changed task count.
+   - When clean → ghost, label "Saved".
+   - While pushing → spinner + "Saving…".
 
-### 2. Button in `ClientCostBreakdown.tsx`
-- Import `Printer` from `lucide-react` and `renderBillPdf` from `@/lib/billPdfRenderer`.
-- In the vehicle accordion header, add a small print icon button between the VIN area and the price area.
-- `onClick`:
-  1. Build the synthetic `Task` / `Client` / `Vehicle` for this car.
-  2. Call `renderBillPdf({ task, client, vehicle, settings: { defaultHourlyRate: /* estimated from laborCost/duration or fallback 0 */ } })`.
-  3. `doc.save('bill-{vehicleName}-{date}.pdf')`.
-  4. Toast "Bill PDF saved".
-- Use `e.stopPropagation()` so clicking print does not toggle the accordion.
+A small "Last loaded / Last saved" timestamp sits under the pair.
 
-### 3. Settings / rate fallback
-- The existing renderer needs a `defaultHourlyRate`. Derive it from the first session where `duration > 0` as `baseLabor / (duration/3600)`, or default to `0`. Since all costs are pre-computed, the rate is only used by `computeBillTotals` as a fallback; the inferred flags should make the recalculated costs match the portal values when rates are unchanged.
+## Behavior
+
+### Desktop (changed back to manual)
+- Remove auto-pull on window focus / visibility change.
+- Remove auto-pull on mount beyond the very first load (first load still pulls once so the page isn't empty).
+- Remove every implicit `cloudPatchTask` call from edit / stop / mark billed / mark paid / parts / etc. — those now mutate local state only and mark the task dirty.
+- **Reload** = pull cloud snapshot → replace local state → clear dirty set.
+- **Save** = for each dirty task, call existing `patchTaskInCloud` (per-task patch, NOT full snapshot, so mobile-only tasks are never touched) → clear dirty set on success.
+- Beforeunload guard when dirty.
+
+### Mobile (unchanged)
+- `src/pages/Index.tsx` keeps auto-push on every mutation. No edits there.
+
+## Conflict safety (lightweight)
+Per-task patch already protects mobile-only tasks. For tasks the desktop edited:
+- Save sends only the fields the desktop changed (existing patch API). It does not overwrite the whole row, so mobile's edits to other fields survive.
+- No prompts, no merges — keep it simple, matches the "I decide" model.
 
 ## Files touched
-- `src/components/ClientCostBreakdown.tsx` — add button + mapping logic.
-- Optionally `src/lib/portalToTask.ts` — if the mapping is extracted.
+
+- `src/pages/DesktopDashboard.tsx`
+  - Add `dirtyTaskIds: Set<string>`, `lastLoadedAt`, `lastSavedAt`, `isLoading`, `isSaving` state.
+  - Remove the focus/visibility auto-pull effect added in the earlier "mobile as master" change.
+  - Replace every `cloudPatchTask(...)` call inside mutation handlers with a local `markDirty(taskId)` call.
+  - Add `handleReload()` and `handleSave()`.
+  - Render the two buttons in the header slot.
+- New `src/components/DesktopSyncControls.tsx` (~70 lines) — presentational Reload + Save pair with status text.
+- `src/hooks/useBeforeUnload.ts` (new, ~15 lines) — warns when dirty.
 
 ## Out of scope
-- No changes to `src/lib/billPdfRenderer.ts` or `src/lib/billPdfLayout.ts`.
-- No new full renderer.
-- No changes to edge functions or portal data model.
+- Mobile (`src/pages/Index.tsx`) is not touched.
+- No changes to billing, deposit, portal sync, or photo upload paths.
+- No automatic conflict prompts.

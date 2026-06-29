@@ -5,18 +5,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ScheduleEntry, Client, Vehicle } from '@/types';
+import { Plus, Scan, Loader2 } from 'lucide-react';
+import { ScheduleEntry, Client, Vehicle, Task, Settings } from '@/types';
 import { useWorkers } from '@/lib/workers';
 import { getCurrentUserId } from '@/lib/currentUser';
+import { decodeVin, validateVin } from '@/lib/vinDecoder';
+import { useNotifications } from '@/hooks/useNotifications';
+import VinScanner from './VinScanner';
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   clients: Client[];
   vehicles: Vehicle[];
+  tasks: Task[];
+  settings: Settings;
   initial?: ScheduleEntry | null;
   onSave: (entry: ScheduleEntry) => void;
   onDelete?: (id: string) => void;
+  onAddVehicle: (v: Vehicle) => Promise<void> | void;
 }
 
 const toLocalDate = (d?: Date) => {
@@ -32,8 +39,11 @@ const toLocalTime = (d?: Date) => {
   return `${pad(x.getHours())}:${pad(x.getMinutes())}`;
 };
 
-export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, initial, onSave, onDelete }: Props) => {
+const NEW_VEHICLE = '__new__';
+
+export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tasks, settings, initial, onSave, onDelete, onAddVehicle }: Props) => {
   const { allWorkers } = useWorkers();
+  const { toast } = useNotifications();
   const [clientId, setClientId] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [requestedWork, setRequestedWork] = useState('');
@@ -41,6 +51,22 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
   const [timeStr, setTimeStr] = useState('');
   const [assignedTo, setAssignedTo] = useState<string>('any');
   const [notes, setNotes] = useState('');
+
+  // Inline new-vehicle sub-form
+  const [showNewVehicle, setShowNewVehicle] = useState(false);
+  const [nvVin, setNvVin] = useState('');
+  const [nvMake, setNvMake] = useState('');
+  const [nvModel, setNvModel] = useState('');
+  const [nvYear, setNvYear] = useState('');
+  const [nvColor, setNvColor] = useState('');
+  const [nvDecoding, setNvDecoding] = useState(false);
+  const [nvSaving, setNvSaving] = useState(false);
+  const [showVinScanner, setShowVinScanner] = useState(false);
+
+  const resetNewVehicle = () => {
+    setShowNewVehicle(false);
+    setNvVin(''); setNvMake(''); setNvModel(''); setNvYear(''); setNvColor('');
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -51,12 +77,76 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
     setTimeStr(toLocalTime(initial?.scheduledAt));
     setAssignedTo(initial?.assignedTo || 'any');
     setNotes(initial?.notes || '');
+    resetNewVehicle();
   }, [open, initial]);
 
   const clientVehicles = useMemo(
     () => vehicles.filter(v => !clientId || v.clientId === clientId),
     [vehicles, clientId],
   );
+
+  const handleVehicleSelect = (v: string) => {
+    if (v === NEW_VEHICLE) {
+      setShowNewVehicle(true);
+      return;
+    }
+    setVehicleId(v);
+  };
+
+  const handleDecodeVin = async (vinCode?: string) => {
+    const vinToCheck = (vinCode || nvVin).trim().toUpperCase();
+    if (!validateVin(vinToCheck)) {
+      toast({ title: 'Invalid VIN', description: 'VIN must be 17 characters', variant: 'destructive' });
+      return;
+    }
+    setNvDecoding(true);
+    const decoded = await decodeVin(vinToCheck);
+    setNvDecoding(false);
+    if (decoded) {
+      setNvMake(decoded.make);
+      setNvModel(decoded.model);
+      setNvYear(String(decoded.year));
+    }
+  };
+
+  const handleVinScanned = (scanned: string) => {
+    setNvVin(scanned);
+    setShowVinScanner(false);
+    handleDecodeVin(scanned);
+  };
+
+  const handleSaveNewVehicle = async () => {
+    if (!clientId) return;
+    const vinTrimmed = nvVin.trim().toUpperCase();
+    if (!vinTrimmed) {
+      toast({ title: 'Missing VIN', variant: 'destructive' });
+      return;
+    }
+    const activeTasks = tasks.filter(t => !['billed', 'paid'].includes(t.status));
+    if (activeTasks.find(t => t.carVin.toUpperCase() === vinTrimmed)) {
+      toast({ title: 'Duplicate VIN', description: 'Already in an active task', variant: 'destructive' });
+      return;
+    }
+    const newVehicle: Vehicle = {
+      id: crypto.randomUUID(),
+      clientId,
+      vin: vinTrimmed,
+      make: nvMake || undefined,
+      model: nvModel || undefined,
+      year: nvYear ? parseInt(nvYear) : undefined,
+      color: nvColor || undefined,
+      createdAt: new Date(),
+    } as Vehicle;
+    setNvSaving(true);
+    try {
+      await onAddVehicle(newVehicle);
+      setVehicleId(newVehicle.id);
+      resetNewVehicle();
+      toast({ title: 'Vehicle added' });
+    } finally {
+      setNvSaving(false);
+    }
+  };
 
   const handleSave = () => {
     if (!clientId || !vehicleId || !requestedWork.trim()) return;
@@ -83,6 +173,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -91,7 +182,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
         <div className="space-y-3">
           <div>
             <Label className="text-xs">Client</Label>
-            <Select value={clientId} onValueChange={v => { setClientId(v); setVehicleId(''); }}>
+            <Select value={clientId} onValueChange={v => { setClientId(v); setVehicleId(''); resetNewVehicle(); }}>
               <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
               <SelectContent>
                 {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -100,9 +191,14 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
           </div>
           <div>
             <Label className="text-xs">Vehicle</Label>
-            <Select value={vehicleId} onValueChange={setVehicleId} disabled={!clientId}>
+            <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
               <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
               <SelectContent>
+                {clientId && (
+                  <SelectItem value={NEW_VEHICLE}>
+                    <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
+                  </SelectItem>
+                )}
                 {clientVehicles.map(v => (
                   <SelectItem key={v.id} value={v.id}>
                     {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
@@ -111,6 +207,49 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
               </SelectContent>
             </Select>
           </div>
+
+          {showNewVehicle && (
+            <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold">New vehicle</Label>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={resetNewVehicle}>Cancel</Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full bg-emerald-500/20 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/30 dark:text-emerald-300"
+                onClick={() => setShowVinScanner(true)}
+              >
+                <Scan className="h-4 w-4 mr-2" /> Scan VIN with Camera
+              </Button>
+              <Input
+                value={nvVin}
+                onChange={e => {
+                  const v = e.target.value.toUpperCase();
+                  setNvVin(v);
+                  if (v.length === 17 && validateVin(v)) handleDecodeVin(v);
+                }}
+                placeholder="Or enter VIN manually"
+                maxLength={17}
+              />
+              {nvDecoding && (
+                <p className="text-xs text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Decoding VIN…</p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={nvMake} onChange={e => setNvMake(e.target.value)} placeholder="Make" />
+                <Input value={nvModel} onChange={e => setNvModel(e.target.value)} placeholder="Model" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" value={nvYear} onChange={e => setNvYear(e.target.value)} placeholder="Year" />
+                <Input value={nvColor} onChange={e => setNvColor(e.target.value)} placeholder="Color" />
+              </div>
+              <Button size="sm" className="w-full" onClick={handleSaveNewVehicle} disabled={nvSaving || !nvVin.trim()}>
+                {nvSaving ? 'Saving…' : 'Save vehicle'}
+              </Button>
+            </div>
+          )}
+
           <div>
             <Label className="text-xs">Requested work</Label>
             <Textarea
@@ -156,5 +295,17 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, ini
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {showVinScanner && (
+      <VinScanner
+        onVinDetected={handleVinScanned}
+        onClose={() => setShowVinScanner(false)}
+        googleApiKey={settings.googleApiKey}
+        grokApiKey={settings.grokApiKey}
+        ocrSpaceApiKey={settings.ocrSpaceApiKey}
+        ocrProvider={settings.ocrProvider}
+      />
+    )}
+    </>
   );
 };

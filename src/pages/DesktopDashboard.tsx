@@ -1108,11 +1108,14 @@ const DesktopDashboard = () => {
             clients={clients}
             vehicles={vehicles}
             tasks={tasks}
+            settings={settings}
             onAdd={addScheduleEntry}
             onUpdate={updateScheduleEntry}
             onDelete={deleteScheduleEntry}
             onStartTask={(task) => { addTask(task); setDesktopView('tree'); }}
+            onAddVehicle={addVehicle}
           />
+
         </div>
       ) : desktopView === 'reports' ? (
         <DesktopReportsView tasks={tasks} clients={clients} vehicles={vehicles} settings={settings} />

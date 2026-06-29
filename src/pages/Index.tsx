@@ -755,11 +755,14 @@ const Index = () => {
               clients={clients}
               vehicles={vehicles}
               tasks={tasks}
+              settings={settings}
               onAdd={addScheduleEntry}
               onUpdate={updateScheduleEntry}
               onDelete={deleteScheduleEntry}
               onStartTask={addTask}
+              onAddVehicle={addVehicle}
             />
+
           </TabsContent>
 
           <TabsContent value="active" className="space-y-4 mt-4">

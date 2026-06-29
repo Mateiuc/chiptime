@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Play, Pencil, Calendar, User as UserIcon } from 'lucide-react';
-import { ScheduleEntry, Client, Vehicle, Task, WorkSession } from '@/types';
+import { ScheduleEntry, Client, Vehicle, Task, WorkSession, Settings } from '@/types';
 import { ScheduleEntryDialog } from './ScheduleEntryDialog';
 import { useWorkers } from '@/lib/workers';
 import { useCanEdit, useCurrentUserId } from '@/lib/permissions';
@@ -14,11 +14,14 @@ interface Props {
   clients: Client[];
   vehicles: Vehicle[];
   tasks: Task[];
+  settings: Settings;
   onAdd: (entry: ScheduleEntry) => void;
   onUpdate: (id: string, updates: Partial<ScheduleEntry>) => void;
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
+  onAddVehicle: (v: Vehicle) => Promise<void> | void;
 }
+
 
 const formatWhen = (d?: Date): string => {
   if (!d) return 'Unscheduled';
@@ -29,7 +32,7 @@ const formatWhen = (d?: Date): string => {
   });
 };
 
-export const ScheduleView = ({ schedule, clients, vehicles, tasks, onAdd, onUpdate, onDelete, onStartTask }: Props) => {
+export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
   const { getWorker } = useWorkers();
@@ -148,13 +151,17 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, onAdd, onUpda
         onOpenChange={setDialogOpen}
         clients={clients}
         vehicles={vehicles}
+        tasks={tasks}
+        settings={settings}
         initial={editing}
         onSave={(entry) => {
           if (editing) onUpdate(editing.id, entry);
           else onAdd(entry);
         }}
         onDelete={editing ? onDelete : undefined}
+        onAddVehicle={onAddVehicle}
       />
+
     </div>
   );
 };

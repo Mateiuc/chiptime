@@ -158,11 +158,16 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold">Scheduled jobs ({visible.length})</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add
-        </Button>
+        <div className="flex items-center gap-2">
+          {isMobile && (
+            <VoiceScheduleButton context={voiceContext} onParsed={handleVoiceParsed} />
+          )}
+          <Button size="sm" onClick={() => { setEditing(null); setVoiceInitial(null); setVoiceTranscript(undefined); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Add
+          </Button>
+        </div>
       </div>
 
       {visible.length === 0 ? (

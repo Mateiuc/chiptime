@@ -90,33 +90,79 @@ const DesktopDashboard = () => {
   const [saving, setSaving] = useState(false);
   const editingNowRef = useRef(false);
 
+  // Desktop is FULLY MANUAL with the cloud:
+  //  - cloud push is disabled on mount (local writes stay local)
+  //  - no auto-pull on focus/visibility/interval
+  //  - user clicks "Reload" to pull, "Save" to push
   useEffect(() => {
     setCloudPushEnabled(false);
     return () => { setCloudPushEnabled(true); };
   }, []);
 
+  // First-load pull so the page isn't empty on initial mount.
+  const didFirstLoadRef = useRef(false);
   useEffect(() => {
-    refresh();
+    if (didFirstLoadRef.current) return;
+    didFirstLoadRef.current = true;
+    refresh().then(() => {
+      // Defer baseline capture to next tick so React state has hydrated.
+      setTimeout(() => snapshotBaseline(), 0);
+    }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-pull from cloud when the tab regains focus / becomes visible, and
-  // on a short interval. Mobile is the master; desktop must stay current
-  // with mobile's edits without requiring a manual Reload click.
+  // --- Dirty tracking (local changes not yet pushed to cloud) ---
+  const baselineRef = useRef<string>('');
+  const [isDirty, setIsDirty] = useState(false);
+  const [dirtyCount, setDirtyCount] = useState(0);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+
+  const computeSnapshotKey = () => JSON.stringify({
+    c: clients, v: vehicles, t: tasks, s: settings,
+  });
+  const snapshotBaseline = () => {
+    baselineRef.current = computeSnapshotKey();
+    setIsDirty(false);
+    setDirtyCount(0);
+  };
+
+  // Recompute dirty whenever any tracked slice changes.
   useEffect(() => {
-    const safeRefresh = () => {
-      if (editingNowRef.current) return; // don't yank data out from under an open edit
-      refresh().catch(() => {});
+    if (!baselineRef.current) return; // baseline not captured yet
+    const current = computeSnapshotKey();
+    if (current === baselineRef.current) {
+      setIsDirty(false);
+      setDirtyCount(0);
+      return;
+    }
+    // Count tasks whose JSON differs from the baseline's tasks.
+    try {
+      const base = JSON.parse(baselineRef.current);
+      const baseTasksById = new Map<string, string>(
+        (base.t || []).map((t: any) => [t.id, JSON.stringify(t)])
+      );
+      let changed = 0;
+      for (const t of tasks) {
+        const baseStr = baseTasksById.get(t.id);
+        if (!baseStr || baseStr !== JSON.stringify(t)) changed++;
+        baseTasksById.delete(t.id);
+      }
+      changed += baseTasksById.size; // deletions
+      setDirtyCount(changed);
+    } catch { setDirtyCount(0); }
+    setIsDirty(true);
+  }, [clients, vehicles, tasks, settings]);
+
+  // Warn before navigating away with unsaved changes.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
     };
-    const onVisible = () => { if (document.visibilityState === 'visible') safeRefresh(); };
-    window.addEventListener('focus', safeRefresh);
-    document.addEventListener('visibilitychange', onVisible);
-    const interval = setInterval(safeRefresh, 60_000);
-    return () => {
-      window.removeEventListener('focus', safeRefresh);
-      document.removeEventListener('visibilitychange', onVisible);
-      clearInterval(interval);
-    };
-  }, [refresh]);
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // Ongoing backfill: stamp every Task/Session/Period/Part missing `createdBy`
   // with the current user. Runs whenever new unstamped items appear (e.g. data
@@ -166,33 +212,42 @@ const DesktopDashboard = () => {
       vehiclesHook.replaceAll(freshVehicles);
       tasksHook.replaceAll(freshTasks);
       settingsHook.replaceAll(freshSettings);
+      setTimeout(() => snapshotBaseline(), 0);
     };
     window.addEventListener('chiptime:import-complete', handleImportComplete);
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
   }, [clientsHook, vehiclesHook, tasksHook, settingsHook]);
 
-  /**
-   * Desktop cloud writes are PER-TASK PATCHES, never full snapshots.
-   * This pulls fresh cloud data, applies `updates` to ONLY this task id,
-   * and pushes the result back. Mobile's concurrent edits to OTHER tasks
-   * are preserved verbatim. Mobile remains the master for timer state.
-   */
-  const cloudPatchTask = async (taskId: string, updates: Partial<Task>) => {
+  // Manual Reload: pull cloud snapshot into local state. Warns if dirty.
+  const handleReloadFromCloud = async () => {
+    if (isDirty) {
+      const ok = window.confirm(
+        `You have ${dirtyCount} unsaved change${dirtyCount === 1 ? '' : 's'}. Reload will DISCARD them. Continue?`
+      );
+      if (!ok) return;
+    }
+    await refresh();
+    setLastLoadedAt(new Date());
+    setTimeout(() => snapshotBaseline(), 0);
+    toast({ title: 'Reloaded from Cloud' });
+  };
+
+  // Manual Save: push current desktop state to cloud as a full snapshot.
+  const handleSaveToCloud = async () => {
+    setSaving(true);
     try {
-      setSaving(true);
-      await appSyncService.patchTaskInCloud(taskId, updates);
+      await pushNow({ clients, vehicles, tasks, settings });
+      setLastSavedAt(new Date());
+      snapshotBaseline();
+      toast({ title: 'Saved to Cloud', description: `${dirtyCount || 'All'} change${dirtyCount === 1 ? '' : 's'} pushed.` });
     } catch (err: any) {
-      console.error('[Desktop] patchTaskInCloud failed:', err);
-      toast({ title: 'Cloud save failed', description: err?.message || 'Please reload and try again.', variant: 'destructive' });
+      console.error('[Desktop] Save failed:', err);
+      toast({ title: 'Save failed', description: err?.message || 'Try again.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReloadFromCloud = async () => {
-    await refresh();
-    toast({ title: 'Reloaded from Cloud' });
-  };
 
 
 
@@ -593,7 +648,7 @@ const DesktopDashboard = () => {
     const client = task ? clients.find(c => c.id === task.clientId) : null;
     // Phase 2: pure status flip — totals are always live (or importedSalary).
     updateTask(taskId, { status: 'billed' });
-    cloudPatchTask(taskId, { status: 'billed' });
+    // No cloud push here — Save button does that explicitly.
     toast({ title: 'Task Marked as Billed' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'billed' as const } : t);
@@ -612,7 +667,7 @@ const DesktopDashboard = () => {
       : undefined;
     const paidAt = depositApplied?.at || new Date();
     updateTask(taskId, { status: 'paid', paidAt, depositApplied });
-    cloudPatchTask(taskId, { status: 'paid', paidAt, depositApplied });
+    // No cloud push here — Save button does that explicitly.
     toast({ title: 'Payment Recorded' });
     if (client) {
       const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'paid' as const } : t);
@@ -975,19 +1030,38 @@ const DesktopDashboard = () => {
                 className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border border-primary-foreground/30">
                 <Plus className="h-4 w-4 mr-1" /> Vehicle
               </Button>
-            <Button variant="outline" size="sm" onClick={handleReloadFromCloud} disabled={syncing}
+            <Button variant="outline" size="sm" onClick={handleReloadFromCloud} disabled={syncing || saving}
+              title={isDirty ? `Reload will discard ${dirtyCount} unsaved change${dirtyCount === 1 ? '' : 's'}` : 'Pull latest from Cloud'}
               className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
               <Download className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
               Reload
             </Button>
-            {/* Bulk "Save to Cloud" removed: it could overwrite mobile's
-                concurrent edits. Desktop now pushes per-task patches
-                automatically on Mark Billed / Mark Paid / inline edits. */}
-            {saving && (
-              <span className="text-xs text-primary-foreground/80 px-2">
-                Syncing…
-              </span>
-            )}
+            <Button
+              size="sm"
+              onClick={handleSaveToCloud}
+              disabled={saving || syncing || !isDirty}
+              title={isDirty ? `Push ${dirtyCount} change${dirtyCount === 1 ? '' : 's'} to Cloud` : 'No unsaved changes'}
+              className={
+                isDirty
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-300 animate-pulse'
+                  : 'bg-primary-foreground/15 text-primary-foreground/60 border border-primary-foreground/20 cursor-not-allowed'
+              }
+            >
+              {saving ? (
+                <>
+                  <Upload className="h-4 w-4 mr-1 animate-pulse" /> Saving…
+                </>
+              ) : isDirty ? (
+                <>
+                  <Save className="h-4 w-4 mr-1" /> Save ({dirtyCount})
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-1" /> Saved
+                </>
+              )}
+            </Button>
+
             <div className="h-6 w-px bg-primary-foreground/20 mx-1" />
             {[
               { view: 'clients' as const, icon: Users, label: 'Clients' },

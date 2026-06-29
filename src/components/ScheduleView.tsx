@@ -10,6 +10,8 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
+import { useIsMobile } from '@/hooks/use-mobile';
+import VoiceScheduleButton, { VoiceDraft } from './VoiceScheduleButton';
 
 interface Props {
   schedule: ScheduleEntry[];

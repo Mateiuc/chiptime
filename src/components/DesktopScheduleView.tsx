@@ -63,6 +63,9 @@ export const DesktopScheduleView = ({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
+  const [previewDate, setPreviewDate] = useState<Date>(new Date());
+  const [showUnscheduled, setShowUnscheduled] = useState(false);
+  const [draftDefaultDate, setDraftDefaultDate] = useState<string>('');
 
   // Editor form state
   const [clientId, setClientId] = useState('');

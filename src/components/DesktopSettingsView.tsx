@@ -187,6 +187,8 @@ export const DesktopSettingsView = ({ settings, onSave }: DesktopSettingsViewPro
           </CardContent>
         </Card>
       </div>
+      )}
+
 
       {/* Payment Methods */}
       <Card>

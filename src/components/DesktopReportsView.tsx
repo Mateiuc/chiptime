@@ -262,9 +262,23 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       overTimeMap[key] = (overTimeMap[key] || 0) + getTaskCost(t);
     });
     const receivedMap: Record<string, number> = {};
-    filteredTasks.filter(t => t.status === 'paid' && t.paidAt).forEach(t => {
-      const d = new Date(t.paidAt!);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    filteredTasks.filter(t => t.status === 'paid').forEach(t => {
+      // Fallback for historical paid tasks that pre-date the paidAt field:
+      // use the latest session end, else the task's createdAt.
+      let paidDate: Date | undefined = t.paidAt ? new Date(t.paidAt) : undefined;
+      if (!paidDate) {
+        let latest = 0;
+        for (const s of t.sessions || []) {
+          for (const p of s.periods || []) {
+            const end = p.endTime ? new Date(p.endTime).getTime() : 0;
+            if (end > latest) latest = end;
+          }
+          const c = s.completedAt ? new Date(s.completedAt).getTime() : 0;
+          if (c > latest) latest = c;
+        }
+        paidDate = latest > 0 ? new Date(latest) : new Date(t.createdAt);
+      }
+      const key = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, '0')}`;
       receivedMap[key] = (receivedMap[key] || 0) + getTaskCost(t);
     });
     const allMonths = [...new Set([...Object.keys(overTimeMap), ...Object.keys(receivedMap)])].sort();

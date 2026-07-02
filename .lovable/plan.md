@@ -1,43 +1,49 @@
-## Reports calculation fixes
+## You're right — parts are $0 revenue
 
-### 1. Bug: deposits double-counted in "Received"
+If you pay $100 for a part and bill the client $100, your revenue from that $100 is **$0**. It's a pass-through. Same $100 in, same $100 out.
 
-`src/components/DesktopReportsView.tsx` → `revenueMirror` memo has the deposit loop pasted twice (lines 271-280 and 281-290). Delete the duplicate copy. Each applied deposit will then be counted exactly once on its `depositApplied.at` month.
-
-### 2. New Reports-only revenue formula
-
-Parts become pass-through cost (not revenue). Cloning / programming / add-key / all-keys-lost stay IN (they're part of `services`). New per-task revenue used ONLY inside `DesktopReportsView`:
+So the **chip total** (what the client pays) and **your revenue** are different numbers on purpose:
 
 ```
-services    = cloning + programming + addKey + allKeysLost
-taskRevenue = max(0, labor + services − vehicleDiscount) − parts
+Chip total (client pays)   = labor + services − discount + parts
+Your revenue (shop earns)  = labor + services − discount
+Parts                       = pass-through, $0 profit
 ```
 
-- `labor`, `services`, `parts` come from `computeTaskTotal(task, client, settings)`.
-- `vehicleDiscount` = the task's allocated share (same allocation as `computeTaskTotalAllocated`, so vehicle rollups still reconcile).
-- Not clamped to 0 — a parts-heavy task with no labor can show negative "revenue" (honest picture: shop lost margin on parts markup).
-- Imported (XLS) tasks: `importedSalary` acts as labor, parts still subtracted.
+That means the current Reports formula is almost right, but wrong in one detail. Today it does:
+```
+taskRevenue = max(0, labor + services − discount) − parts   ← subtracts parts (double penalty)
+```
+That subtracts parts a second time, which is why numbers look off.
 
-Add `getTaskRevenue(task)` helper at the top of the component and replace every `getTaskCost(task)` call inside the file. Do NOT touch `src/lib/billing.ts`, invoices, bill PDFs, client portal, or the dashboard.
+### Fix
 
-Affected memos/KPIs inside the file:
-- `workerTotals.cost`
-- `revenueOverTime.revenue`
-- `revenueMirror.billed` and `.received` (received cash = `max(0, taskRevenue − depositAmt)` on `paidAt` month; deposits on `depositApplied.at` month, once)
-- `revenueByClient.revenue`, `revenueByVehicle.revenue`
-- `detailData` rows' `cost`
-- `totalRevenue`, `unpaidBalance` KPIs
+Change `getTaskCost` in `src/components/DesktopReportsView.tsx` (lines 178-184) to:
 
-### 3. "Total Revenue" KPI = paid tasks only
+```ts
+const getTaskCost = (task: Task) => {
+  const client = clients.find(c => c.id === task.clientId) || null;
+  const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
+  const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+  const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
+  return Math.max(0, a.labor + a.services - a.discount);   // parts excluded, not subtracted
+};
+```
 
-Line 387: sum `taskRevenue` only for `t.status === 'paid'` within the filtered set. Also scope `unpaidBalance` (line 389) to `filteredTasks` with `status === 'billed'` so both KPIs respect the active filters.
+That's it. Parts drop out completely from every Reports figure.
 
-### 4. Not changing
+### Effect on the numbers
 
-- "Billed" bars still bucket by `task.createdAt` (you didn't ask to change).
-- Billing engine, invoices, bill PDFs, client portal totals — untouched.
+- **Total Revenue** (paid-only): sum of `labor + services − discount` across paid tasks. Will be **higher** than today (no more subtracting parts) and **lower** than the chip totals (no adding parts).
+- **Received bars**: same, bucketed by `paidAt`. Deposits still counted once on `depositApplied.at`.
+- **Unpaid balance** (billed-only): same rule.
+- **Revenue by client / vehicle / worker**: same rule.
+- **Total hours** and **task count**: unchanged.
 
-### Verification after edit
+### Not changing
 
-1. Show the exact diff of `revenueMirror` (duplicate loop removed).
-2. Walk through May 2026: list paid tasks with `paidAt` in May, compute `taskRevenue` per task, add deposits with `at` in May, report the total so you can eyeball vs the chart.
+- Task chip on the dashboard still shows the full amount the client pays (includes parts). That's correct — client owes it.
+- Invoice, bill PDF, client portal, deposit math: untouched. Those are "what the client pays", not "what you earn".
+- Imported (XLS) tasks: `importedSalary` acts as labor, no parts to worry about.
+
+Confirm this matches how you think about revenue and I'll apply.

@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
-import { computeTaskCost } from '@/lib/billing';
+import { computeTaskTotalAllocated } from '@/lib/billing';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 
@@ -170,10 +170,17 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
-  // Single source of truth: src/lib/billing.ts (pooled vehicle discount).
+  // Reports-only revenue: (labor + services − vehicleDiscount) − parts.
+  // Parts are treated as pass-through cost (not revenue). Services stays IN
+  // (cloning, programming, add-key, all-keys-lost). Vehicle discount is
+  // allocated per-task via computeTaskTotalAllocated so vehicle rollups
+  // reconcile. Not clamped: parts-heavy tasks can show negative revenue.
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId) || null;
-    return computeTaskCost(task, vehicles, tasks, client, settings);
+    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
+    return Math.max(0, a.labor + a.services - a.discount) - a.parts;
   };
 
   const getTaskSeconds = (task: Task) =>
@@ -267,16 +274,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       const key = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, '0')}`;
       const depAmt = t.depositApplied ? (t.depositApplied.vehicle || 0) + (t.depositApplied.client || 0) : 0;
       receivedMap[key] = (receivedMap[key] || 0) + Math.max(0, getTaskCost(t) - depAmt);
-    });
-    // Deposit draw counts as "received" on the date it was applied.
-    filteredTasks.forEach(t => {
-      const da = t.depositApplied;
-      if (!da || !da.at) return;
-      const amt = (da.vehicle || 0) + (da.client || 0);
-      if (amt <= 0) return;
-      const d = new Date(da.at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      receivedMap[key] = (receivedMap[key] || 0) + amt;
     });
     // Deposit draw counts as "received" on the date it was applied.
     filteredTasks.forEach(t => {
@@ -384,9 +381,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return data;
   }, [filteredTasks, clients, vehicles, sortField, sortDir]);
 
-  const totalRevenue = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
+  const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
-  const unpaidBalance = useMemo(() => tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [tasks]);
+  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
 
   // Build per-day stacked dataset.
   // When a vehicle is drilled: each stack segment = one work period.

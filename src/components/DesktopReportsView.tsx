@@ -66,6 +66,7 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
+  parts: number;
   workerIds: string[];
 }
 
@@ -109,7 +110,8 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
             <th className="text-left py-1">Vehicle</th>
             <th className="text-left py-1">Status</th>
             <th className="text-right py-1">Time</th>
-            <th className="text-right py-1">Cost</th>
+            <th className="text-right py-1" title="Parts (pass-through, not counted as revenue)">Parts</th>
+            <th className="text-right py-1" title="Labor + services − discount. Parts excluded.">Revenue</th>
           </tr>
         </thead>
         <tbody>
@@ -125,6 +127,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
                 </span>
               </td>
               <td className="py-1 text-right font-mono">{formatDuration(r.timeWorked)}</td>
+              <td className="py-1 text-right font-mono text-muted-foreground">{r.parts > 0 ? formatCurrency(r.parts) : '—'}</td>
               <td className="py-1 text-right font-mono font-semibold">{formatCurrency(r.cost)}</td>
             </tr>
           ))}
@@ -133,6 +136,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
           <tr className="border-t font-semibold">
             <td colSpan={4} className="py-1 text-muted-foreground">Total</td>
             <td className="py-1 text-right font-mono">{formatDuration(drill.rows.reduce((s, r) => s + r.timeWorked, 0))}</td>
+            <td className="py-1 text-right font-mono text-muted-foreground">{formatCurrency(drill.rows.reduce((s, r) => s + r.parts, 0))}</td>
             <td className="py-1 text-right font-mono">{formatCurrency(drill.rows.reduce((s, r) => s + r.cost, 0))}</td>
           </tr>
         </tfoot>
@@ -187,6 +191,14 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     (task.sessions || []).reduce((total, session) =>
       total + session.periods.reduce((sum, p) => sum + p.duration, 0), 0);
 
+  // Sum of parts on a task (pass-through, tracked separately from revenue).
+  const getTaskParts = (task: Task) => {
+    const client = clients.find(c => c.id === task.clientId) || null;
+    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).parts;
+  };
+
   const toDrillRow = (t: Task): DrillRow => ({
     id: t.id,
     date: new Date(t.createdAt),
@@ -199,6 +211,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
+    parts: getTaskParts(t),
     workerIds: getTaskWorkerIds(t),
   });
 
@@ -384,6 +397,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
   const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
+  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks]);
+  const detailRevenue = useMemo(() => detailData.reduce((s, r) => s + r.cost, 0), [detailData]);
+  const detailParts = useMemo(() => detailData.reduce((s, r) => s + r.parts, 0), [detailData]);
 
   // Build per-day stacked dataset.
   // When a vehicle is drilled: each stack segment = one work period.
@@ -585,14 +601,20 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <RotateCcw className="h-3 w-3 mr-1" /> Reset
           </Button>
           {unpaidBalance > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700"
+              title="Billed tasks. Labor + services − discount. Parts excluded (pass-through).">
               <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Unpaid:</span>
               <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{formatCurrency(unpaidBalance)}</span>
             </div>
           )}
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
             <span><strong className="text-foreground">{filteredTasks.length}</strong> tasks</span>
-            <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
+            <span title="Paid tasks. Labor + services − discount. Parts excluded (pass-through)."><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
+            {totalParts > 0 && (
+              <span title="Parts billed to client — pass-through cost, not counted as revenue.">
+                <strong className="text-muted-foreground">{formatCurrency(totalParts)}</strong> parts
+              </span>
+            )}
             <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
           </div>
         </div>
@@ -621,8 +643,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   Revenue Over Time <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
                 </CardTitle>
                 <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1"></span>Billed (work date)</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-400 mr-1"></span>Received (paid date)</span>
+                  <span className="flex items-center gap-1" title="Labor + services − discount, bucketed by work date. Parts excluded."><span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1"></span>Earned (work date)</span>
+                  <span className="flex items-center gap-1" title="Cash received on paid date + deposits on the date applied."><span className="inline-block w-3 h-3 rounded-sm bg-emerald-400 mr-1"></span>Received (paid date)</span>
                 </div>
               </div>
             </CardHeader>
@@ -633,7 +655,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                     <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${Math.abs(v)}`} />
-                    <Tooltip formatter={(v: number, name: string) => [formatCurrency(Math.abs(v as number)), name === 'billed' ? 'Billed' : 'Received']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                    <Tooltip formatter={(v: number, name: string) => [formatCurrency(Math.abs(v as number)), name === 'billed' ? 'Earned' : 'Received']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={2} />
                     <Bar dataKey="billed" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="received" fill="#10b981" radius={[0, 0, 4, 4]} />
@@ -851,7 +873,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <th className="text-left py-2">Description</th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('status')}>Status <SortIcon field="status" /></th>
                     <th className="text-right py-2">Time</th>
-                    <th className="text-right py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('cost')}>Cost <SortIcon field="cost" /></th>
+                    <th className="text-right py-2" title="Parts billed to client — pass-through cost, not counted as revenue.">Parts</th>
+                    <th className="text-right py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('cost')} title="Labor + services − discount. Parts excluded.">Revenue <SortIcon field="cost" /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -869,6 +892,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
                       <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
+                      <td className="py-2 text-right font-mono text-muted-foreground text-xs">{r.parts > 0 ? formatCurrency(r.parts) : '—'}</td>
                       <td className="py-2 text-right font-mono">{formatCurrency(r.cost)}</td>
                     </tr>
                   ))}
@@ -876,8 +900,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 <tfoot>
                   <tr className="border-t-2 font-semibold">
                     <td colSpan={6} className="py-2">Totals</td>
-                    <td className="py-2 text-right font-mono text-xs">{formatDuration(Math.round(totalHours * 3600))}</td>
-                    <td className="py-2 text-right font-mono">{formatCurrency(totalRevenue)}</td>
+                    <td className="py-2 text-right font-mono text-xs">{formatDuration(detailData.reduce((s, r) => s + r.timeWorked, 0))}</td>
+                    <td className="py-2 text-right font-mono text-muted-foreground text-xs">{formatCurrency(detailParts)}</td>
+                    <td className="py-2 text-right font-mono">{formatCurrency(detailRevenue)}</td>
                   </tr>
                 </tfoot>
               </table>

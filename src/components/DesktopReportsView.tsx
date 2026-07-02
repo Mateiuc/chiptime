@@ -170,17 +170,17 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
-  // Reports-only revenue: (labor + services − vehicleDiscount) − parts.
-  // Parts are treated as pass-through cost (not revenue). Services stays IN
-  // (cloning, programming, add-key, all-keys-lost). Vehicle discount is
+  // Reports-only revenue: labor + services − vehicleDiscount.
+  // Parts are EXCLUDED (pass-through cost — $0 shop revenue). Services stays
+  // IN (cloning, programming, add-key, all-keys-lost). Vehicle discount is
   // allocated per-task via computeTaskTotalAllocated so vehicle rollups
-  // reconcile. Not clamped: parts-heavy tasks can show negative revenue.
+  // reconcile.
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId) || null;
     const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
     const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
     const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
-    return Math.max(0, a.labor + a.services - a.discount) - a.parts;
+    return Math.max(0, a.labor + a.services - a.discount);
   };
 
   const getTaskSeconds = (task: Task) =>

@@ -601,14 +601,20 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
             <RotateCcw className="h-3 w-3 mr-1" /> Reset
           </Button>
           {unpaidBalance > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700"
+              title="Billed tasks. Labor + services − discount. Parts excluded (pass-through).">
               <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Unpaid:</span>
               <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{formatCurrency(unpaidBalance)}</span>
             </div>
           )}
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
             <span><strong className="text-foreground">{filteredTasks.length}</strong> tasks</span>
-            <span><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
+            <span title="Paid tasks. Labor + services − discount. Parts excluded (pass-through)."><strong className="text-foreground">{formatCurrency(totalRevenue)}</strong> revenue</span>
+            {totalParts > 0 && (
+              <span title="Parts billed to client — pass-through cost, not counted as revenue.">
+                <strong className="text-muted-foreground">{formatCurrency(totalParts)}</strong> parts
+              </span>
+            )}
             <span><strong className="text-foreground">{totalHours.toFixed(1)}</strong> hrs</span>
           </div>
         </div>

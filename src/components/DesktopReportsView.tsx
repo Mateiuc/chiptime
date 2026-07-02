@@ -285,16 +285,6 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       receivedMap[key] = (receivedMap[key] || 0) + amt;
     });
-    // Deposit draw counts as "received" on the date it was applied.
-    filteredTasks.forEach(t => {
-      const da = t.depositApplied;
-      if (!da || !da.at) return;
-      const amt = (da.vehicle || 0) + (da.client || 0);
-      if (amt <= 0) return;
-      const d = new Date(da.at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      receivedMap[key] = (receivedMap[key] || 0) + amt;
-    });
     const allMonths = [...new Set([...Object.keys(overTimeMap), ...Object.keys(receivedMap)])].sort();
     return allMonths.map(month => ({
       month,

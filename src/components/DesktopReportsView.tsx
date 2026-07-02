@@ -655,7 +655,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                     <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `$${Math.abs(v)}`} />
-                    <Tooltip formatter={(v: number, name: string) => [formatCurrency(Math.abs(v as number)), name === 'billed' ? 'Billed' : 'Received']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                    <Tooltip formatter={(v: number, name: string) => [formatCurrency(Math.abs(v as number)), name === 'billed' ? 'Earned' : 'Received']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={2} />
                     <Bar dataKey="billed" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="received" fill="#10b981" radius={[0, 0, 4, 4]} />

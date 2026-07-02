@@ -170,10 +170,17 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
-  // Single source of truth: src/lib/billing.ts (pooled vehicle discount).
+  // Reports-only revenue: (labor + services − vehicleDiscount) − parts.
+  // Parts are treated as pass-through cost (not revenue). Services stays IN
+  // (cloning, programming, add-key, all-keys-lost). Vehicle discount is
+  // allocated per-task via computeTaskTotalAllocated so vehicle rollups
+  // reconcile. Not clamped: parts-heavy tasks can show negative revenue.
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId) || null;
-    return computeTaskCost(task, vehicles, tasks, client, settings);
+    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
+    return Math.max(0, a.labor + a.services - a.discount) - a.parts;
   };
 
   const getTaskSeconds = (task: Task) =>

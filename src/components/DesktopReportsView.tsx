@@ -643,8 +643,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   Revenue Over Time <span className="text-[10px] font-normal text-muted-foreground ml-1">(click bar to drill)</span>
                 </CardTitle>
                 <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1"></span>Billed (work date)</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-400 mr-1"></span>Received (paid date)</span>
+                  <span className="flex items-center gap-1" title="Labor + services − discount, bucketed by work date. Parts excluded."><span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1"></span>Earned (work date)</span>
+                  <span className="flex items-center gap-1" title="Cash received on paid date + deposits on the date applied."><span className="inline-block w-3 h-3 rounded-sm bg-emerald-400 mr-1"></span>Received (paid date)</span>
                 </div>
               </div>
             </CardHeader>

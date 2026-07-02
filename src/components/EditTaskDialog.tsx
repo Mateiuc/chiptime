@@ -829,6 +829,17 @@ export const EditTaskDialog = ({
               <Badge className={`${statusConfig[task.status]?.className || 'bg-muted'} text-xs border`}>
                 {statusConfig[task.status]?.label || task.status}
               </Badge>
+              {!isMobile && task.status === 'paid' && (
+                <div className="flex items-center gap-1.5 bg-white/15 border border-white/30 rounded px-2 py-0.5">
+                  <Label className="text-[11px] text-white/90 whitespace-nowrap">Paid date:</Label>
+                  <Input
+                    type="date"
+                    value={paidAtInput}
+                    onChange={e => setPaidAtInput(e.target.value)}
+                    className="h-6 w-36 text-xs bg-white text-foreground"
+                  />
+                </div>
+              )}
             </div>
           </DialogHeader>
         </div>

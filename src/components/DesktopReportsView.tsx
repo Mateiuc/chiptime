@@ -262,25 +262,21 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       overTimeMap[key] = (overTimeMap[key] || 0) + getTaskCost(t);
     });
     const receivedMap: Record<string, number> = {};
-    filteredTasks.filter(t => t.status === 'paid').forEach(t => {
-      // Fallback for historical paid tasks that pre-date the paidAt field:
-      // use the latest session end, else the task's createdAt.
-      let paidDate: Date | undefined = t.paidAt ? new Date(t.paidAt) : undefined;
-      if (!paidDate) {
-        let latest = 0;
-        for (const s of t.sessions || []) {
-          for (const p of s.periods || []) {
-            const end = p.endTime ? new Date(p.endTime).getTime() : 0;
-            if (end > latest) latest = end;
-          }
-          const c = s.completedAt ? new Date(s.completedAt).getTime() : 0;
-          if (c > latest) latest = c;
-        }
-        paidDate = latest > 0 ? new Date(latest) : new Date(t.createdAt);
-      }
+    filteredTasks.filter(t => t.status === 'paid' && t.paidAt).forEach(t => {
+      const paidDate = new Date(t.paidAt as unknown as string | Date);
       const key = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, '0')}`;
       const depAmt = t.depositApplied ? (t.depositApplied.vehicle || 0) + (t.depositApplied.client || 0) : 0;
       receivedMap[key] = (receivedMap[key] || 0) + Math.max(0, getTaskCost(t) - depAmt);
+    });
+    // Deposit draw counts as "received" on the date it was applied.
+    filteredTasks.forEach(t => {
+      const da = t.depositApplied;
+      if (!da || !da.at) return;
+      const amt = (da.vehicle || 0) + (da.client || 0);
+      if (amt <= 0) return;
+      const d = new Date(da.at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      receivedMap[key] = (receivedMap[key] || 0) + amt;
     });
     // Deposit draw counts as "received" on the date it was applied.
     filteredTasks.forEach(t => {

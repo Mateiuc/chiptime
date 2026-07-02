@@ -397,6 +397,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
   const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
+  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks]);
+  const detailRevenue = useMemo(() => detailData.reduce((s, r) => s + r.cost, 0), [detailData]);
+  const detailParts = useMemo(() => detailData.reduce((s, r) => s + r.parts, 0), [detailData]);
 
   // Build per-day stacked dataset.
   // When a vehicle is drilled: each stack segment = one work period.

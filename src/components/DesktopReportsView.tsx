@@ -873,7 +873,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                     <th className="text-left py-2">Description</th>
                     <th className="text-left py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('status')}>Status <SortIcon field="status" /></th>
                     <th className="text-right py-2">Time</th>
-                    <th className="text-right py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('cost')}>Cost <SortIcon field="cost" /></th>
+                    <th className="text-right py-2" title="Parts billed to client — pass-through cost, not counted as revenue.">Parts</th>
+                    <th className="text-right py-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('cost')} title="Labor + services − discount. Parts excluded.">Revenue <SortIcon field="cost" /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -891,6 +892,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       <td className="py-2 max-w-[250px] truncate text-muted-foreground" title={r.description}>{r.description}</td>
                       <td className="py-2"><Badge className={cn('text-[10px] capitalize', statusBadgeColors[r.status] || '')}>{r.status}</Badge></td>
                       <td className="py-2 text-right font-mono text-xs">{formatDuration(r.timeWorked)}</td>
+                      <td className="py-2 text-right font-mono text-muted-foreground text-xs">{r.parts > 0 ? formatCurrency(r.parts) : '—'}</td>
                       <td className="py-2 text-right font-mono">{formatCurrency(r.cost)}</td>
                     </tr>
                   ))}
@@ -898,8 +900,9 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 <tfoot>
                   <tr className="border-t-2 font-semibold">
                     <td colSpan={6} className="py-2">Totals</td>
-                    <td className="py-2 text-right font-mono text-xs">{formatDuration(Math.round(totalHours * 3600))}</td>
-                    <td className="py-2 text-right font-mono">{formatCurrency(totalRevenue)}</td>
+                    <td className="py-2 text-right font-mono text-xs">{formatDuration(detailData.reduce((s, r) => s + r.timeWorked, 0))}</td>
+                    <td className="py-2 text-right font-mono text-muted-foreground text-xs">{formatCurrency(detailParts)}</td>
+                    <td className="py-2 text-right font-mono">{formatCurrency(detailRevenue)}</td>
                   </tr>
                 </tfoot>
               </table>

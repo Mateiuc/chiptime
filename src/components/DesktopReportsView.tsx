@@ -66,6 +66,7 @@ interface DrillRow {
   status: string;
   timeWorked: number;
   cost: number;
+  parts: number;
   workerIds: string[];
 }
 

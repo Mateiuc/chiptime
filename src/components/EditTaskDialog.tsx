@@ -829,7 +829,7 @@ export const EditTaskDialog = ({
               <Badge className={`${statusConfig[task.status]?.className || 'bg-muted'} text-xs border`}>
                 {statusConfig[task.status]?.label || task.status}
               </Badge>
-              {!isMobile && task.status === 'paid' && (
+              {!isMobile && (task.status === 'paid' || task.status === 'billed') && (
                 <div className="flex items-center gap-1.5 bg-white/15 border border-white/30 rounded px-2 py-0.5">
                   <Label className="text-[11px] text-white/90 whitespace-nowrap">Paid date:</Label>
                   <Input

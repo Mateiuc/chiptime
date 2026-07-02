@@ -15,6 +15,13 @@ const LOCAL_ORIGINS = new Set([
   'http://127.0.0.1:5173',
 ]);
 
+// Built-in Lovable preview origins (https only, leading-dot suffix match).
+const BUILTIN_WILDCARDS = [
+  '.lovableproject.com',
+  '.lovable.app',
+  '.lovable.dev',
+];
+
 const ALLOW_HEADERS = [
   'authorization',
   'x-client-info',
@@ -72,6 +79,12 @@ function originAllowed(origin: string): boolean {
   }
 
   if (isLocalAllowed() && LOCAL_ORIGINS.has(origin)) return true;
+
+  for (const suffix of BUILTIN_WILDCARDS) {
+    if (scheme === 'https:' && host.endsWith(suffix) && host.length > suffix.length) {
+      return true;
+    }
+  }
 
   for (const entry of parseAllowlistEnv()) {
     if (entry.literal && entry.literal.toLowerCase() === origin.toLowerCase()) {

@@ -1,31 +1,25 @@
-## Diagnosis
+## Add deposits to Reports "Received"
 
-Reports' "Received (paid date)" bars are (almost) empty even though many tasks are marked **Paid**. Confirmed against the cloud data:
+Currently the "Received" chart in Desktop Reports only counts task totals on `paidAt` (with the recent fallback). Deposits that were used to pay tasks aren't visible as their own line item.
 
-| workspace | tasks | paid | paid with `paidAt` |
-|---|---|---|---|
-| default | 52 | 35 | **0** |
-| main    | 82 | 53 | **0** |
-| others  | 29 | 16 | **0** |
+### Change
 
-Historical tasks were marked Paid before the `paidAt` timestamp was introduced, so the Reports chart (which filters `t.status === 'paid' && t.paidAt`) discards them and shows nothing under "Received". Same reason the per-worker/vehicle received rollups look thin.
+In `src/components/DesktopReportsView.tsx`, extend the `revenueMirror` memo so each task contributes two things to the monthly buckets:
 
-Only paid‑date data is affected. Billed revenue and everything else is intact.
+1. **Task received** — already there. Uses `paidAt ?? lastSessionEnd ?? createdAt`, value = task total.
+2. **Deposit received (new)** — when `task.depositApplied` exists, add a bar entry:
+   - date = `task.depositApplied.at`
+   - value = `depositApplied.vehicle + depositApplied.client`
+   - month bucket = same YYYY-MM key
 
-## Fix (small, presentation‑layer only)
+Both accumulate into the same monthly "Received" bar so the user sees the true cash flow that month (task cash + deposit draw).
 
-In `src/components/DesktopReportsView.tsx`, when computing the "Received" series, fall back to a best‑guess date instead of dropping the task:
+### No schema / no writes
 
-`paidDate = t.paidAt ?? lastSessionCompletedAt(t) ?? t.createdAt`
+- `depositApplied.at` already exists on paid tasks (set in `src/lib/deposit.ts`).
+- No migration, no data backfill, no business-logic change.
+- Presentation-only edit in one file.
 
-Apply the same fallback anywhere the reports view groups "received" by date (mirror chart today; any future received‑by‑month/worker rollup). No business‑logic change, no schema change, no writes.
+### Files touched
 
-### Optional one‑time backfill (ask before doing)
-
-If the user wants historical `paidAt` values persisted (so mobile/desktop agree), we can additionally stamp `paidAt = last session end || createdAt` for every existing `status='paid'` task on the next load. This is a one‑shot migration in `useStorage` / cloud pull, guarded by "only if missing". I'll only do this if asked — the presentation fallback above already fixes the chart.
-
-## Files touched
-
-- `src/components/DesktopReportsView.tsx` — `revenueMirror` memo: replace the `paidAt`‑only filter with the fallback date resolver.
-
-That's the whole change.
+- `src/components/DesktopReportsView.tsx` — `revenueMirror` memo only.

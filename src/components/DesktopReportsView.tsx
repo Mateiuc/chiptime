@@ -279,9 +279,10 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
         paidDate = latest > 0 ? new Date(latest) : new Date(t.createdAt);
       }
       const key = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, '0')}`;
-      receivedMap[key] = (receivedMap[key] || 0) + getTaskCost(t);
+      const depAmt = t.depositApplied ? (t.depositApplied.vehicle || 0) + (t.depositApplied.client || 0) : 0;
+      receivedMap[key] = (receivedMap[key] || 0) + Math.max(0, getTaskCost(t) - depAmt);
     });
-    // Also count deposit draw as "received" on the date it was applied.
+    // Deposit draw counts as "received" on the date it was applied.
     filteredTasks.forEach(t => {
       const da = t.depositApplied;
       if (!da || !da.at) return;

@@ -85,6 +85,11 @@ export const EditTaskDialog = ({
     timeValue: string;
   } | null>(null);
 
+  // Manual paid date editor (desktop only, paid tasks only).
+  const [paidAtInput, setPaidAtInput] = useState<string>(
+    task.paidAt ? formatDateForInput(new Date(task.paidAt)) : ''
+  );
+
   const handleDeletePeriod = (sessionId: string, periodId: string) => {
     setSessions(prev => prev.map(session => {
       if (session.id === sessionId) {

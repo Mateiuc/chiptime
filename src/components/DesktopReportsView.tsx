@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
-import { computeTaskCost } from '@/lib/billing';
+import { computeTaskTotalAllocated } from '@/lib/billing';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 

@@ -455,11 +455,14 @@ export const EditTaskDialog = ({
     const totalTime = validSessions.reduce((total, session) => {
       return total + session.periods.reduce((sum, p) => sum + p.duration, 0);
     }, 0);
-    const updatedTask = {
+    const updatedTask: Task = {
       ...task,
       sessions: validSessions,
-      totalTime
+      totalTime,
     };
+    if (task.status === 'paid') {
+      updatedTask.paidAt = paidAtInput ? new Date(paidAtInput + 'T12:00:00') : undefined;
+    }
     onSave(updatedTask);
     toast({
       title: "Task updated",

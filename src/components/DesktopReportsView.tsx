@@ -191,6 +191,14 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     (task.sessions || []).reduce((total, session) =>
       total + session.periods.reduce((sum, p) => sum + p.duration, 0), 0);
 
+  // Sum of parts on a task (pass-through, tracked separately from revenue).
+  const getTaskParts = (task: Task) => {
+    const client = clients.find(c => c.id === task.clientId) || null;
+    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
+    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
+    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).parts;
+  };
+
   const toDrillRow = (t: Task): DrillRow => ({
     id: t.id,
     date: new Date(t.createdAt),
@@ -203,6 +211,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     status: t.status,
     timeWorked: getTaskSeconds(t),
     cost: getTaskCost(t),
+    parts: getTaskParts(t),
     workerIds: getTaskWorkerIds(t),
   });
 

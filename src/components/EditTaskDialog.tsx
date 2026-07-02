@@ -85,6 +85,11 @@ export const EditTaskDialog = ({
     timeValue: string;
   } | null>(null);
 
+  // Manual paid date editor (desktop only, paid tasks only).
+  const [paidAtInput, setPaidAtInput] = useState<string>(
+    task.paidAt ? formatDateForInput(new Date(task.paidAt)) : ''
+  );
+
   const handleDeletePeriod = (sessionId: string, periodId: string) => {
     setSessions(prev => prev.map(session => {
       if (session.id === sessionId) {
@@ -450,11 +455,14 @@ export const EditTaskDialog = ({
     const totalTime = validSessions.reduce((total, session) => {
       return total + session.periods.reduce((sum, p) => sum + p.duration, 0);
     }, 0);
-    const updatedTask = {
+    const updatedTask: Task = {
       ...task,
       sessions: validSessions,
-      totalTime
+      totalTime,
     };
+    if (task.status === 'paid') {
+      updatedTask.paidAt = paidAtInput ? new Date(paidAtInput + 'T12:00:00') : undefined;
+    }
     onSave(updatedTask);
     toast({
       title: "Task updated",
@@ -821,6 +829,17 @@ export const EditTaskDialog = ({
               <Badge className={`${statusConfig[task.status]?.className || 'bg-muted'} text-xs border`}>
                 {statusConfig[task.status]?.label || task.status}
               </Badge>
+              {!isMobile && task.status === 'paid' && (
+                <div className="flex items-center gap-1.5 bg-white/15 border border-white/30 rounded px-2 py-0.5">
+                  <Label className="text-[11px] text-white/90 whitespace-nowrap">Paid date:</Label>
+                  <Input
+                    type="date"
+                    value={paidAtInput}
+                    onChange={e => setPaidAtInput(e.target.value)}
+                    className="h-6 w-36 text-xs bg-white text-foreground"
+                  />
+                </div>
+              )}
             </div>
           </DialogHeader>
         </div>

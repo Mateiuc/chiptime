@@ -1759,6 +1759,21 @@ const DesktopDashboard = () => {
                                           </Badge>
                                         )}
                                         {photoCount > 0 && <span className="text-xs text-muted-foreground">📷 {photoCount}</span>}
+                                        {task.status === 'paid' && (
+                                          <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5">
+                                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Paid:</span>
+                                            <input
+                                              type="date"
+                                              value={task.paidAt ? new Date(task.paidAt).toISOString().slice(0,10) : ''}
+                                              onChange={e => {
+                                                const v = e.target.value;
+                                                updateTask(task.id, { paidAt: v ? new Date(v + 'T12:00:00') : undefined });
+                                              }}
+                                              className="h-5 text-[11px] px-1 py-0 rounded border border-emerald-500/40 bg-white dark:bg-gray-900 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                              title="Paid date"
+                                            />
+                                          </span>
+                                        )}
                                         {task.diagnosticPdfUrl && (
                                           <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-500/40">
                                             <FileUp className="h-3 w-3 mr-1" />PDF

@@ -110,7 +110,8 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
             <th className="text-left py-1">Vehicle</th>
             <th className="text-left py-1">Status</th>
             <th className="text-right py-1">Time</th>
-            <th className="text-right py-1">Cost</th>
+            <th className="text-right py-1" title="Parts (pass-through, not counted as revenue)">Parts</th>
+            <th className="text-right py-1" title="Labor + services − discount. Parts excluded.">Revenue</th>
           </tr>
         </thead>
         <tbody>
@@ -126,6 +127,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
                 </span>
               </td>
               <td className="py-1 text-right font-mono">{formatDuration(r.timeWorked)}</td>
+              <td className="py-1 text-right font-mono text-muted-foreground">{r.parts > 0 ? formatCurrency(r.parts) : '—'}</td>
               <td className="py-1 text-right font-mono font-semibold">{formatCurrency(r.cost)}</td>
             </tr>
           ))}
@@ -134,6 +136,7 @@ const DrillTable = ({ drill, onClose }: { drill: DrillState; onClose: () => void
           <tr className="border-t font-semibold">
             <td colSpan={4} className="py-1 text-muted-foreground">Total</td>
             <td className="py-1 text-right font-mono">{formatDuration(drill.rows.reduce((s, r) => s + r.timeWorked, 0))}</td>
+            <td className="py-1 text-right font-mono text-muted-foreground">{formatCurrency(drill.rows.reduce((s, r) => s + r.parts, 0))}</td>
             <td className="py-1 text-right font-mono">{formatCurrency(drill.rows.reduce((s, r) => s + r.cost, 0))}</td>
           </tr>
         </tfoot>

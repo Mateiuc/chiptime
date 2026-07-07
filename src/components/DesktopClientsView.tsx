@@ -10,10 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound, Link2, Eye, ArrowRightLeft, Search } from 'lucide-react';
+import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound, Link2, Eye, ArrowRightLeft, Search, RotateCw } from 'lucide-react';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
-import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, regeneratePortalPin, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { getClientFinancials as sharedGetClientFinancials } from '@/lib/clientFinancials';
 import { formatCurrency, formatDuration } from '@/lib/formatTime';
 import jsPDF from 'jspdf';
@@ -410,6 +410,21 @@ export const DesktopClientsView = ({
                   }}>
                     <KeyRound className="h-3.5 w-3.5 mr-1" /> {selectedClient.accessCode ? `PIN: ${selectedClient.accessCode}` : 'Set PIN'}
                   </Button>
+                  {selectedClient.accessCode && (
+                    <Button size="sm" variant="outline" title="Regenerate PIN (invalidates the current one)" onClick={async () => {
+                      if (!confirm('Regenerate this client\u2019s PIN? The current PIN will stop working.')) return;
+                      try {
+                        const result = await regeneratePortalPin(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, selectedClient.portalLogoUrl || settings.portalLogoUrl, selectedClient.portalBgColor || settings.portalBgColor, selectedClient.portalBusinessName || settings.portalBusinessName, selectedClient.portalBgImageUrl || settings.portalBgImageUrl);
+                        onUpdateClient(selectedClient.id, { portalId: result.portalId, accessCode: result.accessCode });
+                        navigator.clipboard.writeText(result.accessCode);
+                        toast({ title: 'New PIN generated', description: `PIN: ${result.accessCode} (copied)` });
+                      } catch {
+                        toast({ title: 'Error', description: 'Could not regenerate PIN', variant: 'destructive' });
+                      }
+                    }}>
+                      <RotateCw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
                       const result = await syncPortalToCloud(selectedClient, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, selectedClient.portalLogoUrl || settings.portalLogoUrl, selectedClient.portalBgColor || settings.portalBgColor, selectedClient.portalBusinessName || settings.portalBusinessName, selectedClient.portalBgImageUrl || settings.portalBgImageUrl);

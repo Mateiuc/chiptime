@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
     const userId = userData.user.id
 
-    const { clientLocalId, clientName, accessCode, data } = await req.json()
+    const { clientLocalId, clientName, accessCode, data, regenerate } = await req.json()
 
     if (!clientLocalId || !clientName) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -72,15 +72,31 @@ Deno.serve(async (req) => {
     }
     const workspaceId = ws.workspace_id
 
-    // Find an existing portal for this client within this workspace only
+    // Find an existing portal for this client within this workspace only.
+    // We select `access_code` too so we can PRESERVE it across syncs — the PIN
+    // must stay stable until the caller explicitly asks to regenerate it.
     const { data: existing } = await admin
       .from('client_portals')
-      .select('id')
+      .select('id, access_code')
       .eq('client_local_id', clientLocalId)
       .eq('workspace_id', workspaceId)
       .maybeSingle()
 
     const portalId = existing?.id || generateId()
+
+    // PIN resolution:
+    // - regenerate=true → use the caller's new code (or generate one if missing)
+    // - existing row    → keep whatever is already stored, ignore incoming code
+    // - new row         → use the caller's code, or generate a 4-digit one
+    let effectiveAccessCode: string | null
+    const gen4 = () => String(Math.floor(1000 + Math.random() * 9000))
+    if (regenerate === true) {
+      effectiveAccessCode = (accessCode && String(accessCode)) || gen4()
+    } else if (existing) {
+      effectiveAccessCode = existing.access_code ?? (accessCode ? String(accessCode) : null)
+    } else {
+      effectiveAccessCode = (accessCode && String(accessCode)) || gen4()
+    }
 
     const { error } = await admin
       .from('client_portals')
@@ -88,7 +104,7 @@ Deno.serve(async (req) => {
         id: portalId,
         client_local_id: clientLocalId,
         client_name: clientName,
-        access_code: accessCode || null,
+        access_code: effectiveAccessCode,
         data: data || {},
         workspace_id: workspaceId,
         updated_at: new Date().toISOString(),
@@ -102,7 +118,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({ id: portalId, access_code: accessCode || null }), {
+    return new Response(JSON.stringify({ id: portalId, access_code: effectiveAccessCode }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {

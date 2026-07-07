@@ -84,6 +84,7 @@ export interface WorkSession {
   isProgramming?: boolean; // Apply programming rate to this session
   isAddKey?: boolean; // Apply add key rate to this session
   isAllKeysLost?: boolean; // Apply all keys lost rate to this session
+  extraCharge?: number; // Manual $ amount added to services bucket, not time-based
   createdBy?: string; // user_id of the worker who started this session
 }
 

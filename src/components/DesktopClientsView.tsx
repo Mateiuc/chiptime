@@ -13,7 +13,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound, Link2, Eye, ArrowRightLeft, Search } from 'lucide-react';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
-import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, regeneratePortalPin, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { getClientFinancials as sharedGetClientFinancials } from '@/lib/clientFinancials';
 import { formatCurrency, formatDuration } from '@/lib/formatTime';
 import jsPDF from 'jspdf';

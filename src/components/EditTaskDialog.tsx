@@ -657,6 +657,24 @@ export const EditTaskDialog = ({
                        aria-label="Apply all keys lost rate to this session">
                         <KeyRound className="h-3 w-3" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                       </Button>
+                      <div className="relative" title="Extra charge">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">$</span>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          defaultValue={session.extraCharge ?? ''}
+                          onBlur={(e) => {
+                            const v = parseFloat(e.target.value);
+                            const next = isFinite(v) && v > 0 ? v : undefined;
+                            setSessions(prev => prev.map(s => s.id === session.id ? { ...s, extraCharge: next } : s));
+                          }}
+                          placeholder="0"
+                          min={0}
+                          step={0.01}
+                          className="h-6 w-16 pl-3.5 pr-1 text-[11px] text-right"
+                          aria-label="Extra charge"
+                        />
+                      </div>
                       <Button variant="ghost" size="icon" aria-label="Delete session" className="h-6 w-6" onClick={() => handleDeleteSession(session.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -938,6 +956,24 @@ export const EditTaskDialog = ({
                      aria-label="Apply all keys lost rate to this session">
                       <KeyRound className="h-4 w-4" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                     </Button>
+                    <div className="relative" title="Extra charge">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">$</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        defaultValue={session.extraCharge ?? ''}
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value);
+                          const next = isFinite(v) && v > 0 ? v : undefined;
+                          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, extraCharge: next } : s));
+                        }}
+                        placeholder="0"
+                        min={0}
+                        step={0.01}
+                        className="h-8 w-24 pl-5 pr-2 text-xs text-right"
+                        aria-label="Extra charge"
+                      />
+                    </div>
                     <Button variant="ghost" size="icon" aria-label="Delete session" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -312,6 +312,24 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlin
                  aria-label="Apply all keys lost rate to this session">
                   <KeyRound className="h-3.5 w-3.5" fill={session.isAllKeysLost ? 'currentColor' : 'none'} />
                 </Button>
+                <div className="relative" title="Extra charge">
+                  <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">$</span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    defaultValue={session.extraCharge ?? ''}
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      const next = isFinite(v) && v > 0 ? v : undefined;
+                      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, extraCharge: next } : s));
+                    }}
+                    placeholder="0"
+                    min={0}
+                    step={0.01}
+                    className="h-7 w-20 pl-4 pr-1 text-xs text-right"
+                    aria-label="Extra charge"
+                  />
+                </div>
                 <Button variant="ghost" size="icon" aria-label="Delete session" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSession(session.id)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

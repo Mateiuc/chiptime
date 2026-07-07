@@ -9,7 +9,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, Play, KeyRound, Link2, Eye, ArrowRightLeft } from 'lucide-react';
+import { ChevronLeft, Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, Play, KeyRound, Link2, Eye, ArrowRightLeft, RotateCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';

@@ -205,7 +205,6 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
                     <DollarSign className="h-4 w-4 text-primary shrink-0" />
                     <div className="min-w-0">
                       <Label className="text-sm">Extra Charge</Label>
-                      <p className="text-[11px] text-muted-foreground leading-tight">Manual amount, not tied to time</p>
                     </div>
                   </div>
                   <div className="relative w-28 shrink-0">

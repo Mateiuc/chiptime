@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import jsPDF from 'jspdf';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
-import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
+import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, regeneratePortalPin, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { getClientFinancials as sharedGetClientFinancials, getVehicleFinancials as sharedGetVehicleFinancials } from '@/lib/clientFinancials';
 import { formatCurrency, formatDuration } from '@/lib/formatTime';
 import { pluralize } from '@/lib/pluralize';

@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({ id: portalId, access_code: accessCode || null }), {
+    return new Response(JSON.stringify({ id: portalId, access_code: effectiveAccessCode }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e) {

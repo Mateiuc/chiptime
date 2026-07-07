@@ -327,7 +327,7 @@ const DesktopDashboard = () => {
     setShowCompleteWork(true);
   };
 
-  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false) => {
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false, extraCharge: number = 0) => {
     const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
@@ -349,6 +349,7 @@ const DesktopDashboard = () => {
       targetSession.isProgramming = isProgramming;
       targetSession.isAddKey = isAddKey;
       targetSession.isAllKeysLost = isAllKeysLost;
+      targetSession.extraCharge = extraCharge > 0 ? extraCharge : undefined;
     }
 
     updateTask(activeTask.id, {

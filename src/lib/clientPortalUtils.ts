@@ -839,8 +839,17 @@ export async function syncPortalToCloud(
   portalBgColor?: string,
   portalBusinessName?: string,
   portalBgImageUrl?: string,
+  opts?: { regenerate?: boolean },
 ): Promise<{ portalId: string; accessCode: string }> {
-  const accessCode = client.accessCode || generateAccessCode();
+  // IMPORTANT: do NOT generate a new PIN here on every sync. The stored PIN
+  // is authoritative — the edge function preserves it across syncs and only
+  // replaces it when `regenerate: true` is sent. We only pre-generate a code
+  // locally when the caller explicitly asks to regenerate (so we can echo it
+  // in the toast) or when no PIN exists yet (first-time create).
+  const regenerate = opts?.regenerate === true;
+  const accessCode = regenerate
+    ? generateAccessCode()
+    : (client.accessCode || undefined);
 
   const summary = calculateClientCosts(client, vehicles, tasks, defaultHourlyRate, defaultCloningRate, defaultProgrammingRate, defaultAddKeyRate, defaultAllKeysLostRate);
   summary.paymentLink = paymentLink;
@@ -857,12 +866,46 @@ export async function syncPortalToCloud(
       clientLocalId: client.id,
       clientName: client.name,
       accessCode,
+      regenerate,
       data: slim,
     },
   });
 
   if (error) throw error;
-  return { portalId: data.id, accessCode: data.access_code || accessCode };
+  // Server returns the effective (authoritative) PIN — always prefer it so
+  // devices that lost the code (e.g. via app-sync stripping) get healed.
+  return { portalId: data.id, accessCode: data.access_code || accessCode || '' };
+}
+
+/**
+ * Regenerate a client's portal PIN. Convenience wrapper that calls
+ * syncPortalToCloud with { regenerate: true }.
+ */
+export async function regeneratePortalPin(
+  client: Client,
+  vehicles: Vehicle[],
+  tasks: Task[],
+  defaultHourlyRate: number,
+  defaultCloningRate?: number,
+  defaultProgrammingRate?: number,
+  defaultAddKeyRate?: number,
+  defaultAllKeysLostRate?: number,
+  paymentLink?: string,
+  paymentLabel?: string,
+  paymentMethods?: PaymentMethod[],
+  portalLogoUrl?: string,
+  portalBgColor?: string,
+  portalBusinessName?: string,
+  portalBgImageUrl?: string,
+): Promise<{ portalId: string; accessCode: string }> {
+  return syncPortalToCloud(
+    client, vehicles, tasks,
+    defaultHourlyRate, defaultCloningRate, defaultProgrammingRate,
+    defaultAddKeyRate, defaultAllKeysLostRate,
+    paymentLink, paymentLabel, paymentMethods,
+    portalLogoUrl, portalBgColor, portalBusinessName, portalBgImageUrl,
+    { regenerate: true },
+  );
 }
 
 /**

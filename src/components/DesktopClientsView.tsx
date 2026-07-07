@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound, Link2, Eye, ArrowRightLeft, Search } from 'lucide-react';
+import { Mail, Phone, DollarSign, Edit, Trash2, Save, X, Car, Printer, KeyRound, Link2, Eye, ArrowRightLeft, Search, RotateCw } from 'lucide-react';
 import { EditVehicleDialog } from './EditVehicleDialog';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, regeneratePortalPin, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';

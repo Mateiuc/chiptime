@@ -8,14 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
+import { Plus, Trash2, Flag, Copy, Cpu, Key, KeyRound, DollarSign } from 'lucide-react';
 import { Part, WorkPeriod } from '@/types';
 import { formatDuration } from '@/lib/formatTime';
 
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[], isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[], isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean, extraCharge: number) => void;
   vehicleLabel?: string;
   sessionPeriods?: WorkPeriod[]; // periods of the active session
 }
@@ -30,6 +30,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
   const [isProgramming, setIsProgramming] = useState(false);
   const [isAddKey, setIsAddKey] = useState(false);
   const [isAllKeysLost, setIsAllKeysLost] = useState(false);
+  const [extraCharge, setExtraCharge] = useState('');
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',
@@ -70,7 +71,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp, periodMinHourFlags, isCloning, isProgramming, isAddKey, isAllKeysLost);
+    onComplete(description, finalParts, needsFollowUp, periodMinHourFlags, isCloning, isProgramming, isAddKey, isAllKeysLost, parseFloat(extraCharge) || 0);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '', providedByClient: false });
@@ -80,6 +81,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
     setIsProgramming(false);
     setIsAddKey(false);
     setIsAllKeysLost(false);
+    setExtraCharge('');
     onOpenChange(false);
   };
 
@@ -197,6 +199,29 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
                     <Label className="text-sm">All Keys Lost</Label>
                   </div>
                   <Switch checked={isAllKeysLost} onCheckedChange={setIsAllKeysLost} />
+                </div>
+                <div className="flex items-start justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <DollarSign className="h-4 w-4 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <Label className="text-sm">Extra Charge</Label>
+                      <p className="text-[11px] text-muted-foreground leading-tight">Manual amount, not tied to time</p>
+                    </div>
+                  </div>
+                  <div className="relative w-28 shrink-0">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">$</span>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={extraCharge}
+                      onChange={(e) => setExtraCharge(e.target.value)}
+                      onFocus={(e) => { if (e.target.value === '0') setExtraCharge(''); e.target.select(); }}
+                      placeholder="0.00"
+                      min={0}
+                      step={0.01}
+                      className="h-9 text-sm pl-5 text-right"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>

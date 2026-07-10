@@ -16,7 +16,7 @@ type WorkspaceStep = 'choose' | 'create' | 'join' | 'claim';
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useNotifications();
-  const { session, workspace, loading, refreshWorkspace } = useAuth();
+  const { session, workspace, loading, refreshWorkspace, workspaceLoadError } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');

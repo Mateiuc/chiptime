@@ -1,24 +1,30 @@
-## Goal
-Surface the per-session **Extra Charge** amount in the desktop session editors so it can be viewed and edited after the session was completed — mirroring what the mobile Complete Work dialog already writes.
+## What's actually happening
 
-## Where
-1. **`src/components/TaskInlineEditor.tsx`** — session row (~line 281–315 icon strip).
-2. **`src/components/EditTaskDialog.tsx`** — both session-row layouts (~line 620–660 compact, ~line 900–940 expanded).
+Database check confirms your account (`mateiuc.c@gmail.com`) **is already the owner** of workspace **"Chip EV"**, and Nicoleta is a member. So the "Set up your workspace" screen is a **client-side bug**, not missing data — `refreshWorkspace()` in `AuthContext` failed silently once and left you stranded, with no way to retry short of a full page reload.
 
-## UI
-Right after the `KeyRound` (All Keys Lost) icon toggle, add a compact inline input:
+Two things must be fixed:
 
-```
-[$ ____]
-```
+1. **Robustness** — the loader must retry when it fails (common right after a Google OAuth redirect, before the JWT is fully propagated to PostgREST).
+2. **Escape hatch** — the "Set up workspace" screen must offer a **Retry / Reload workspace** button so you never get trapped again, and must show a diagnostic hint if it truly finds nothing.
 
-- ~72–88px wide, `h-7` (compact) or `h-8` (expanded) to match neighboring toggles.
-- Local string state per session to allow blank/typing; commit on blur (`onBlur`) into the session with `extraCharge = parseFloat(value) || undefined` (undefined when empty/0, matching the mobile write path).
-- Same `setSessions(prev => prev.map(s => s.id === session.id ? { ...s, extraCharge: ... } : s))` pattern already used for the toggles.
-- Tooltip / `title="Extra charge"` for clarity, no visible caption.
+## Changes
 
-## Not changing
-- Billing math (already handled in `computeSessionLaborDetails`).
-- Mobile `CompleteWorkDialog` (already has the field).
-- Types (already extended in prior step).
-- Save flow — these editors already persist the whole `sessions` array back through the existing save handlers, so `extraCharge` rides along automatically.
+### `src/contexts/AuthContext.tsx`
+- Log the full Supabase error (code + message + details) when `workspace_members` select fails, so future issues are visible in the console.
+- Wrap `loadWorkspace` with a lightweight retry: if the first query returns an error OR empty AND the RPC fallback also returns nothing, wait 400 ms and try once more (handles the OAuth-race case).
+- Expose a `workspaceLoadError: string | null` value on the context so the UI can show it.
+
+### `src/pages/Auth.tsx`
+- On the "Set up your workspace" screen, add a primary **"Reload workspace"** button at the top (calls `refreshWorkspace()`), and a secondary **"Force refresh session"** link that runs `supabase.auth.refreshSession()` then `refreshWorkspace()`.
+- If `workspaceLoadError` is set, render it as a small red hint under the buttons so problems are visible instead of silent.
+- Keep the existing Create / Join / Claim / Sign out options unchanged.
+
+### Immediate manual recovery for the current session (no DB change needed)
+The moment the code fix is deployed, opening `/auth` and clicking **Reload workspace** will restore you into Chip EV. If for some reason it still fails, **Force refresh session** will re-mint the JWT and try again. No membership row needs to be inserted — yours already exists.
+
+## What I am NOT changing (out of scope for this fix)
+Your "Other" answer mentioned: at login, let me choose which database/workspace to use. That's a separate feature (workspace switcher on login when a user belongs to more than one). Right now you belong to only one workspace, so it wouldn't help this bug. I can plan that as a follow-up if you confirm you want it after this fix restores access.
+
+## Technical notes
+- No schema migration required. Existing RLS + `is_workspace_member` SECURITY DEFINER function are correct; grants on `workspace_members` / `workspaces` are in place.
+- The bug is purely in the client's tolerance to a transient failure of the first `workspace_members` select right after OAuth redirect.

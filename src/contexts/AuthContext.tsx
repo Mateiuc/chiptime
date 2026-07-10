@@ -14,6 +14,7 @@ interface AuthContextValue {
   user: User | null;
   workspace: WorkspaceInfo | null;
   workspaceReady: boolean;
+  workspaceLoadError: string | null;
   loading: boolean;
   refreshWorkspace: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -26,16 +27,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadWorkspace = useCallback(async (uid: string | null) => {
-    setWorkspaceReady(false);
-    if (!uid) {
-      setWorkspace(null);
-      appSyncService.setWorkspaceId(null);
-      setWorkspaceReady(true);
-      return;
-    }
+  const tryLoadOnce = useCallback(async (uid: string): Promise<{ ws: WorkspaceInfo | null; error: string | null }> => {
     const { data, error } = await supabase
       .from('workspace_members')
       .select('role, workspace_id, workspaces(id, name)')
@@ -44,38 +39,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .limit(1)
       .maybeSingle();
     if (error) {
-      console.error('[Auth] Failed to load workspace:', error);
-      setWorkspace(null);
-      appSyncService.setWorkspaceId(null);
-      setWorkspaceReady(true);
-      return;
+      console.error('[Auth] workspace_members select failed:', error.code, error.message, error.details, error.hint);
+      return { ws: null, error: `${error.code || 'err'}: ${error.message}` };
     }
-    if (!data) {
-      // Fallback: try server-side primary workspace lookup
-      const { data: wsId } = await supabase.rpc('user_primary_workspace', { _user_id: uid });
-      if (wsId) {
-        const { data: wsRow } = await supabase
-          .from('workspaces')
-          .select('id, name')
-          .eq('id', wsId as string)
-          .maybeSingle();
-        if (wsRow) {
-          setWorkspace({ id: wsRow.id, name: wsRow.name, role: 'member' });
-          appSyncService.setWorkspaceId(wsRow.id);
-          setWorkspaceReady(true);
-          return;
-        }
+    if (data) {
+      const ws = (data as any).workspaces;
+      if (ws) return { ws: { id: ws.id, name: ws.name, role: (data as any).role }, error: null };
+    }
+    const { data: wsId, error: rpcErr } = await supabase.rpc('user_primary_workspace', { _user_id: uid });
+    if (rpcErr) {
+      console.error('[Auth] user_primary_workspace RPC failed:', rpcErr.message);
+      return { ws: null, error: `rpc: ${rpcErr.message}` };
+    }
+    if (wsId) {
+      const { data: wsRow, error: wsErr } = await supabase
+        .from('workspaces')
+        .select('id, name')
+        .eq('id', wsId as string)
+        .maybeSingle();
+      if (wsErr) {
+        console.error('[Auth] workspaces select failed:', wsErr.message);
+        return { ws: null, error: `ws: ${wsErr.message}` };
       }
+      if (wsRow) return { ws: { id: wsRow.id, name: wsRow.name, role: 'member' }, error: null };
+    }
+    return { ws: null, error: null };
+  }, []);
+
+  const loadWorkspace = useCallback(async (uid: string | null) => {
+    setWorkspaceReady(false);
+    setWorkspaceLoadError(null);
+    if (!uid) {
       setWorkspace(null);
       appSyncService.setWorkspaceId(null);
       setWorkspaceReady(true);
       return;
     }
-    const ws = (data as any).workspaces;
-    setWorkspace({ id: ws.id, name: ws.name, role: data.role as any });
-    appSyncService.setWorkspaceId(ws.id);
+    let result = await tryLoadOnce(uid);
+    if (!result.ws) {
+      await new Promise(r => setTimeout(r, 400));
+      result = await tryLoadOnce(uid);
+    }
+    if (result.ws) {
+      setWorkspace(result.ws);
+      appSyncService.setWorkspaceId(result.ws.id);
+    } else {
+      setWorkspace(null);
+      appSyncService.setWorkspaceId(null);
+      setWorkspaceLoadError(result.error);
+    }
     setWorkspaceReady(true);
-  }, []);
+  }, [tryLoadOnce]);
 
   useEffect(() => {
     // 1) Subscribe FIRST

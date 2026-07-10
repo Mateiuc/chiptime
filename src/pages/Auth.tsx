@@ -169,6 +169,36 @@ const Auth = () => {
           <CardContent className="space-y-4">
             {wsStep === 'choose' && (
               <div className="space-y-2">
+                <Button
+                  onClick={async () => { setBusy(true); try { await refreshWorkspace(); } finally { setBusy(false); } }}
+                  disabled={busy}
+                  variant="default"
+                  className="w-full"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reload workspace'}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await supabase.auth.refreshSession();
+                      await refreshWorkspace();
+                    } catch (e: any) {
+                      toast({ title: 'Refresh failed', description: e.message, variant: 'destructive' });
+                    } finally { setBusy(false); }
+                  }}
+                  disabled={busy}
+                  variant="ghost"
+                  className="w-full text-xs text-muted-foreground"
+                >
+                  Force refresh session & retry
+                </Button>
+                {workspaceLoadError && (
+                  <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/20">
+                    Workspace load error: {workspaceLoadError}
+                  </div>
+                )}
+                <div className="h-px bg-border my-2" />
                 {hasUnclaimed && (
                   <Button onClick={handleClaim} disabled={busy} className="w-full" variant="default">
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Claim existing workspace (recommended)'}

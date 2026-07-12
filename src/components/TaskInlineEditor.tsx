@@ -597,6 +597,21 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
           <Button size="sm" className="h-8 text-xs" onClick={handleSave}>Save Changes</Button>
         </div>
       </div>
+      {canMovePhotos && movePhotoState && (
+        <MovePhotoDialog
+          open={!!movePhotoState}
+          onOpenChange={(v) => { if (!v) setMovePhotoState(null); }}
+          sourceTask={{ ...task, sessions }}
+          fromSessionId={movePhotoState.sessionId}
+          photo={movePhotoState.photo}
+          photoThumbUrl={movePhotoState.thumbUrl}
+          allTasks={allTasks!}
+          clients={clients!}
+          vehicles={vehicles!}
+          onConfirm={handleMoveConfirm}
+        />
+      )}
     </div>
   );
 };
+

@@ -55,6 +55,11 @@ interface TaskCardProps {
   onUpdateVehicle?: (vehicleId: string, updates: Partial<Vehicle>) => void;
   onDelete?: (taskId: string) => void;
   vehicleColorScheme?: VehicleColorScheme;
+  /** Full workspace lists — enables moving photos across tasks in the editor. */
+  allTasks?: Task[];
+  allClients?: Client[];
+  allVehicles?: Vehicle[];
+  onUpdateTaskById?: (taskId: string, updates: Partial<Task>) => void;
 }
 export const TaskCard = ({
   task,
@@ -70,7 +75,11 @@ export const TaskCard = ({
   onUpdateTask,
   onUpdateVehicle,
   onDelete,
-  vehicleColorScheme
+  vehicleColorScheme,
+  allTasks,
+  allClients,
+  allVehicles,
+  onUpdateTaskById,
 }: TaskCardProps) => {
   const { toast } = useNotifications();
   const navigate = useNavigate();

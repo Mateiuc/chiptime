@@ -1831,6 +1831,10 @@ const DesktopDashboard = () => {
                                         onSave={async (updatedTask) => { await updateTask(updatedTask.id, updatedTask); setEditingTaskId(null); }}
                                         onCancel={() => setEditingTaskId(null)}
                                         onDelete={(taskId) => { handleDelete(taskId); setEditingTaskId(null); }}
+                                        allTasks={tasks}
+                                        clients={clients}
+                                        vehicles={vehicles}
+                                        onUpdateTask={updateTask}
                                       />
                                     )}
                                     {editingTaskId !== task.id && (task.sessions || []).map((session, sIdx) => {

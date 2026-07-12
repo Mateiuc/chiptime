@@ -216,7 +216,13 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   };
 
   const handleSave = () => {
-    const validSessions = sessions.filter(s => s.periods.length > 0 || (s.parts && s.parts.length > 0) || (s.description && s.description.trim().length > 0));
+    const mergedSessions = mergeDraftSessionsWithSourcePhotos(sessions);
+    const validSessions = mergedSessions.filter(s =>
+      s.periods.length > 0 ||
+      (s.parts && s.parts.length > 0) ||
+      (s.description && s.description.trim().length > 0) ||
+      (s.photos && s.photos.length > 0)
+    );
     const totalTime = validSessions.reduce((t, s) => t + s.periods.reduce((sum, p) => sum + p.duration, 0), 0);
     onSave({ ...task, sessions: validSessions, totalTime });
     toast({ title: "Task updated", description: "Changes saved successfully" });
@@ -235,6 +241,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
+  const [photoDirtySessionIds, setPhotoDirtySessionIds] = useState<Set<string>>(new Set());
 
   const allCloudPaths = useMemo(() => {
     const paths: string[] = [];
@@ -271,6 +278,48 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
     return `${sessionId}:${p.id}:${ref}:${index}`;
   };
 
+  const getSourceSessions = (): WorkSession[] => {
+    const sourceSessions = task.sessions || [];
+    if (sourceSessions.length === 0) return sessions;
+
+    const merged = sourceSessions.map(sourceSession => {
+      if (!photoDirtySessionIds.has(sourceSession.id)) return sourceSession;
+      const draftSession = sessions.find(s => s.id === sourceSession.id);
+      return draftSession ? { ...sourceSession, photos: draftSession.photos || [] } : sourceSession;
+    });
+
+    const sourceIds = new Set(sourceSessions.map(s => s.id));
+    const localOnlySessions = sessions.filter(s => !sourceIds.has(s.id));
+    return [...merged, ...localOnlySessions];
+  };
+
+  const markPhotoSessionsDirty = (...sessionIds: string[]) => {
+    setPhotoDirtySessionIds(prev => {
+      const next = new Set(prev);
+      sessionIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const getSessionPhotosForRender = (sessionId: string): SessionPhoto[] => {
+    if (photoDirtySessionIds.has(sessionId)) {
+      return sessions.find(s => s.id === sessionId)?.photos || [];
+    }
+    const sourceSession = (task.sessions || []).find(s => s.id === sessionId);
+    if (sourceSession) return sourceSession.photos || [];
+    return sessions.find(s => s.id === sessionId)?.photos || [];
+  };
+
+  const mergeDraftSessionsWithSourcePhotos = (draftSessions: WorkSession[]): WorkSession[] => {
+    const sourceSessions = task.sessions || [];
+    if (sourceSessions.length === 0) return draftSessions;
+    return draftSessions.map(session => {
+      const sourceSession = sourceSessions.find(s => s.id === session.id);
+      if (photoDirtySessionIds.has(session.id)) return session;
+      return sourceSession ? { ...session, photos: sourceSession.photos || [] } : session;
+    });
+  };
+
   const isPhotoPathStillReferenced = (path: string, nextSourceSessions: WorkSession[]) => {
     const sourceHasPath = nextSourceSessions.some(s =>
       (s.photos || []).some(p => getPhotoCloudPath(p) === path || p.filePath === path)
@@ -286,14 +335,14 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
-    // Use parent's task (source of truth for photos) as the source
-    const liveSourceTask: Task = { ...task, sessions };
+    const liveSourceTask: Task = { ...task, sessions: mergeDraftSessionsWithSourcePhotos(sessions) };
     const destTask = destTaskId === task.id ? liveSourceTask : allTasks.find(t => t.id === destTaskId);
     if (!destTask) return;
     try {
       const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
       onUpdateTask(task.id, { sessions: source.sessions });
       if (destTaskId !== task.id) onUpdateTask(destTaskId, { sessions: dest.sessions });
+      markPhotoSessionsDirty(fromSessionId, destSessionId);
       // Mirror the photos-only change into local draft sessions so ongoing edits stay consistent
       setSessions(prev => prev.map(s => {
         const updated = source.sessions?.find(us => us.id === s.id);
@@ -307,37 +356,37 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
 
   const handleDeletePhoto = async (sessionId: string, photoIndex: number, photo: SessionPhoto) => {
     if (!window.confirm('Delete this photo? This cannot be undone.')) return;
-    // Delete the clicked thumbnail by position so duplicate photo IDs can be removed one-by-one.
-    const nextSessions = sessions.map(s => {
-      if (s.id !== sessionId) return s;
-      const photos = [...(s.photos || [])];
-      if (photoIndex >= 0 && photoIndex < photos.length) photos.splice(photoIndex, 1);
-      return { ...s, photos };
-    });
-    const nextSessionPhotos = nextSessions.find(s => s.id === sessionId)?.photos || [];
-    const persistBase = (task.sessions || []).length > 0 ? task.sessions : sessions;
+    // Delete the clicked thumbnail from the saved/source photo list so stale draft state
+    // cannot wipe photos that were moved into this session.
+    const persistBase = getSourceSessions();
+    const sourcePhotos = persistBase.find(s => s.id === sessionId)?.photos || [];
+    const nextSessionPhotos = sourcePhotos.filter((_, index) => index !== photoIndex);
     const nextPersistSessions = persistBase.map(s =>
       s.id === sessionId ? { ...s, photos: nextSessionPhotos } : s
     );
+    const nextSessions = sessions.map(s =>
+      s.id === sessionId ? { ...s, photos: nextSessionPhotos } : s
+    );
+    markPhotoSessionsDirty(sessionId);
     setSessions(nextSessions);
     await Promise.resolve(onUpdateTask?.(task.id, { sessions: nextPersistSessions }));
 
     const cloudPath = getPhotoCloudPath(photo);
-    if (cloudPath && !isPhotoPathStillReferenced(cloudPath, nextSessions)) {
+    if (cloudPath && !isPhotoPathStillReferenced(cloudPath, nextPersistSessions)) {
       setPhotoSignedUrls(prev => {
         const { [cloudPath]: _removed, ...rest } = prev;
         return rest;
       });
     }
     const path = photo.filePath || cloudPath;
-    if (path && !isPhotoPathStillReferenced(path, nextSessions)) {
+    if (path && !isPhotoPathStillReferenced(path, nextPersistSessions)) {
       try { await photoStorageService.deletePhoto(path); } catch { /* best-effort */ }
     }
     toast({ title: 'Photo deleted' });
   };
 
   const renderPhotoStrip = (session: WorkSession) => {
-    const photos = session.photos || [];
+    const photos = getSessionPhotosForRender(session.id);
     if (photos.length === 0) return null;
 
     return (
@@ -667,7 +716,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
         <MovePhotoDialog
           open={!!movePhotoState}
           onOpenChange={(v) => { if (!v) setMovePhotoState(null); }}
-          sourceTask={{ ...task, sessions }}
+          sourceTask={{ ...task, sessions: mergeDraftSessionsWithSourcePhotos(sessions) }}
           fromSessionId={movePhotoState.sessionId}
           photo={movePhotoState.photo}
           photoThumbUrl={movePhotoState.thumbUrl}

@@ -436,7 +436,9 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
 
             <CollapsibleContent>
               <div className="p-4 space-y-4">
+                {renderPhotoStrip(session)}
                 {/* Periods */}
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Work Periods</Label>

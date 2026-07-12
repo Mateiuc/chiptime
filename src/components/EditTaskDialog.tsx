@@ -672,6 +672,20 @@ export const EditTaskDialog = ({
     }
   };
 
+  const handleDeletePhoto = async (sessionId: string, photo: SessionPhoto) => {
+    if (!window.confirm('Delete this photo? This cannot be undone.')) return;
+    const nextSessions = sessions.map(s =>
+      s.id === sessionId ? { ...s, photos: (s.photos || []).filter(p => p.id !== photo.id) } : s
+    );
+    setSessions(nextSessions);
+    onUpdateTask?.(task.id, { sessions: nextSessions });
+    const path = photo.cloudPath || photoStorageService.derivePathFromCloudUrl(photo.cloudUrl) || undefined;
+    if (path) {
+      try { await photoStorageService.deletePhoto(path); } catch { /* best-effort */ }
+    }
+    toast({ title: 'Photo deleted' });
+  };
+
   const renderPhotoStrip = (session: WorkSession) => {
     const photos = session.photos || [];
     if (photos.length === 0) return null;
@@ -703,6 +717,15 @@ export const EditTaskDialog = ({
                     <ArrowRightLeft className="h-3 w-3" />
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => handleDeletePhoto(session.id, p)}
+                  className="absolute -top-1.5 -left-1.5 h-6 w-6 rounded-full bg-background border shadow-sm flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  title="Delete this photo"
+                  aria-label="Delete photo"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
               </div>
             );
           })}

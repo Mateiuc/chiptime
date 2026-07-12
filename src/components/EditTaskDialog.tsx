@@ -1,4 +1,4 @@
-import { Task, WorkSession, WorkPeriod, Part } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -7,13 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { photoStorageService } from '@/services/photoStorageService';
+import { MovePhotoDialog } from './MovePhotoDialog';
+import { moveSessionPhoto } from '@/lib/movePhoto';
 interface EditTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -22,6 +25,12 @@ interface EditTaskDialogProps {
   onDelete?: (taskId: string) => void;
   clientName?: string;
   vehicleInfo?: string;
+  /** Full workspace context — enables moving photos across tasks. */
+  allTasks?: Task[];
+  clients?: Client[];
+  vehicles?: Vehicle[];
+  /** Persist both tasks after a cross-task photo move. */
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
 }
 const statusConfig: Record<string, { label: string; className: string }> = {
   'pending': { label: 'Pending', className: 'bg-muted text-muted-foreground' },
@@ -39,7 +48,11 @@ export const EditTaskDialog = ({
   onSave,
   onDelete,
   clientName,
-  vehicleInfo
+  vehicleInfo,
+  allTasks,
+  clients,
+  vehicles,
+  onUpdateTask,
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useNotifications();
@@ -600,7 +613,121 @@ export const EditTaskDialog = ({
     </AlertDialog>
   ) : null;
 
+  // ============ PHOTO MOVE SUPPORT ============
+  const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
+  const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
+  const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
+
+  // Collect all cloud paths referenced by sessions and mint signed URLs.
+  const allCloudPaths = useMemo(() => {
+    const paths: string[] = [];
+    for (const s of sessions) {
+      for (const p of s.photos || []) {
+        const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+        if (path) paths.push(path);
+      }
+    }
+    return Array.from(new Set(paths));
+  }, [sessions]);
+
+  useEffect(() => {
+    if (allCloudPaths.length === 0) return;
+    let cancelled = false;
+    photoStorageService.signPhotoUrls(allCloudPaths).then(map => {
+      if (!cancelled) setPhotoSignedUrls(prev => ({ ...prev, ...map }));
+    });
+    return () => { cancelled = true; };
+  }, [allCloudPaths]);
+
+  const resolvePhotoUrl = (p: SessionPhoto): string | undefined => {
+    const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
+    const signed = path ? photoSignedUrls[path] : undefined;
+    if (signed) return signed;
+    if (p.cloudUrl && !p.cloudUrl.includes('/object/public/')) return p.cloudUrl;
+    if (p.cloudUrl) return p.cloudUrl;
+    return undefined;
+  };
+
+  const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
+    if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
+    const { photo, sessionId: fromSessionId } = movePhotoState;
+    // Build a live "source task" from local (unsaved) sessions state so any
+    // in-flight edits in the dialog are preserved.
+    const liveSourceTask: Task = { ...task, sessions };
+    const destTask = allTasks.find(t => t.id === destTaskId);
+    if (!destTask) return;
+    try {
+      const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
+      // Reflect removal in local sessions state so the UI updates immediately
+      // and a subsequent Save doesn't reintroduce the photo.
+      setSessions(source.sessions || []);
+      // Persist source photo removal now so the change survives without needing Save.
+      onUpdateTask(task.id, { sessions: source.sessions });
+      if (destTaskId !== task.id) {
+        onUpdateTask(destTaskId, { sessions: dest.sessions });
+      }
+      toast({ title: 'Photo moved', description: destTaskId === task.id ? 'Moved to another session.' : 'Moved to selected task.' });
+    } catch (e: any) {
+      toast({ title: 'Move failed', description: e?.message || 'Could not move photo', variant: 'destructive' });
+    }
+  };
+
+  const renderPhotoStrip = (session: WorkSession) => {
+    const photos = session.photos || [];
+    if (photos.length === 0) return null;
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold">Photos</Label>
+        <div className="flex flex-wrap gap-2">
+          {photos.map(p => {
+            const url = resolvePhotoUrl(p);
+            return (
+              <div key={p.id} className="relative group">
+                {url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={url} alt="Session photo" className="h-16 w-16 rounded object-cover border-2 border-border" />
+                  </a>
+                ) : (
+                  <div className="h-16 w-16 rounded border-2 border-dashed flex items-center justify-center text-muted-foreground bg-muted/40" title="Photo unavailable">
+                    <ImageOff className="h-4 w-4" />
+                  </div>
+                )}
+                {canMovePhotos && (
+                  <button
+                    type="button"
+                    onClick={() => setMovePhotoState({ photo: p, sessionId: session.id, thumbUrl: url })}
+                    className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-background border shadow-sm flex items-center justify-center hover:bg-primary hover:text-primary-foreground"
+                    title="Move photo to another task or session"
+                    aria-label="Move photo"
+                  >
+                    <ArrowRightLeft className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const movePhotoDialog = canMovePhotos && movePhotoState ? (
+    <MovePhotoDialog
+      open={!!movePhotoState}
+      onOpenChange={(v) => { if (!v) setMovePhotoState(null); }}
+      sourceTask={{ ...task, sessions }}
+      fromSessionId={movePhotoState.sessionId}
+      photo={movePhotoState.photo}
+      photoThumbUrl={movePhotoState.thumbUrl}
+      allTasks={allTasks!}
+      clients={clients!}
+      vehicles={vehicles!}
+      onConfirm={handleMoveConfirm}
+    />
+  ) : null;
+
   // ============ MOBILE LAYOUT ============
+
   if (isMobile) {
     return (
       <>
@@ -806,6 +933,7 @@ export const EditTaskDialog = ({
                       </div>
                     ))}
                   </div>
+                  {renderPhotoStrip(session)}
                   {/* Description */}
                   <div className="space-y-1">
                     <Label className="text-xs">Work Description</Label>
@@ -821,6 +949,7 @@ export const EditTaskDialog = ({
         </DialogContent>
       </Dialog>
       {deleteAlert}
+      {movePhotoDialog}
       </>
     );
   }
@@ -1104,6 +1233,8 @@ export const EditTaskDialog = ({
                       )}
                     </div>
 
+                    {renderPhotoStrip(session)}
+
                     {/* Description */}
                     <div className="space-y-1.5">
                       <Label className="text-sm font-semibold">Work Description</Label>
@@ -1128,6 +1259,7 @@ export const EditTaskDialog = ({
       </DialogContent>
     </Dialog>
     {deleteAlert}
+    {movePhotoDialog}
     </>
   );
 };

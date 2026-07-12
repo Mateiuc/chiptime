@@ -1,30 +1,40 @@
-## What's actually happening
+## Goal
+Add a way, inside Edit Task, to move an individual photo from its current session to a session on **another task** (any task in the workspace). Fixes the "took the photo on the wrong session" case.
 
-Database check confirms your account (`mateiuc.c@gmail.com`) **is already the owner** of workspace **"Chip EV"**, and Nicoleta is a member. So the "Set up your workspace" screen is a **client-side bug**, not missing data — `refreshWorkspace()` in `AuthContext` failed silently once and left you stranded, with no way to retry short of a full page reload.
+## UX
+- In the Edit Task view (both `EditTaskDialog` and `TaskInlineEditor`), each photo thumbnail gets a small overlay menu button (⋯) with:
+  - **View** (existing behavior)
+  - **Delete** (existing behavior)
+  - **Move to another task…** (new)
+- Clicking "Move to another task…" opens a new `MovePhotoDialog` with:
+  1. Search box + list of tasks (client + vehicle label, most recent first). Excludes the current task.
+  2. After picking a task, a list of that task's sessions (date + summary). If the task has no sessions, offer "Create a session for this photo".
+  3. Confirm button → performs the move, closes both dialogs, toast "Photo moved".
 
-Two things must be fixed:
+## Move operation (client-side, no schema change)
+Photos live inside `WorkSession.photos[]` on tasks in local storage / sync. No DB migration needed.
 
-1. **Robustness** — the loader must retry when it fails (common right after a Google OAuth redirect, before the JWT is fully propagated to PostgREST).
-2. **Escape hatch** — the "Set up workspace" screen must offer a **Retry / Reload workspace** button so you never get trapped again, and must show a diagnostic hint if it truly finds nothing.
+Steps in a single storage transaction (via the existing `useStorage` update path):
+1. Remove the photo object from the source session's `photos[]`.
+2. Append the same photo object (unchanged `id`, `filePath`, `cloudUrl`, `cloudPath`, `capturedAt`) to the destination session's `photos[]`.
+3. Persist both tasks (source + destination). If they're the same task, one write.
+4. Bump `updatedAt` on both tasks so sync propagates.
 
-## Changes
+No file re-upload: photo binaries in Supabase Storage / local filesystem are not moved — only the reference is reparented. `cloudPath` stays the same, so signed URLs keep working.
 
-### `src/contexts/AuthContext.tsx`
-- Log the full Supabase error (code + message + details) when `workspace_members` select fails, so future issues are visible in the console.
-- Wrap `loadWorkspace` with a lightweight retry: if the first query returns an error OR empty AND the RPC fallback also returns nothing, wait 400 ms and try once more (handles the OAuth-race case).
-- Expose a `workspaceLoadError: string | null` value on the context so the UI can show it.
+## Files touched
+- **New**: `src/components/MovePhotoDialog.tsx` — task picker → session picker → confirm.
+- `src/components/TaskCard.tsx` — photo thumbnail gets the ⋯ menu with "Move to another task…" entry (this is the shared thumbnail renderer used inside the edit views).
+- `src/components/EditTaskDialog.tsx` and `src/components/TaskInlineEditor.tsx` — wire the move handler that opens `MovePhotoDialog` and calls the shared task-update function.
+- `src/lib/` — small helper `movePhotoBetweenSessions(tasks, { photoId, fromTaskId, fromSessionId, toTaskId, toSessionId })` returning the updated tasks array, plus a unit test.
 
-### `src/pages/Auth.tsx`
-- On the "Set up your workspace" screen, add a primary **"Reload workspace"** button at the top (calls `refreshWorkspace()`), and a secondary **"Force refresh session"** link that runs `supabase.auth.refreshSession()` then `refreshWorkspace()`.
-- If `workspaceLoadError` is set, render it as a small red hint under the buttons so problems are visible instead of silent.
-- Keep the existing Create / Join / Claim / Sign out options unchanged.
+## Edge cases handled
+- Destination task has no sessions → offer to create one (uses the same "add session" path already in Edit Task).
+- Moving to the same session it's already in → button disabled.
+- Photo not found (concurrent edit) → toast error, no-op.
+- Sync: since both tasks bump `updatedAt`, existing app-sync/last-write-wins reconciles cleanly.
 
-### Immediate manual recovery for the current session (no DB change needed)
-The moment the code fix is deployed, opening `/auth` and clicking **Reload workspace** will restore you into Chip EV. If for some reason it still fails, **Force refresh session** will re-mint the JWT and try again. No membership row needs to be inserted — yours already exists.
-
-## What I am NOT changing (out of scope for this fix)
-Your "Other" answer mentioned: at login, let me choose which database/workspace to use. That's a separate feature (workspace switcher on login when a user belongs to more than one). Right now you belong to only one workspace, so it wouldn't help this bug. I can plan that as a follow-up if you confirm you want it after this fix restores access.
-
-## Technical notes
-- No schema migration required. Existing RLS + `is_workspace_member` SECURITY DEFINER function are correct; grants on `workspace_members` / `workspaces` are in place.
-- The bug is purely in the client's tolerance to a transient failure of the first `workspace_members` select right after OAuth redirect.
+## Out of scope
+- Multi-select move (move several photos at once).
+- Moving photos across workspaces.
+- Server-side move of the storage object (unnecessary — reference-only move is safe and instant).

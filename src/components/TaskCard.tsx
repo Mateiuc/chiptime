@@ -55,6 +55,11 @@ interface TaskCardProps {
   onUpdateVehicle?: (vehicleId: string, updates: Partial<Vehicle>) => void;
   onDelete?: (taskId: string) => void;
   vehicleColorScheme?: VehicleColorScheme;
+  /** Full workspace lists — enables moving photos across tasks in the editor. */
+  allTasks?: Task[];
+  allClients?: Client[];
+  allVehicles?: Vehicle[];
+  onUpdateTaskById?: (taskId: string, updates: Partial<Task>) => void;
 }
 export const TaskCard = ({
   task,
@@ -70,7 +75,11 @@ export const TaskCard = ({
   onUpdateTask,
   onUpdateVehicle,
   onDelete,
-  vehicleColorScheme
+  vehicleColorScheme,
+  allTasks,
+  allClients,
+  allVehicles,
+  onUpdateTaskById,
 }: TaskCardProps) => {
   const { toast } = useNotifications();
   const navigate = useNavigate();
@@ -1086,7 +1095,17 @@ export const TaskCard = ({
         </CollapsibleContent>
       </Collapsible>
       
-      <EditTaskDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} task={task} onSave={updatedTask => onUpdateTask?.(updatedTask)} onDelete={onDelete} />
+      <EditTaskDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        task={task}
+        onSave={updatedTask => onUpdateTask?.(updatedTask)}
+        onDelete={onDelete}
+        allTasks={allTasks}
+        clients={allClients}
+        vehicles={allVehicles}
+        onUpdateTask={onUpdateTaskById}
+      />
       
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="w-[90vw] max-w-sm p-4 rounded-lg">

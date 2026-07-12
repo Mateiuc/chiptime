@@ -1232,6 +1232,8 @@ export const EditTaskDialog = ({
                       )}
                     </div>
 
+                    {renderPhotoStrip(session)}
+
                     {/* Description */}
                     <div className="space-y-1.5">
                       <Label className="text-sm font-semibold">Work Description</Label>

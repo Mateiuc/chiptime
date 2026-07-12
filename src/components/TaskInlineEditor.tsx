@@ -1,26 +1,35 @@
-import { Task, WorkSession, WorkPeriod, Part } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
+import { photoStorageService } from '@/services/photoStorageService';
+import { MovePhotoDialog } from './MovePhotoDialog';
+import { moveSessionPhoto } from '@/lib/movePhoto';
 
 interface TaskInlineEditorProps {
   task: Task;
   onSave: (updatedTask: Task) => void;
   onCancel: () => void;
   onDelete?: (taskId: string) => void;
+  /** Full workspace context — enables moving photos across tasks. */
+  allTasks?: Task[];
+  clients?: Client[];
+  vehicles?: Vehicle[];
+  /** Persist both tasks after a cross-task photo move. */
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => void;
 }
 
-export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete }: TaskInlineEditorProps) => {
+export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, clients, vehicles, onUpdateTask }: TaskInlineEditorProps) => {
   const { toast } = useNotifications();
   const { getWorker } = useWorkers();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

@@ -5,6 +5,42 @@ export interface MovePhotoResult {
   dest: Task;
 }
 
+const derivePathFromCloudUrl = (url?: string): string | null => {
+  if (!url) return null;
+  const match = url.match(/\/session-photos\/([^?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
+const normalizePhotoRef = (value?: string | null): string | null => {
+  const trimmed = (value || '').trim();
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+};
+
+export function getSessionPhotoRefKeys(photo: SessionPhoto): Set<string> {
+  const keys = new Set<string>();
+  const id = normalizePhotoRef(photo.id);
+  const filePath = normalizePhotoRef(photo.filePath);
+  const cloudPath = normalizePhotoRef(photo.cloudPath);
+  const derivedCloudPath = normalizePhotoRef(derivePathFromCloudUrl(photo.cloudUrl));
+  const cloudUrl = normalizePhotoRef(photo.cloudUrl);
+
+  if (id) keys.add(`id:${id}`);
+  if (filePath) keys.add(`filePath:${filePath}`);
+  if (cloudPath) keys.add(`cloudPath:${cloudPath}`);
+  if (derivedCloudPath) keys.add(`cloudPath:${derivedCloudPath}`);
+  if (cloudUrl) keys.add(`cloudUrl:${cloudUrl}`);
+
+  return keys;
+}
+
+export function sessionPhotosShareReference(a: SessionPhoto, b: SessionPhoto): boolean {
+  const aKeys = getSessionPhotoRefKeys(a);
+  for (const key of getSessionPhotoRefKeys(b)) {
+    if (aKeys.has(key)) return true;
+  }
+  return false;
+}
+
 /**
  * Move a single photo reference from a session on `sourceTask` to a session on
  * `destTask`. Returns updated copies of both tasks. Does NOT touch storage —
@@ -17,18 +53,22 @@ export interface MovePhotoResult {
 export function moveSessionPhoto(
   sourceTask: Task,
   destTask: Task,
-  photoId: string,
+  photo: SessionPhoto,
   fromSessionId: string,
   toSessionId: string,
 ): MovePhotoResult {
   const sameTask = sourceTask.id === destTask.id;
+
+  if (sameTask && fromSessionId === toSessionId) {
+    return { source: sourceTask, dest: sourceTask };
+  }
 
   // Find & extract photo from source
   let extracted: SessionPhoto | null = null;
   const strippedSourceSessions = (sourceTask.sessions || []).map(s => {
     if (s.id !== fromSessionId) return s;
     const photos = s.photos || [];
-    const idx = photos.findIndex(p => p.id === photoId);
+    const idx = photos.findIndex(p => sessionPhotosShareReference(p, photo));
     if (idx < 0) return s;
     extracted = photos[idx];
     const next = photos.slice();
@@ -51,6 +91,9 @@ export function moveSessionPhoto(
 
   const updatedDestSessions = workingSessions.map((s, i) => {
     if (i !== destSessionIdx) return s;
+    if ((s.photos || []).some(existing => sessionPhotosShareReference(existing, rebadged))) {
+      return s;
+    }
     return { ...s, photos: [...(s.photos || []), rebadged] };
   });
 

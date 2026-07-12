@@ -618,17 +618,17 @@ export const EditTaskDialog = ({
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
 
-  // Collect all cloud paths referenced by sessions and mint signed URLs.
+  // Collect all cloud paths referenced by the parent's task (source of truth for photos).
   const allCloudPaths = useMemo(() => {
     const paths: string[] = [];
-    for (const s of sessions) {
+    for (const s of (task.sessions || [])) {
       for (const p of s.photos || []) {
         const path = p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl);
         if (path) paths.push(path);
       }
     }
     return Array.from(new Set(paths));
-  }, [sessions]);
+  }, [task.sessions]);
 
   useEffect(() => {
     if (allCloudPaths.length === 0) return;
@@ -651,21 +651,22 @@ export const EditTaskDialog = ({
   const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
-    // Build a live "source task" from local (unsaved) sessions state so any
-    // in-flight edits in the dialog are preserved.
-    const liveSourceTask: Task = { ...task, sessions };
+    // Use parent's task as the source of truth for photos.
+    const liveSourceTask: Task = task;
     const destTask = allTasks.find(t => t.id === destTaskId);
     if (!destTask) return;
     try {
       const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
-      // Reflect removal in local sessions state so the UI updates immediately
-      // and a subsequent Save doesn't reintroduce the photo.
-      setSessions(source.sessions || []);
-      // Persist source photo removal now so the change survives without needing Save.
       onUpdateTask(task.id, { sessions: source.sessions });
       if (destTaskId !== task.id) {
         onUpdateTask(destTaskId, { sessions: dest.sessions });
       }
+      // Mirror the photos-only change into local draft sessions so an in-flight Save
+      // doesn't reintroduce the photo.
+      setSessions(prev => prev.map(s => {
+        const updated = source.sessions?.find(us => us.id === s.id);
+        return updated ? { ...s, photos: updated.photos } : s;
+      }));
       toast({ title: 'Photo moved', description: destTaskId === task.id ? 'Moved to another session.' : 'Moved to selected task.' });
     } catch (e: any) {
       toast({ title: 'Move failed', description: e?.message || 'Could not move photo', variant: 'destructive' });
@@ -674,11 +675,15 @@ export const EditTaskDialog = ({
 
   const handleDeletePhoto = async (sessionId: string, photo: SessionPhoto) => {
     if (!window.confirm('Delete this photo? This cannot be undone.')) return;
-    const nextSessions = sessions.map(s =>
+    // Build write from parent's task (source of truth for photos), not local draft.
+    const nextSessions = (task.sessions || []).map(s =>
       s.id === sessionId ? { ...s, photos: (s.photos || []).filter(p => p.id !== photo.id) } : s
     );
-    setSessions(nextSessions);
     onUpdateTask?.(task.id, { sessions: nextSessions });
+    // Mirror the photos-only change into local draft sessions.
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, photos: (s.photos || []).filter(p => p.id !== photo.id) } : s
+    ));
     const path = photo.cloudPath || photoStorageService.derivePathFromCloudUrl(photo.cloudUrl) || undefined;
     if (path) {
       try { await photoStorageService.deletePhoto(path); } catch { /* best-effort */ }
@@ -687,8 +692,10 @@ export const EditTaskDialog = ({
   };
 
   const renderPhotoStrip = (session: WorkSession) => {
-    const photos = session.photos || [];
+    // Read photos live from parent task, not local draft state.
+    const photos = task.sessions?.find(s => s.id === session.id)?.photos || [];
     if (photos.length === 0) return null;
+
     return (
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold">Photos</Label>

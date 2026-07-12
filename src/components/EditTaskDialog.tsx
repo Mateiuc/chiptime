@@ -618,6 +618,7 @@ export const EditTaskDialog = ({
   // ============ PHOTO MOVE SUPPORT ============
   const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
+  const [movingPhotoKey, setMovingPhotoKey] = useState<string | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
   const [photoDirtySessionIds, setPhotoDirtySessionIds] = useState<Set<string>>(new Set());
 
@@ -657,6 +658,11 @@ export const EditTaskDialog = ({
   const getPhotoRenderKey = (sessionId: string, p: SessionPhoto, index: number): string => {
     const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || 'photo';
     return `${sessionId}:${p.id}:${ref}:${index}`;
+  };
+
+  const getPhotoOperationKey = (sessionId: string, p: SessionPhoto): string => {
+    const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || p.id || 'photo';
+    return `${sessionId}:${ref}`;
   };
 
   const getSourceSessions = (): WorkSession[] => {
@@ -716,14 +722,20 @@ export const EditTaskDialog = ({
   const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
+    const operationKey = getPhotoOperationKey(fromSessionId, photo);
+    if (movingPhotoKey === operationKey) return;
+    setMovingPhotoKey(operationKey);
     const liveSourceTask: Task = { ...task, sessions: mergeDraftSessionsWithSourcePhotos(sessions) };
     const destTask = destTaskId === task.id ? liveSourceTask : allTasks.find(t => t.id === destTaskId);
-    if (!destTask) return;
+    if (!destTask) {
+      setMovingPhotoKey(null);
+      return;
+    }
     try {
-      const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
-      onUpdateTask(task.id, { sessions: source.sessions });
+      const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo, fromSessionId, destSessionId);
+      await Promise.resolve(onUpdateTask(task.id, { sessions: source.sessions }));
       if (destTaskId !== task.id) {
-        onUpdateTask(destTaskId, { sessions: dest.sessions });
+        await Promise.resolve(onUpdateTask(destTaskId, { sessions: dest.sessions }));
       }
       markPhotoSessionsDirty(fromSessionId, destSessionId);
       // Mirror the photos-only change into local draft sessions so an in-flight Save
@@ -732,9 +744,12 @@ export const EditTaskDialog = ({
         const updated = source.sessions?.find(us => us.id === s.id);
         return updated ? { ...s, photos: updated.photos } : s;
       }));
+      setMovePhotoState(null);
       toast({ title: 'Photo moved', description: destTaskId === task.id ? 'Moved to another session.' : 'Moved to selected task.' });
     } catch (e: any) {
       toast({ title: 'Move failed', description: e?.message || 'Could not move photo', variant: 'destructive' });
+    } finally {
+      setMovingPhotoKey(null);
     }
   };
 

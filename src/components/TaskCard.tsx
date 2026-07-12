@@ -1095,7 +1095,17 @@ export const TaskCard = ({
         </CollapsibleContent>
       </Collapsible>
       
-      <EditTaskDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} task={task} onSave={updatedTask => onUpdateTask?.(updatedTask)} onDelete={onDelete} />
+      <EditTaskDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        task={task}
+        onSave={updatedTask => onUpdateTask?.(updatedTask)}
+        onDelete={onDelete}
+        allTasks={allTasks}
+        clients={allClients}
+        vehicles={allVehicles}
+        onUpdateTask={onUpdateTaskById}
+      />
       
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="w-[90vw] max-w-sm p-4 rounded-lg">

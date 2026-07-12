@@ -949,6 +949,7 @@ export const EditTaskDialog = ({
         </DialogContent>
       </Dialog>
       {deleteAlert}
+      {movePhotoDialog}
       </>
     );
   }

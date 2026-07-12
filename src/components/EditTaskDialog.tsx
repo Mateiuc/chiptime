@@ -662,9 +662,9 @@ export const EditTaskDialog = ({
       // and a subsequent Save doesn't reintroduce the photo.
       setSessions(source.sessions || []);
       // Persist source photo removal now so the change survives without needing Save.
-      onUpdateTask(task.id, { sessions: source.sessions, updatedAt: new Date() });
+      onUpdateTask(task.id, { sessions: source.sessions });
       if (destTaskId !== task.id) {
-        onUpdateTask(destTaskId, { sessions: dest.sessions, updatedAt: new Date() });
+        onUpdateTask(destTaskId, { sessions: dest.sessions });
       }
       toast({ title: 'Photo moved', description: destTaskId === task.id ? 'Moved to another session.' : 'Moved to selected task.' });
     } catch (e: any) {

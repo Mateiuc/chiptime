@@ -648,12 +648,32 @@ export const EditTaskDialog = ({
     return undefined;
   };
 
+  const getPhotoCloudPath = (p: SessionPhoto): string | undefined =>
+    p.cloudPath || photoStorageService.derivePathFromCloudUrl(p.cloudUrl) || undefined;
+
+  const getPhotoRenderKey = (sessionId: string, p: SessionPhoto, index: number): string => {
+    const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || 'photo';
+    return `${sessionId}:${p.id}:${ref}:${index}`;
+  };
+
+  const isPhotoPathStillReferenced = (path: string, nextSourceSessions: WorkSession[]) => {
+    const sourceHasPath = nextSourceSessions.some(s =>
+      (s.photos || []).some(p => getPhotoCloudPath(p) === path || p.filePath === path)
+    );
+    if (sourceHasPath) return true;
+    return (allTasks || [])
+      .filter(t => t.id !== task.id)
+      .some(t => (t.sessions || []).some(s =>
+        (s.photos || []).some(p => getPhotoCloudPath(p) === path || p.filePath === path)
+      ));
+  };
+
   const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
     // Use parent's task as the source of truth for photos.
-    const liveSourceTask: Task = task;
-    const destTask = allTasks.find(t => t.id === destTaskId);
+    const liveSourceTask: Task = { ...task, sessions };
+    const destTask = destTaskId === task.id ? liveSourceTask : allTasks.find(t => t.id === destTaskId);
     if (!destTask) return;
     try {
       const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
@@ -673,37 +693,49 @@ export const EditTaskDialog = ({
     }
   };
 
-  const handleDeletePhoto = async (sessionId: string, photo: SessionPhoto) => {
+  const handleDeletePhoto = async (sessionId: string, photoIndex: number, photo: SessionPhoto) => {
     if (!window.confirm('Delete this photo? This cannot be undone.')) return;
-    // Build write from parent's task (source of truth for photos), not local draft.
-    const nextSessions = (task.sessions || []).map(s =>
-      s.id === sessionId ? { ...s, photos: (s.photos || []).filter(p => p.id !== photo.id) } : s
+    // Delete the clicked thumbnail by position so duplicate photo IDs can be removed one-by-one.
+    const nextSessions = sessions.map(s => {
+      if (s.id !== sessionId) return s;
+      const photos = [...(s.photos || [])];
+      if (photoIndex >= 0 && photoIndex < photos.length) photos.splice(photoIndex, 1);
+      return { ...s, photos };
+    });
+    const nextSessionPhotos = nextSessions.find(s => s.id === sessionId)?.photos || [];
+    const persistBase = (task.sessions || []).length > 0 ? task.sessions : sessions;
+    const nextPersistSessions = persistBase.map(s =>
+      s.id === sessionId ? { ...s, photos: nextSessionPhotos } : s
     );
-    onUpdateTask?.(task.id, { sessions: nextSessions });
-    // Mirror the photos-only change into local draft sessions.
-    setSessions(prev => prev.map(s =>
-      s.id === sessionId ? { ...s, photos: (s.photos || []).filter(p => p.id !== photo.id) } : s
-    ));
-    const path = photo.cloudPath || photoStorageService.derivePathFromCloudUrl(photo.cloudUrl) || undefined;
-    if (path) {
+    setSessions(nextSessions);
+    await Promise.resolve(onUpdateTask?.(task.id, { sessions: nextPersistSessions }));
+
+    const cloudPath = getPhotoCloudPath(photo);
+    if (cloudPath && !isPhotoPathStillReferenced(cloudPath, nextSessions)) {
+      setPhotoSignedUrls(prev => {
+        const { [cloudPath]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
+    const path = photo.filePath || cloudPath;
+    if (path && !isPhotoPathStillReferenced(path, nextSessions)) {
       try { await photoStorageService.deletePhoto(path); } catch { /* best-effort */ }
     }
     toast({ title: 'Photo deleted' });
   };
 
   const renderPhotoStrip = (session: WorkSession) => {
-    // Read photos live from parent task, not local draft state.
-    const photos = task.sessions?.find(s => s.id === session.id)?.photos || [];
+    const photos = session.photos || [];
     if (photos.length === 0) return null;
 
     return (
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold">Photos</Label>
         <div className="flex flex-wrap gap-2">
-          {photos.map(p => {
+          {photos.map((p, photoIndex) => {
             const url = resolvePhotoUrl(p);
             return (
-              <div key={p.id} className="relative group">
+              <div key={getPhotoRenderKey(session.id, p, photoIndex)} className="relative group">
                 {url ? (
                   <a href={url} target="_blank" rel="noopener noreferrer">
                     <img src={url} alt="Session photo" className="h-16 w-16 rounded object-cover border-2 border-border" />
@@ -726,7 +758,7 @@ export const EditTaskDialog = ({
                 )}
                 <button
                   type="button"
-                  onClick={() => handleDeletePhoto(session.id, p)}
+                  onClick={() => handleDeletePhoto(session.id, photoIndex, p)}
                   className="absolute -top-1.5 -left-1.5 h-6 w-6 rounded-full bg-background border shadow-sm flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground"
                   title="Delete this photo"
                   aria-label="Delete photo"

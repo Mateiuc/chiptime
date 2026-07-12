@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { getCurrentUserId } from '@/lib/currentUser';
@@ -14,7 +14,7 @@ import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 import { photoStorageService } from '@/services/photoStorageService';
 import { MovePhotoDialog } from './MovePhotoDialog';
-import { moveSessionPhoto } from '@/lib/movePhoto';
+import { getSessionPhotoRefKeys, moveSessionPhoto } from '@/lib/movePhoto';
 
 interface TaskInlineEditorProps {
   task: Task;
@@ -240,6 +240,8 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   // ============ PHOTO MOVE SUPPORT ============
   const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
+  const [movingPhotoKey, setMovingPhotoKey] = useState<string | null>(null);
+  const movingPhotoKeyRef = useRef<string | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
   const [photoDirtySessionIds, setPhotoDirtySessionIds] = useState<Set<string>>(new Set());
 
@@ -277,6 +279,32 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
     const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || 'photo';
     return `${sessionId}:${p.id}:${ref}:${index}`;
   };
+
+  const getPhotoOperationKey = (sessionId: string, p: SessionPhoto): string => {
+    const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || p.id || 'photo';
+    return `${sessionId}:${ref}`;
+  };
+
+  const getPhotoListSignature = (photos: SessionPhoto[] = []): string => photos
+    .map(photo => Array.from(getSessionPhotoRefKeys(photo)).sort().join('|'))
+    .join('||');
+
+  useEffect(() => {
+    if (photoDirtySessionIds.size === 0) return;
+    setPhotoDirtySessionIds(prev => {
+      let changed = false;
+      const next = new Set(prev);
+      prev.forEach(sessionId => {
+        const sourcePhotos = (task.sessions || []).find(s => s.id === sessionId)?.photos || [];
+        const draftPhotos = sessions.find(s => s.id === sessionId)?.photos || [];
+        if (getPhotoListSignature(sourcePhotos) === getPhotoListSignature(draftPhotos)) {
+          next.delete(sessionId);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [task.sessions, sessions, photoDirtySessionIds]);
 
   const getSourceSessions = (): WorkSession[] => {
     const sourceSessions = task.sessions || [];
@@ -335,22 +363,33 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   const handleMoveConfirm = async (destTaskId: string, destSessionId: string) => {
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
+    const operationKey = getPhotoOperationKey(fromSessionId, photo);
+    if (movingPhotoKeyRef.current) return;
+    movingPhotoKeyRef.current = operationKey;
+    setMovingPhotoKey(operationKey);
     const liveSourceTask: Task = { ...task, sessions: mergeDraftSessionsWithSourcePhotos(sessions) };
     const destTask = destTaskId === task.id ? liveSourceTask : allTasks.find(t => t.id === destTaskId);
-    if (!destTask) return;
+    if (!destTask) {
+      setMovingPhotoKey(null);
+      return;
+    }
     try {
-      const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo.id, fromSessionId, destSessionId);
-      onUpdateTask(task.id, { sessions: source.sessions });
-      if (destTaskId !== task.id) onUpdateTask(destTaskId, { sessions: dest.sessions });
+      const { source, dest } = moveSessionPhoto(liveSourceTask, destTask, photo, fromSessionId, destSessionId);
+      await Promise.resolve(onUpdateTask(task.id, { sessions: source.sessions }));
+      if (destTaskId !== task.id) await Promise.resolve(onUpdateTask(destTaskId, { sessions: dest.sessions }));
       markPhotoSessionsDirty(fromSessionId, destSessionId);
       // Mirror the photos-only change into local draft sessions so ongoing edits stay consistent
       setSessions(prev => prev.map(s => {
         const updated = source.sessions?.find(us => us.id === s.id);
         return updated ? { ...s, photos: updated.photos } : s;
       }));
+      setMovePhotoState(null);
       toast({ title: 'Photo moved', description: destTaskId === task.id ? 'Moved to another session.' : 'Moved to selected task.' });
     } catch (e: any) {
       toast({ title: 'Move failed', description: e?.message || 'Could not move photo', variant: 'destructive' });
+    } finally {
+      movingPhotoKeyRef.current = null;
+      setMovingPhotoKey(null);
     }
   };
 

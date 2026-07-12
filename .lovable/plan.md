@@ -1,35 +1,73 @@
-I understand — you did not delete them. The last code change can make moved photos disappear because it can overwrite the real photo list with stale editor state.
+## Corrected plan
 
-## Likely cause
+You are right: I will **not** add an automatic dedupe cleanup, and I will **not** remove any existing photo records. The real target is to stop the duplicate references from being created again, while preserving the 7 real photos that should exist in that session.
 
-The current delete/render logic still mixes two versions of the same session:
+## What is causing the duplicates
 
-- `task.sessions`: the saved/current task data, where moved photos are added.
-- local `sessions`: the editor draft, which can be stale after a move.
+The duplicate source is in the move/edit flow:
 
-When moved photos are added, they can exist in `task.sessions` but not in local `sessions`. A later update can replace the saved photo list with the stale local list, making the moved photos disappear even though you never deleted them.
+- A photo move writes photo changes immediately with `onUpdateTask`.
+- The editor also keeps its own local `sessions` draft.
+- After moving, both the saved task data and local draft can contain different versions of the photo lists.
+- A later move/save/delete can merge the stale draft with saved data incorrectly and append/re-save the same photo reference again.
+- The move helper currently appends to the destination every time and has no guard against “this same photo is already in destination”.
 
-## Fix plan
+## Fix only the source
 
-1. **Make photos render from saved task data**
-   - In both desktop inline editor and edit dialog, photo strips will read photos from `task.sessions` first.
-   - This prevents moved photos from being hidden by stale local state.
+1. **Stop duplicate appends in the move helper**
+   - Update `moveSessionPhoto` so it identifies the exact clicked photo by a stable reference key:
+     - `id`
+     - `filePath`
+     - `cloudPath`
+     - storage path derived from `cloudUrl`
+   - Before appending to the destination session, check if that same photo reference already exists there.
+   - If it already exists, remove it from the source only if needed, but do **not** append another copy.
+   - If source session and destination session are the same, do nothing and return the task unchanged.
 
-2. **Make photo delete use saved task data only**
-   - Delete will splice the clicked photo from `task.sessions`, not from local draft `sessions`.
-   - Local draft state will be updated only after that, without overwriting the real photo list.
+2. **Make move calls one-at-a-time**
+   - Add a `movingPhotoKey` / busy guard in both editors.
+   - While a move is running, ignore repeated confirm clicks for the same photo.
+   - Clear the move dialog state after success so the same stale `movePhotoState` cannot be submitted again.
 
-3. **Protect moved/duplicate photos in storage**
-   - Before removing a physical image file, scan the updated saved sessions and other tasks.
-   - If the same photo/path is still used anywhere, keep the file.
+3. **Fix stale destination task reads**
+   - In `handleMoveConfirm`, build the source task from the latest saved `task.sessions` plus safe local non-photo edits.
+   - For cross-task moves, read the destination from `allTasks`, but do not merge old local photo state into that destination.
+   - Persist source and destination updates as the result of one move operation.
 
-4. **Prevent future saves from wiping moved photos**
-   - Add a merge step when saving/editing sessions so local changes to hours, parts, notes, and extra charge do not replace newer photos from `task.sessions`.
+4. **Fix save merge so it preserves saved photos only**
+   - Keep the current goal: saving edited time/parts/description must not wipe moved photos.
+   - But remove the dangerous path where a dirty local photo list can overwrite a newer saved photo list unless the user action was the active move/delete just completed.
+   - Normal Save should keep `task.sessions[].photos` from the saved task and only save non-photo fields from the draft.
 
-5. **Apply the same fix in both places**
-   - `TaskInlineEditor.tsx`
-   - `EditTaskDialog.tsx`
+5. **Fix delete without physical storage deletion risk**
+   - Delete only the clicked reference by index from the visible source list.
+   - Do not delete the physical photo file unless no task/session references its path anymore.
+   - Keep this as a delete action only; it will not run during move or save.
 
-## Important recovery note
+6. **No automatic cleanup**
+   - No load-time dedupe.
+   - No “clean duplicates” button.
+   - No guessing whether 4, 7, or 10 photos are correct.
+   - Existing data is left untouched unless you manually move/delete a specific thumbnail.
 
-This fix prevents more photo references from disappearing. If the photos already disappeared from the saved task data, they may still be recoverable if they still exist in cloud storage or another device/backup, but the UI code alone cannot restore references it no longer has.
+## Files to change
+
+- `src/lib/movePhoto.ts`
+  - Add stable photo reference comparison.
+  - Prevent duplicate destination append.
+  - No-op same-session moves.
+
+- `src/components/TaskInlineEditor.tsx`
+  - Add move busy guard.
+  - Clear move state after success.
+  - Make normal Save preserve saved photo arrays instead of writing stale draft photo arrays.
+
+- `src/components/EditTaskDialog.tsx`
+  - Apply the same move guard and save-photo preservation.
+
+## Expected result
+
+- Moving a photo cannot create duplicate thumbnails anymore.
+- Saving edited task details cannot multiply photos or overwrite moved photos.
+- The app will not delete or auto-clean any existing photo references.
+- Your 7 intended photos remain under your control; only manual delete removes a specific thumbnail.

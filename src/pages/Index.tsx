@@ -818,6 +818,10 @@ const Index = () => {
                           onUpdateVehicle={(vid, updates) => updateVehicle(vid, updates)}
                           onDelete={handleDelete}
                           vehicleColorScheme={colorScheme}
+                          allTasks={tasks}
+                          allClients={clients}
+                          allVehicles={vehicles}
+                          onUpdateTaskById={(id, updates) => updateTask(id, updates)}
                         />
                       );
                     })}

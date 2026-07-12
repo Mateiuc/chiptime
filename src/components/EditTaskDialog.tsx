@@ -659,8 +659,20 @@ export const EditTaskDialog = ({
     return `${sessionId}:${p.id}:${ref}:${index}`;
   };
 
-  const getSourceSessions = (): WorkSession[] =>
-    (task.sessions || []).length > 0 ? task.sessions || [] : sessions;
+  const getSourceSessions = (): WorkSession[] => {
+    const sourceSessions = task.sessions || [];
+    if (sourceSessions.length === 0) return sessions;
+
+    const merged = sourceSessions.map(sourceSession => {
+      if (!photoDirtySessionIds.has(sourceSession.id)) return sourceSession;
+      const draftSession = sessions.find(s => s.id === sourceSession.id);
+      return draftSession ? { ...sourceSession, photos: draftSession.photos || [] } : sourceSession;
+    });
+
+    const sourceIds = new Set(sourceSessions.map(s => s.id));
+    const localOnlySessions = sessions.filter(s => !sourceIds.has(s.id));
+    return [...merged, ...localOnlySessions];
+  };
 
   const markPhotoSessionsDirty = (...sessionIds: string[]) => {
     setPhotoDirtySessionIds(prev => {

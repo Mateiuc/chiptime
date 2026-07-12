@@ -16,7 +16,7 @@ import { getSessionColorScheme } from '@/lib/sessionColors';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { photoStorageService } from '@/services/photoStorageService';
 import { MovePhotoDialog } from './MovePhotoDialog';
-import { moveSessionPhoto } from '@/lib/movePhoto';
+import { getSessionPhotoRefKeys, moveSessionPhoto } from '@/lib/movePhoto';
 interface EditTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -664,6 +664,27 @@ export const EditTaskDialog = ({
     const ref = getPhotoCloudPath(p) || p.filePath || p.cloudUrl || p.id || 'photo';
     return `${sessionId}:${ref}`;
   };
+
+  const getPhotoListSignature = (photos: SessionPhoto[] = []): string => photos
+    .map(photo => Array.from(getSessionPhotoRefKeys(photo)).sort().join('|'))
+    .join('||');
+
+  useEffect(() => {
+    if (photoDirtySessionIds.size === 0) return;
+    setPhotoDirtySessionIds(prev => {
+      let changed = false;
+      const next = new Set(prev);
+      prev.forEach(sessionId => {
+        const sourcePhotos = (task.sessions || []).find(s => s.id === sessionId)?.photos || [];
+        const draftPhotos = sessions.find(s => s.id === sessionId)?.photos || [];
+        if (getPhotoListSignature(sourcePhotos) === getPhotoListSignature(draftPhotos)) {
+          next.delete(sessionId);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [task.sessions, sessions, photoDirtySessionIds]);
 
   const getSourceSessions = (): WorkSession[] => {
     const sourceSessions = task.sessions || [];

@@ -933,6 +933,7 @@ export const EditTaskDialog = ({
                       </div>
                     ))}
                   </div>
+                  {renderPhotoStrip(session)}
                   {/* Description */}
                   <div className="space-y-1">
                     <Label className="text-xs">Work Description</Label>

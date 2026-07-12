@@ -1,40 +1,21 @@
 ## Goal
-Add a way, inside Edit Task, to move an individual photo from its current session to a session on **another task** (any task in the workspace). Fixes the "took the photo on the wrong session" case.
+Add the photo strip + "Move to another task" action inside the desktop inline session editor (`TaskInlineEditor`), matching what already exists in `EditTaskDialog`. Today the desktop card (screenshot shows Lamborghini Urus → Task 1 → Session 1) has no way to view or move session photos, so the user is stuck when a photo was taken on the wrong session.
 
-## UX
-- In the Edit Task view (both `EditTaskDialog` and `TaskInlineEditor`), each photo thumbnail gets a small overlay menu button (⋯) with:
-  - **View** (existing behavior)
-  - **Delete** (existing behavior)
-  - **Move to another task…** (new)
-- Clicking "Move to another task…" opens a new `MovePhotoDialog` with:
-  1. Search box + list of tasks (client + vehicle label, most recent first). Excludes the current task.
-  2. After picking a task, a list of that task's sessions (date + summary). If the task has no sessions, offer "Create a session for this photo".
-  3. Confirm button → performs the move, closes both dialogs, toast "Photo moved".
+## Changes
 
-## Move operation (client-side, no schema change)
-Photos live inside `WorkSession.photos[]` on tasks in local storage / sync. No DB migration needed.
+1. **`src/components/TaskInlineEditor.tsx`**
+   - Add props: `allTasks`, `clients`, `vehicles`, `onUpdateTask` (same shape passed to `EditTaskDialog`).
+   - Sign photo URLs on mount for every photo in `sessions[].photos` via `photoStorageService` (same effect used in `EditTaskDialog`), keyed by `cloudPath`/`filePath`.
+   - Inside each `<CollapsibleContent>` session block (right before "Work Periods"), render a thumbnail strip of `session.photos`. Each thumbnail shows:
+     - the signed image (or camera placeholder while loading),
+     - a small overlay button with the `ArrowRightLeft` icon → opens `MovePhotoDialog`.
+   - When the move is confirmed, call the shared `moveSessionPhoto` helper against the freshest task list, then call `onUpdateTask` for the source task and (if different) the destination task so both persist immediately — same pattern as `EditTaskDialog`.
+   - Also mirror the current-session state: strip the moved photo from local `sessions` when the source is this task, so the UI updates without waiting for a re-render from parent.
 
-Steps in a single storage transaction (via the existing `useStorage` update path):
-1. Remove the photo object from the source session's `photos[]`.
-2. Append the same photo object (unchanged `id`, `filePath`, `cloudUrl`, `cloudPath`, `capturedAt`) to the destination session's `photos[]`.
-3. Persist both tasks (source + destination). If they're the same task, one write.
-4. Bump `updatedAt` on both tasks so sync propagates.
-
-No file re-upload: photo binaries in Supabase Storage / local filesystem are not moved — only the reference is reparented. `cloudPath` stays the same, so signed URLs keep working.
-
-## Files touched
-- **New**: `src/components/MovePhotoDialog.tsx` — task picker → session picker → confirm.
-- `src/components/TaskCard.tsx` — photo thumbnail gets the ⋯ menu with "Move to another task…" entry (this is the shared thumbnail renderer used inside the edit views).
-- `src/components/EditTaskDialog.tsx` and `src/components/TaskInlineEditor.tsx` — wire the move handler that opens `MovePhotoDialog` and calls the shared task-update function.
-- `src/lib/` — small helper `movePhotoBetweenSessions(tasks, { photoId, fromTaskId, fromSessionId, toTaskId, toSessionId })` returning the updated tasks array, plus a unit test.
-
-## Edge cases handled
-- Destination task has no sessions → offer to create one (uses the same "add session" path already in Edit Task).
-- Moving to the same session it's already in → button disabled.
-- Photo not found (concurrent edit) → toast error, no-op.
-- Sync: since both tasks bump `updatedAt`, existing app-sync/last-write-wins reconciles cleanly.
+2. **`src/pages/DesktopDashboard.tsx`** (and any other caller of `TaskInlineEditor`)
+   - Pass `allTasks`, `clients`, `vehicles`, and an `onUpdateTask` callback (the existing task-update path already used for saves) down to `TaskInlineEditor`. No new business logic — just prop wiring identical to what `EditTaskDialog` already receives.
 
 ## Out of scope
-- Multi-select move (move several photos at once).
-- Moving photos across workspaces.
-- Server-side move of the storage object (unnecessary — reference-only move is safe and instant).
+- No changes to storage, RLS, or the edge functions — photo binaries stay where they are; only the reference moves (same as the existing dialog implementation).
+- No redesign of the session header or other editor sections.
+- Mobile `EditTaskDialog` already has this; not touching it.

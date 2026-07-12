@@ -619,6 +619,7 @@ export const EditTaskDialog = ({
   const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
+  const [photoDirtySessionIds, setPhotoDirtySessionIds] = useState<Set<string>>(new Set());
 
   // Collect all cloud paths referenced by the parent's task (source of truth for photos).
   const allCloudPaths = useMemo(() => {
@@ -661,7 +662,18 @@ export const EditTaskDialog = ({
   const getSourceSessions = (): WorkSession[] =>
     (task.sessions || []).length > 0 ? task.sessions || [] : sessions;
 
+  const markPhotoSessionsDirty = (...sessionIds: string[]) => {
+    setPhotoDirtySessionIds(prev => {
+      const next = new Set(prev);
+      sessionIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
   const getSessionPhotosForRender = (sessionId: string): SessionPhoto[] => {
+    if (photoDirtySessionIds.has(sessionId)) {
+      return sessions.find(s => s.id === sessionId)?.photos || [];
+    }
     const sourceSession = (task.sessions || []).find(s => s.id === sessionId);
     if (sourceSession) return sourceSession.photos || [];
     return sessions.find(s => s.id === sessionId)?.photos || [];
@@ -672,6 +684,7 @@ export const EditTaskDialog = ({
     if (sourceSessions.length === 0) return draftSessions;
     return draftSessions.map(session => {
       const sourceSession = sourceSessions.find(s => s.id === session.id);
+      if (photoDirtySessionIds.has(session.id)) return session;
       return sourceSession ? { ...session, photos: sourceSession.photos || [] } : session;
     });
   };
@@ -700,6 +713,7 @@ export const EditTaskDialog = ({
       if (destTaskId !== task.id) {
         onUpdateTask(destTaskId, { sessions: dest.sessions });
       }
+      markPhotoSessionsDirty(fromSessionId, destSessionId);
       // Mirror the photos-only change into local draft sessions so an in-flight Save
       // doesn't reintroduce the photo.
       setSessions(prev => prev.map(s => {
@@ -725,6 +739,7 @@ export const EditTaskDialog = ({
     const nextSessions = sessions.map(s =>
       s.id === sessionId ? { ...s, photos: nextSessionPhotos } : s
     );
+    markPhotoSessionsDirty(sessionId);
     setSessions(nextSessions);
     await Promise.resolve(onUpdateTask?.(task.id, { sessions: nextPersistSessions }));
 

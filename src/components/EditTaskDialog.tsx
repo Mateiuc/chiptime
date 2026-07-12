@@ -48,7 +48,11 @@ export const EditTaskDialog = ({
   onSave,
   onDelete,
   clientName,
-  vehicleInfo
+  vehicleInfo,
+  allTasks,
+  clients,
+  vehicles,
+  onUpdateTask,
 }: EditTaskDialogProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useNotifications();

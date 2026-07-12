@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { getSessionColorScheme } from '@/lib/sessionColors';
 import { getCurrentUserId } from '@/lib/currentUser';
@@ -241,6 +241,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
   const canMovePhotos = !!(allTasks && clients && vehicles && onUpdateTask);
   const [movePhotoState, setMovePhotoState] = useState<{ photo: SessionPhoto; sessionId: string; thumbUrl?: string } | null>(null);
   const [movingPhotoKey, setMovingPhotoKey] = useState<string | null>(null);
+  const movingPhotoKeyRef = useRef<string | null>(null);
   const [photoSignedUrls, setPhotoSignedUrls] = useState<Record<string, string>>({});
   const [photoDirtySessionIds, setPhotoDirtySessionIds] = useState<Set<string>>(new Set());
 
@@ -363,7 +364,8 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
     if (!movePhotoState || !canMovePhotos || !allTasks || !onUpdateTask) return;
     const { photo, sessionId: fromSessionId } = movePhotoState;
     const operationKey = getPhotoOperationKey(fromSessionId, photo);
-    if (movingPhotoKey === operationKey) return;
+    if (movingPhotoKeyRef.current) return;
+    movingPhotoKeyRef.current = operationKey;
     setMovingPhotoKey(operationKey);
     const liveSourceTask: Task = { ...task, sessions: mergeDraftSessionsWithSourcePhotos(sessions) };
     const destTask = destTaskId === task.id ? liveSourceTask : allTasks.find(t => t.id === destTaskId);
@@ -386,6 +388,7 @@ export const TaskInlineEditor = ({ task, onSave, onCancel, onDelete, allTasks, c
     } catch (e: any) {
       toast({ title: 'Move failed', description: e?.message || 'Could not move photo', variant: 'destructive' });
     } finally {
+      movingPhotoKeyRef.current = null;
       setMovingPhotoKey(null);
     }
   };

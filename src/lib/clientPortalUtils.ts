@@ -92,6 +92,7 @@ interface SlimSession {
   pds?: [number, number][];
   ld?: number; // labor discount applied to this session
   imp?: 1; // imported (XLS) — flag for the portal badge
+  jbs?: { n: string; pr: number; ds?: string }[]; // fixed-price jobs
 }
 
 interface SlimVehicle {

@@ -11,3 +11,7 @@ verify_jwt = false
 
 [functions.upload-diagnostic]
 verify_jwt = false
+
+[functions.mcp]
+verify_jwt = false
+

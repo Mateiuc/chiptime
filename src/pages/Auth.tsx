@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,20 @@ type WorkspaceStep = 'choose' | 'create' | 'join' | 'claim';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useNotifications();
   const { session, workspace, loading, refreshWorkspace, workspaceLoadError } = useAuth();
+
+  // Same-origin relative `next` target (e.g. the OAuth consent URL) preserved
+  // through sign-in, sign-up, and social OAuth so external MCP clients return
+  // to the authorization the user was completing.
+  const nextPath = useMemo(() => {
+    const raw = searchParams.get('next');
+    if (!raw) return null;
+    // Must be a same-origin relative path — reject protocol-relative and absolute URLs.
+    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    return raw;
+  }, [searchParams]);
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -33,9 +45,9 @@ const Auth = () => {
   useEffect(() => {
     if (loading) return;
     if (session && workspace) {
-      navigate('/', { replace: true });
+      navigate(nextPath ?? '/', { replace: true });
     }
-  }, [loading, session, workspace, navigate]);
+  }, [loading, session, workspace, navigate, nextPath]);
 
   // Once signed in but no workspace, check if there's an unclaimed one to offer claim
   useEffect(() => {
@@ -54,7 +66,11 @@ const Auth = () => {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        const redirectUrl = `${window.location.origin}/auth`;
+        // Preserve `next` (e.g. OAuth consent URL) through the email-confirm round-trip.
+        const returnPath = nextPath
+          ? `/auth?next=${encodeURIComponent(nextPath)}`
+          : '/auth';
+        const redirectUrl = `${window.location.origin}${returnPath}`;
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -77,8 +93,13 @@ const Auth = () => {
     setBusy(true);
     try {
       const { lovable } = await import('@/integrations/lovable');
+      // Route Google callback back to /auth?next=... so post-auth we land on
+      // the original consent URL rather than the app origin.
+      const redirectUri = nextPath
+        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+        : window.location.origin;
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: redirectUri,
         extraParams: {
           prompt: 'select_account',
         },

@@ -211,6 +211,17 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       time: formatDurationHHMM(sessionDuration),
       amount: formatCurrency(d.baseLabor),
     });
+    // Jobs: fixed-price line items belonging to this session, rendered as
+    // dotted-leader rows ("Name — description .... $price").
+    (session.jobs || []).forEach((job) => {
+      if (!job || (!job.name && !job.description && !(job.price > 0))) return;
+      flowRows.push({
+        kind: 'job',
+        name: stripDiacritics(job.name || 'Job'),
+        description: job.description ? stripDiacritics(job.description) : null,
+        amount: formatCurrency(job.price || 0),
+      });
+    });
   });
   if (totals.totalMinHourAdj > 0) flowRows.push({ kind: 'option', label: `Min 1 Hour adjustment (x${totals.minHourCount})`, amount: formatCurrency(totals.totalMinHourAdj) });
   if (totals.totalCloning > 0) flowRows.push({ kind: 'option', label: `Cloning (x${totals.cloningCount})`, amount: formatCurrency(totals.totalCloning) });

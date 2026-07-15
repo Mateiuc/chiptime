@@ -1,4 +1,4 @@
-import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto, SessionJob } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';

@@ -93,6 +93,7 @@ export interface WorkSession {
   isAddKey?: boolean; // Apply add key rate to this session
   isAllKeysLost?: boolean; // Apply all keys lost rate to this session
   extraCharge?: number; // Manual $ amount added to services bucket, not time-based
+  jobs?: SessionJob[]; // Fixed-price jobs (e.g. "Brakes — replaced rotor & pads .... $250"); folded into services
   createdBy?: string; // user_id of the worker who started this session
 }
 

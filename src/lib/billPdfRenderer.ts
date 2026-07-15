@@ -49,6 +49,7 @@ export interface BillTotals {
   totalProgramming: number;
   totalAddKey: number;
   totalAllKeysLost: number;
+  totalJobs: number;
   minHourCount: number;
   cloningCount: number;
   programmingCount: number;
@@ -78,6 +79,7 @@ export function computeBillTotals(
   let totalProgramming = 0;
   let totalAddKey = 0;
   let totalAllKeysLost = 0;
+  let totalJobs = 0;
   let minHourCount = 0;
   let cloningCount = 0;
   let programmingCount = 0;
@@ -96,9 +98,10 @@ export function computeBillTotals(
     if (d.programming > 0) { totalProgramming += d.programming; programmingCount++; }
     if (d.addKey > 0) { totalAddKey += d.addKey; addKeyCount++; }
     if (d.allKeysLost > 0) { totalAllKeysLost += d.allKeysLost; allKeysLostCount++; }
+    totalJobs += d.jobs;
   });
 
-  const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
+  const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost + totalJobs;
   const partsCost = (task.sessions || []).reduce(
     (total, session) => total + computeSessionParts(session),
     0,
@@ -108,7 +111,7 @@ export function computeBillTotals(
 
   return {
     hourlyRate, baseLabor, totalMinHourAdj, totalCloning, totalProgramming,
-    totalAddKey, totalAllKeysLost, minHourCount, cloningCount, programmingCount,
+    totalAddKey, totalAllKeysLost, totalJobs, minHourCount, cloningCount, programmingCount,
     addKeyCount, allKeysLostCount, rawLabor, laborDiscount, laborCost, partsCost, totalCost,
   };
 }

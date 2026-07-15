@@ -414,6 +414,21 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                             </div>
                           )}
 
+                          {session.jobs && session.jobs.length > 0 && (
+                            <div className="ml-7 flex flex-col gap-0.5 text-xs">
+                              {session.jobs.map((job, jIdx) => {
+                                const label = job.description ? `${job.name} — ${job.description}` : job.name;
+                                return (
+                                  <div key={jIdx} className="flex items-baseline gap-1">
+                                    <span className="text-foreground">{label}</span>
+                                    <span className="flex-1 border-b border-dotted border-muted-foreground/40 mx-1 translate-y-[-2px]" />
+                                    <span className="font-semibold text-foreground">{formatCurrency(job.price)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           {session.photoUrls && session.photoUrls.length > 0 && (
                             <div className="ml-7"><PhotoGallery photoUrls={session.photoUrls} /></div>
                           )}

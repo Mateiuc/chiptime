@@ -1,4 +1,4 @@
-import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod, Settings } from '@/types';
+import { Client, Vehicle, Task, TaskStatus, Part, SessionJob, PaymentMethod, Settings } from '@/types';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeSessionLaborDetails, computeSessionParts } from '@/lib/billing';
 import { remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';

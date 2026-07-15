@@ -318,6 +318,19 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
 
   const cursor = { yPos: 0 };
 
+  // Dotted leader between label end and value start; leaves ~2mm gutters.
+  const drawDottedLeader = (labelEndX: number, valueStartX: number, y: number) => {
+    const start = labelEndX + 1.5;
+    const end = valueStartX - 1.5;
+    if (end <= start + 2) return;
+    const dotStep = 1.5;
+    doc.setTextColor(120, 120, 120);
+    for (let x = start; x <= end; x += dotStep) {
+      doc.text('.', x, y);
+    }
+    doc.setTextColor(0, 0, 0);
+  };
+
   const drawMeasured = (m: MeasuredRow) => {
     const startY = cursor.yPos;
     const r = m.row;
@@ -329,7 +342,18 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     } else if (r.kind === 'option') {
       doc.text(r.label, COL1_X + 2, startY);
+      const labelEndX = COL1_X + 2 + doc.getTextWidth(r.label);
+      drawDottedLeader(labelEndX, COL3_X - doc.getTextWidth(r.amount), startY);
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
+    } else if (r.kind === 'job') {
+      const lastLine = m.wrappedDesc[m.wrappedDesc.length - 1] || '';
+      m.wrappedDesc.forEach((line, i) => {
+        doc.text(line, COL1_X + 2, startY + i * ROW_LINE_HEIGHT);
+      });
+      const lastLineY = startY + (m.wrappedDesc.length - 1) * ROW_LINE_HEIGHT;
+      const labelEndX = COL1_X + 2 + doc.getTextWidth(lastLine);
+      drawDottedLeader(labelEndX, COL3_X - doc.getTextWidth(r.amount), lastLineY);
+      doc.text(r.amount, COL3_X + 2, lastLineY, { align: 'right' });
     } else {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
@@ -347,6 +371,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     }
     cursor.yPos = startY + m.height;
   };
+
 
   for (let pageIdx = 0; pageIdx < plan.length; pageIdx++) {
     const page = plan[pageIdx];

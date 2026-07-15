@@ -52,6 +52,14 @@ export interface Part {
   createdBy?: string; // user_id of the worker who added this line item
 }
 
+export interface SessionJob {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  createdBy?: string;
+}
+
 export interface SessionPhoto {
   id: string;
   filePath?: string;      // Path to photo file in filesystem

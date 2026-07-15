@@ -454,6 +454,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         diagnosticPdfUrl: ss.dpdf || undefined,
         periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
         imported: ss.imp ? true : undefined,
+        jobs: ss.jbs ? ss.jbs.map((j, i) => ({ id: `job-restore-${i}`, name: j.n, price: j.pr, description: j.ds })) : undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,

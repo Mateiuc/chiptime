@@ -49,6 +49,7 @@ export interface BillTotals {
   totalProgramming: number;
   totalAddKey: number;
   totalAllKeysLost: number;
+  totalJobs: number;
   minHourCount: number;
   cloningCount: number;
   programmingCount: number;
@@ -78,6 +79,7 @@ export function computeBillTotals(
   let totalProgramming = 0;
   let totalAddKey = 0;
   let totalAllKeysLost = 0;
+  let totalJobs = 0;
   let minHourCount = 0;
   let cloningCount = 0;
   let programmingCount = 0;
@@ -96,9 +98,10 @@ export function computeBillTotals(
     if (d.programming > 0) { totalProgramming += d.programming; programmingCount++; }
     if (d.addKey > 0) { totalAddKey += d.addKey; addKeyCount++; }
     if (d.allKeysLost > 0) { totalAllKeysLost += d.allKeysLost; allKeysLostCount++; }
+    totalJobs += d.jobs;
   });
 
-  const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost;
+  const rawLabor = baseLabor + totalMinHourAdj + totalCloning + totalProgramming + totalAddKey + totalAllKeysLost + totalJobs;
   const partsCost = (task.sessions || []).reduce(
     (total, session) => total + computeSessionParts(session),
     0,
@@ -108,7 +111,7 @@ export function computeBillTotals(
 
   return {
     hourlyRate, baseLabor, totalMinHourAdj, totalCloning, totalProgramming,
-    totalAddKey, totalAllKeysLost, minHourCount, cloningCount, programmingCount,
+    totalAddKey, totalAllKeysLost, totalJobs, minHourCount, cloningCount, programmingCount,
     addKeyCount, allKeysLostCount, rawLabor, laborDiscount, laborCost, partsCost, totalCost,
   };
 }
@@ -154,6 +157,7 @@ const ORPHAN_TOLERANCE = 8; // mm
 type FlowRow =
   | { kind: 'session'; description: string; time: string; amount: string }
   | { kind: 'option'; label: string; amount: string }
+  | { kind: 'job'; name: string; description: string | null; amount: string }
   | { kind: 'part'; name: string; description: string | null; quantity: string; amount: string };
 
 interface MeasuredRow {
@@ -176,6 +180,13 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
   }
   if (row.kind === 'option') {
     return { row, wrappedDesc: [row.label], wrappedPartDesc: [], height: ROW_LINE_HEIGHT + ROW_VPAD + ROW_GAP };
+  }
+  if (row.kind === 'job') {
+    // Wrap combined "Name — description" like session rows.
+    const combined = row.description ? `${row.name} — ${row.description}` : row.name;
+    const wrapped = doc.splitTextToSize(combined, COL1_WIDTH + TIME_COL_WIDTH) as string[];
+    const lines = Math.max(1, wrapped.length);
+    return { row, wrappedDesc: wrapped, wrappedPartDesc: [], height: lines * ROW_LINE_HEIGHT + ROW_VPAD + ROW_GAP };
   }
   // part — uniform single-line height; condition renders inline
   const height = ROW_LINE_HEIGHT + ROW_VPAD + PART_ROW_GAP;
@@ -202,6 +213,17 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       description: stripDiacritics(session.description || 'Work session'),
       time: formatDurationHHMM(sessionDuration),
       amount: formatCurrency(d.baseLabor),
+    });
+    // Jobs: fixed-price line items belonging to this session, rendered as
+    // dotted-leader rows ("Name — description .... $price").
+    (session.jobs || []).forEach((job) => {
+      if (!job || (!job.name && !job.description && !(job.price > 0))) return;
+      flowRows.push({
+        kind: 'job',
+        name: stripDiacritics(job.name || 'Job'),
+        description: job.description ? stripDiacritics(job.description) : null,
+        amount: formatCurrency(job.price || 0),
+      });
     });
   });
   if (totals.totalMinHourAdj > 0) flowRows.push({ kind: 'option', label: `Min 1 Hour adjustment (x${totals.minHourCount})`, amount: formatCurrency(totals.totalMinHourAdj) });
@@ -310,6 +332,19 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
 
   const cursor = { yPos: 0 };
 
+  // Dotted leader between label end and value start; leaves ~2mm gutters.
+  const drawDottedLeader = (labelEndX: number, valueStartX: number, y: number) => {
+    const start = labelEndX + 1.5;
+    const end = valueStartX - 1.5;
+    if (end <= start + 2) return;
+    const dotStep = 1.5;
+    doc.setTextColor(120, 120, 120);
+    for (let x = start; x <= end; x += dotStep) {
+      doc.text('.', x, y);
+    }
+    doc.setTextColor(0, 0, 0);
+  };
+
   const drawMeasured = (m: MeasuredRow) => {
     const startY = cursor.yPos;
     const r = m.row;
@@ -321,7 +356,18 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
     } else if (r.kind === 'option') {
       doc.text(r.label, COL1_X + 2, startY);
+      const labelEndX = COL1_X + 2 + doc.getTextWidth(r.label);
+      drawDottedLeader(labelEndX, COL3_X - doc.getTextWidth(r.amount), startY);
       doc.text(r.amount, COL3_X + 2, startY, { align: 'right' });
+    } else if (r.kind === 'job') {
+      const lastLine = m.wrappedDesc[m.wrappedDesc.length - 1] || '';
+      m.wrappedDesc.forEach((line, i) => {
+        doc.text(line, COL1_X + 2, startY + i * ROW_LINE_HEIGHT);
+      });
+      const lastLineY = startY + (m.wrappedDesc.length - 1) * ROW_LINE_HEIGHT;
+      const labelEndX = COL1_X + 2 + doc.getTextWidth(lastLine);
+      drawDottedLeader(labelEndX, COL3_X - doc.getTextWidth(r.amount), lastLineY);
+      doc.text(r.amount, COL3_X + 2, lastLineY, { align: 'right' });
     } else {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
@@ -339,6 +385,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
     }
     cursor.yPos = startY + m.height;
   };
+
 
   for (let pageIdx = 0; pageIdx < plan.length; pageIdx++) {
     const page = plan[pageIdx];

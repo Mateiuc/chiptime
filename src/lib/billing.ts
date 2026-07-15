@@ -34,9 +34,10 @@ export interface SessionLaborDetails {
   addKey: number;
   allKeysLost: number;
   extra: number;
+  jobs: number;
   /** baseLabor + minHourAdj */
   labor: number;
-  /** cloning + programming + addKey + allKeysLost + extra */
+  /** cloning + programming + addKey + allKeysLost + extra + jobs */
   services: number;
   /** labor + services */
   total: number;
@@ -121,12 +122,13 @@ export function computeSessionLaborDetails(
   const addKey = (session.isAddKey && r.addKey > 0) ? r.addKey : 0;
   const allKeysLost = (session.isAllKeysLost && r.allKeysLost > 0) ? r.allKeysLost : 0;
   const extra = num(session.extraCharge);
+  const jobs = (session.jobs || []).reduce((sum, j) => sum + num(j.price), 0);
 
   const labor = baseLabor + minHourAdj;
-  const services = cloning + programming + addKey + allKeysLost + extra;
+  const services = cloning + programming + addKey + allKeysLost + extra + jobs;
 
   return {
-    baseLabor, minHourAdj, cloning, programming, addKey, allKeysLost, extra,
+    baseLabor, minHourAdj, cloning, programming, addKey, allKeysLost, extra, jobs,
     labor, services, total: labor + services,
   };
 }

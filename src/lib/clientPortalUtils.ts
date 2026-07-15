@@ -1,4 +1,4 @@
-import { Client, Vehicle, Task, TaskStatus, Part, PaymentMethod, Settings } from '@/types';
+import { Client, Vehicle, Task, TaskStatus, Part, SessionJob, PaymentMethod, Settings } from '@/types';
 import { applyLaborDiscount } from '@/lib/discount';
 import { computeSessionLaborDetails, computeSessionParts } from '@/lib/billing';
 import { remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
@@ -21,6 +21,8 @@ export interface SessionCostDetail {
   minHourAdj: number;
   parts: Part[];
   partsCost: number;
+  /** Fixed-price jobs — displayed as service line items ("Name — desc: $x"). */
+  jobs?: SessionJob[];
   status: TaskStatus;
   photoUrls: string[];
   diagnosticPdfUrl?: string;
@@ -90,6 +92,7 @@ interface SlimSession {
   pds?: [number, number][];
   ld?: number; // labor discount applied to this session
   imp?: 1; // imported (XLS) — flag for the portal badge
+  jbs?: { n: string; pr: number; ds?: string }[]; // fixed-price jobs
 }
 
 interface SlimVehicle {
@@ -277,6 +280,7 @@ export function calculateClientCosts(
           minHourAdj,
           parts: session.parts || [],
           partsCost: sessionPartsCost,
+          jobs: (session.jobs && session.jobs.length > 0) ? session.jobs : undefined,
           status: task.status,
         photoUrls: (session.photos || [])
             .map(p => {
@@ -378,6 +382,9 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         pds: s.periods.length > 0 ? s.periods.map(p => [Math.floor(new Date(p.start).getTime() / 1000), Math.floor(new Date(p.end).getTime() / 1000)] as [number, number]) : undefined,
         ld: s.laborDiscount > 0 ? Math.round(s.laborDiscount * 100) / 100 : undefined,
         imp: s.imported ? 1 : undefined,
+        jbs: (s.jobs && s.jobs.length > 0)
+          ? s.jobs.map(j => ({ n: j.name || '', pr: Math.round((j.price || 0) * 100) / 100, ds: j.description || undefined }))
+          : undefined,
       })),
       tl: Math.round(vs.totalLabor * 100) / 100,
       tp: Math.round(vs.totalParts * 100) / 100,
@@ -447,6 +454,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         diagnosticPdfUrl: ss.dpdf || undefined,
         periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
         imported: ss.imp ? true : undefined,
+        jobs: ss.jbs ? ss.jbs.map((j, i) => ({ id: `job-restore-${i}`, name: j.n, price: j.pr, description: j.ds })) : undefined,
       })),
       totalLabor: sv.tl,
       totalParts: sv.tp,

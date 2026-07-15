@@ -1,4 +1,4 @@
-import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto, SessionJob } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -454,6 +454,25 @@ export const EditTaskDialog = ({
         };
       }
       return session;
+    }));
+  };
+
+  const handleAddJob = (sessionId: string) => {
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, jobs: [...(s.jobs || []), { id: `job-${Date.now()}`, name: '', description: '', price: 0 }] }
+      : s));
+  };
+  const handleDeleteJob = (sessionId: string, jobIndex: number) => {
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, jobs: (s.jobs || []).filter((_, i) => i !== jobIndex) }
+      : s));
+  };
+  const handleUpdateJob = (sessionId: string, jobIndex: number, patch: Partial<SessionJob>) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      const jobs = [...(s.jobs || [])];
+      jobs[jobIndex] = { ...jobs[jobIndex], ...patch };
+      return { ...s, jobs };
     }));
   };
   const handleSave = () => {
@@ -1378,6 +1397,34 @@ export const EditTaskDialog = ({
                         </div>
                       )}
                     </div>
+
+                    {/* Jobs — fixed-price services (folded into services bucket) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Jobs</Label>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleAddJob(session.id)}>
+                          <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Job</span>
+                        </Button>
+                      </div>
+                      {(session.jobs || []).length > 0 && (
+                        <div className="border rounded-md overflow-hidden">
+                          <div className={`grid grid-cols-[180px_100px_1fr_36px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${sessionColorScheme.part}`}>
+                            <span>Name</span><span>Price</span><span>Description</span><span></span>
+                          </div>
+                          {(session.jobs || []).map((job, jobIndex) => (
+                            <div key={job.id || jobIndex} className={`grid grid-cols-[180px_100px_1fr_36px] gap-2 px-4 py-2 items-center border-t ${sessionColorScheme.part}`}>
+                              <Input type="text" value={job.name} onChange={e => handleUpdateJob(session.id, jobIndex, { name: e.target.value })} className="h-9 text-sm" placeholder="e.g. Brakes" />
+                              <Input type="number" min="0" step="0.01" value={job.price} onChange={e => handleUpdateJob(session.id, jobIndex, { price: parseFloat(e.target.value) || 0 })} onFocus={e => e.target.select()} className="h-9 text-sm" />
+                              <Input type="text" value={job.description || ''} onChange={e => handleUpdateJob(session.id, jobIndex, { description: e.target.value })} className="h-9 text-sm" placeholder="Replaced rotor and pads" />
+                              <Button variant="ghost" size="icon" aria-label="Delete job" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteJob(session.id, jobIndex)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
 
                     {renderPhotoStrip(session)}
 

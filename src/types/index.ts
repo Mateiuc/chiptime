@@ -52,6 +52,14 @@ export interface Part {
   createdBy?: string; // user_id of the worker who added this line item
 }
 
+export interface SessionJob {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  createdBy?: string;
+}
+
 export interface SessionPhoto {
   id: string;
   filePath?: string;      // Path to photo file in filesystem
@@ -85,6 +93,7 @@ export interface WorkSession {
   isAddKey?: boolean; // Apply add key rate to this session
   isAllKeysLost?: boolean; // Apply all keys lost rate to this session
   extraCharge?: number; // Manual $ amount added to services bucket, not time-based
+  jobs?: SessionJob[]; // Fixed-price jobs (e.g. "Brakes — replaced rotor & pads .... $250"); folded into services
   createdBy?: string; // user_id of the worker who started this session
 }
 

@@ -154,6 +154,7 @@ const ORPHAN_TOLERANCE = 8; // mm
 type FlowRow =
   | { kind: 'session'; description: string; time: string; amount: string }
   | { kind: 'option'; label: string; amount: string }
+  | { kind: 'job'; name: string; description: string | null; amount: string }
   | { kind: 'part'; name: string; description: string | null; quantity: string; amount: string };
 
 interface MeasuredRow {
@@ -176,6 +177,13 @@ function measureRow(doc: jsPDF, row: FlowRow): MeasuredRow {
   }
   if (row.kind === 'option') {
     return { row, wrappedDesc: [row.label], wrappedPartDesc: [], height: ROW_LINE_HEIGHT + ROW_VPAD + ROW_GAP };
+  }
+  if (row.kind === 'job') {
+    // Wrap combined "Name — description" like session rows.
+    const combined = row.description ? `${row.name} — ${row.description}` : row.name;
+    const wrapped = doc.splitTextToSize(combined, COL1_WIDTH + TIME_COL_WIDTH) as string[];
+    const lines = Math.max(1, wrapped.length);
+    return { row, wrappedDesc: wrapped, wrappedPartDesc: [], height: lines * ROW_LINE_HEIGHT + ROW_VPAD + ROW_GAP };
   }
   // part — uniform single-line height; condition renders inline
   const height = ROW_LINE_HEIGHT + ROW_VPAD + PART_ROW_GAP;

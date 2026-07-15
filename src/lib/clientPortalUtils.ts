@@ -280,6 +280,7 @@ export function calculateClientCosts(
           minHourAdj,
           parts: session.parts || [],
           partsCost: sessionPartsCost,
+          jobs: (session.jobs && session.jobs.length > 0) ? session.jobs : undefined,
           status: task.status,
         photoUrls: (session.photos || [])
             .map(p => {

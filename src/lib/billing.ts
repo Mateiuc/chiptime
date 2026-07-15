@@ -34,9 +34,10 @@ export interface SessionLaborDetails {
   addKey: number;
   allKeysLost: number;
   extra: number;
+  jobs: number;
   /** baseLabor + minHourAdj */
   labor: number;
-  /** cloning + programming + addKey + allKeysLost + extra */
+  /** cloning + programming + addKey + allKeysLost + extra + jobs */
   services: number;
   /** labor + services */
   total: number;

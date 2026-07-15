@@ -456,6 +456,25 @@ export const EditTaskDialog = ({
       return session;
     }));
   };
+
+  const handleAddJob = (sessionId: string) => {
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, jobs: [...(s.jobs || []), { id: `job-${Date.now()}`, name: '', description: '', price: 0 }] }
+      : s));
+  };
+  const handleDeleteJob = (sessionId: string, jobIndex: number) => {
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, jobs: (s.jobs || []).filter((_, i) => i !== jobIndex) }
+      : s));
+  };
+  const handleUpdateJob = (sessionId: string, jobIndex: number, patch: Partial<SessionJob>) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      const jobs = [...(s.jobs || [])];
+      jobs[jobIndex] = { ...jobs[jobIndex], ...patch };
+      return { ...s, jobs };
+    }));
+  };
   const handleSave = () => {
     // Filter out sessions with no periods, parts, or description
     const mergedSessions = mergeDraftSessionsWithSourcePhotos(sessions);

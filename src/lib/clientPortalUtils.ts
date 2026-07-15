@@ -21,6 +21,8 @@ export interface SessionCostDetail {
   minHourAdj: number;
   parts: Part[];
   partsCost: number;
+  /** Fixed-price jobs — displayed as service line items ("Name — desc: $x"). */
+  jobs?: SessionJob[];
   status: TaskStatus;
   photoUrls: string[];
   diagnosticPdfUrl?: string;

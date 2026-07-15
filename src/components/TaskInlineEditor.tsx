@@ -1,4 +1,4 @@
-import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle, SessionPhoto, SessionJob } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

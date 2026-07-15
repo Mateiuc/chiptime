@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import ClientPortal from "./pages/ClientPortal";
 import DesktopDashboard from "./pages/DesktopDashboard";
 import Auth from "./pages/Auth";
+import OAuthConsent from "./pages/OAuthConsent";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -41,6 +42,9 @@ const App = () => (
             <Routes>
               {/* Public auth */}
               <Route path="/auth" element={<Auth />} />
+
+              {/* Managed OAuth consent screen (external MCP clients) */}
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
               {/* Public portal route - clients view their data */}
               <Route path="/client-view" element={<ClientPortal />} />

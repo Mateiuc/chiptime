@@ -66,7 +66,11 @@ const Auth = () => {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        const redirectUrl = `${window.location.origin}/auth`;
+        // Preserve `next` (e.g. OAuth consent URL) through the email-confirm round-trip.
+        const returnPath = nextPath
+          ? `/auth?next=${encodeURIComponent(nextPath)}`
+          : '/auth';
+        const redirectUrl = `${window.location.origin}${returnPath}`;
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -89,8 +93,13 @@ const Auth = () => {
     setBusy(true);
     try {
       const { lovable } = await import('@/integrations/lovable');
+      // Route Google callback back to /auth?next=... so post-auth we land on
+      // the original consent URL rather than the app origin.
+      const redirectUri = nextPath
+        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+        : window.location.origin;
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: redirectUri,
         extraParams: {
           prompt: 'select_account',
         },

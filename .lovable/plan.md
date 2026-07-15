@@ -1,31 +1,82 @@
-## Status of the photo buttons in the edit views
+## Add "Jobs" — fixed-price line items (desktop edit only)
 
-Both buttons are wired and present in `src/components/TaskInlineEditor.tsx` (desktop inline editor) and `src/components/EditTaskDialog.tsx` (dialog editor). Nothing needs to be built — this is a status check for you before testing.
+Introduce a new per-session line-item type called **Jobs** for fixed-price work. Independent of time-based labor and parts. On invoice/bill/portal, jobs render inside the existing **Services** section — no visual distinction from cloning/programming/add-key/all-keys-lost/extra charge.
 
-### Move button (top-right of each thumbnail)
-- Icon: `ArrowRightLeft` in a small round chip.
-- Only shown when the editor has workspace context (`allTasks`, `clients`, `vehicles`, `onUpdateTask`) — i.e. cross-task move is possible.
-- Click → opens `MovePhotoDialog` for picking a destination task + session.
-- Confirm → `moveSessionPhoto()` moves the photo, both source and destination sessions are marked photo-dirty, parent is updated via `onUpdateTask`, local draft mirrors the new photo arrays.
-- Double-click guard: `movingPhotoKeyRef` blocks a second move of the same photo while one is in flight (prevents the duplicate-append bug we hit before).
-- Uses stable ref keys (cloudPath / filePath / cloudUrl) so the same underlying file can't be appended twice.
+### Unified row format for the Services section
 
-### Delete button (top-left of each thumbnail)
-- Icon: `Trash2` in a small round chip, red hover.
-- Click → `window.confirm("Delete this photo? This cannot be undone.")`.
-- On confirm:
-  1. Removes the photo from the **source** session's `photos[]` by index (not by id), so duplicates don't collapse together.
-  2. Merges the change into local draft + calls `onUpdateTask` so the parent state is authoritative.
-  3. `isPhotoPathStillReferenced()` checks the whole workspace before calling `photoStorageService.deletePhoto(path)` — if any other session still references that storage path (e.g. after a copy/move), the file is kept in cloud storage.
-  4. Toast: "Photo deleted".
+Every services row (existing charges AND jobs) uses the same dotted-leader format:
 
-### Render keys
-- Thumbnails use `sessionId + refKey + index` so duplicates render as distinct nodes and delete-by-index targets the exact one you clicked.
+```
+Cloning ................................................ $120.00
+Programming ............................................ $200.00
+Brakes — replaced rotor and pads ....................... $180.00
+Extra charge ............................................ $50.00
+```
 
-### What to test
-1. Move a photo across sessions and across tasks — confirm the source thumbnail disappears and the destination shows exactly one new thumbnail.
-2. Delete a single photo among duplicates — only the clicked one should disappear; the others must remain.
-3. Delete a photo that exists only on this session — the file should be removed from cloud storage too.
-4. Delete a photo that was previously moved/copied and still exists on another session — the reference disappears here, the file stays in storage.
+- Fixed services (cloning, programming, add key, all keys lost, extra charge): `Label ...... $price`.
+- Jobs: `Name — description ...... $price` (em-dash + description only when description is set; otherwise `Name ...... $price`).
 
-Ready for you to test — no code changes proposed.
+### Data model
+
+`src/types/index.ts`:
+
+```ts
+export interface SessionJob {
+  name: string;
+  price: number;
+  description?: string;
+  createdBy?: string;
+}
+```
+
+Extend `WorkSession` with `jobs?: SessionJob[]`. Backward-compatible; no migration (sessions live in JSON in `app_sync.data`).
+
+### Billing math
+
+`src/lib/billing.ts` (single source of truth):
+
+- Add `computeSessionJobs(session)` → sum of `job.price`.
+- Fold jobs into the **services** bucket of `SessionLaborDetails`, `TaskTotal`, `TaskTotalAllocated`, `VehicleTotal`. Totals reconcile with existing services aggregations everywhere.
+- Keep an internal `jobs` sub-field on `SessionLaborDetails` so the renderer can list each job as its own row; the aggregate services number already includes them.
+- Imported (XLS) tasks still lock to `importedSalary` (jobs ignored, matching current parts/services behavior).
+- Vehicle discount continues to apply to labor + services — jobs, as part of services, are discountable (consistent with cloning/programming today).
+- Update `src/lib/__tests__/billing.test.ts` with cases for: jobs added to services, jobs discounted with labor pool, jobs ignored when `importedSalary` set.
+
+### Desktop editors (UI)
+
+Add a **Jobs** section directly under the Parts section (same visual pattern as Parts):
+
+- Row fields: **Name**, **Price**, **Description** (optional).
+- "Add job" button; per-row delete.
+- Persistence follows the existing parts onBlur pattern into the draft session; save propagates to `task.sessions`.
+
+Files:
+- `src/components/TaskInlineEditor.tsx`
+- `src/components/EditTaskDialog.tsx`
+
+**Mobile untouched** per your scope (`CompleteWorkDialog.tsx`, `TaskCard.tsx` unchanged).
+
+### Invoice / bill rendering (dotted leaders everywhere in Services)
+
+- `src/lib/billPdfLayout.ts` — introduce a shared services-row layout that renders `label` (or `name — description`) on the left, dotted leader filling the middle, price right-aligned. Apply to all services rows including jobs. Dot leader is drawn to align consistently regardless of label length.
+- `src/lib/billPdfRenderer.ts` — refactor the services block to iterate a unified list `[fixedServices..., ...jobs]` and render each via the shared row helper; include in services subtotal.
+- `src/components/DesktopInvoiceView.tsx` — mirror the dotted-leader format on-screen for both fixed services and jobs; update the manual-entry flow to accept jobs.
+- `src/components/ShareBillDialog.tsx` — no structural change; totals already reflect services.
+
+### Client portal
+
+- `src/lib/clientPortalUtils.ts` — extend `SessionCostDetail` with `jobs: SessionJob[]`; each job's price contributes to `servicesCost`.
+- `src/lib/portalToTask.ts` — round-trip jobs back into synthesized task.
+- `supabase/functions/sync-portal/index.ts` — pass jobs through the payload (JSON only, no schema change).
+- `src/pages/ClientPortal.tsx` — render the Services list using the shared dotted-leader row for both fixed services and jobs.
+
+### Reports
+
+- `src/components/DesktopReportsView.tsx`, `src/components/ClientCostBreakdown.tsx` — no new columns; jobs fold into existing services totals automatically.
+
+### Out of scope
+
+- No mobile edit UI for jobs.
+- No changes to time-based labor, min-hour rule, or Extra Charge field.
+- No new invoice section — jobs share the Services block.
+- No backfill; sessions with no jobs behave as today.

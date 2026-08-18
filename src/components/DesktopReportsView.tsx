@@ -159,6 +159,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [sortField, setSortField] = useState<'date' | 'cost' | 'client' | 'status'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const [showAllRows, setShowAllRows] = useState(false);
+
   const [drillRevTime, setDrillRevTime] = useState<DrillState | null>(null);
   const [drillClient, setDrillClient] = useState<DrillState | null>(null);
   const [drillVehicle, setDrillVehicle] = useState<DrillState | null>(null);
@@ -172,6 +174,34 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
+    setShowAllRows(false);
+  };
+
+  // --- Lookup maps (built once per data change) ---
+  const clientsById = useMemo(() => {
+    const m = new Map<string, Client>();
+    clients.forEach(c => m.set(c.id, c));
+    return m;
+  }, [clients]);
+
+  const vehiclesById = useMemo(() => {
+    const m = new Map<string, Vehicle>();
+    vehicles.forEach(v => m.set(v.id, v));
+    return m;
+  }, [vehicles]);
+
+  const tasksByVehicleId = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    tasks.forEach(t => {
+      const list = m.get(t.vehicleId);
+      if (list) list.push(t); else m.set(t.vehicleId, [t]);
+    });
+    return m;
+  }, [tasks]);
+
+  const vehicleLabel = (vehicleId: string) => {
+    const v = vehiclesById.get(vehicleId);
+    return v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin) : 'Unknown';
   };
 
   // Reports-only revenue: labor + services − vehicleDiscount.
@@ -179,41 +209,50 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   // IN (cloning, programming, add-key, all-keys-lost). Vehicle discount is
   // allocated per-task via computeTaskTotalAllocated so vehicle rollups
   // reconcile.
-  const getTaskCost = (task: Task) => {
-    const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
-    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-    const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
-    return Math.max(0, a.labor + a.services - a.discount);
+  //
+  // Each task is billed exactly ONCE here; every chart/KPI/drill-down below
+  // reads from this cache instead of recomputing the billing math.
+  const taskMetrics = useMemo(() => {
+    const cache = new Map<string, { cost: number; parts: number; seconds: number; workerIds: string[] }>();
+    for (const task of tasks) {
+      const client = clientsById.get(task.clientId) || null;
+      const vehicle = vehiclesById.get(task.vehicleId) || null;
+      const vehicleTasks = tasksByVehicleId.get(task.vehicleId) || [task];
+      const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
+      const seconds = (task.sessions || []).reduce((total, session) =>
+        total + (session.periods || []).reduce((sum, p) => sum + p.duration, 0), 0);
+      cache.set(task.id, {
+        cost: Math.max(0, a.labor + a.services - a.discount),
+        parts: a.parts,
+        seconds,
+        workerIds: getTaskWorkerIds(task),
+      });
+    }
+    return cache;
+  }, [tasks, clientsById, vehiclesById, tasksByVehicleId, settings]);
+
+  const EMPTY_METRICS = { cost: 0, parts: 0, seconds: 0, workerIds: [] as string[] };
+  const metricsOf = (task: Task) => taskMetrics.get(task.id) || EMPTY_METRICS;
+  const getTaskCost = (task: Task) => metricsOf(task).cost;
+  const getTaskSeconds = (task: Task) => metricsOf(task).seconds;
+  const getTaskParts = (task: Task) => metricsOf(task).parts;
+
+  const toDrillRow = (t: Task): DrillRow => {
+    const m = metricsOf(t);
+    return {
+      id: t.id,
+      date: new Date(t.createdAt),
+      client: clientsById.get(t.clientId)?.name || 'Unknown',
+      vehicle: vehicleLabel(t.vehicleId),
+      description: t.sessions?.find(s => s.description)?.description || '—',
+      status: t.status,
+      timeWorked: m.seconds,
+      cost: m.cost,
+      parts: m.parts,
+      workerIds: m.workerIds,
+    };
   };
 
-  const getTaskSeconds = (task: Task) =>
-    (task.sessions || []).reduce((total, session) =>
-      total + session.periods.reduce((sum, p) => sum + p.duration, 0), 0);
-
-  // Sum of parts on a task (pass-through, tracked separately from revenue).
-  const getTaskParts = (task: Task) => {
-    const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
-    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).parts;
-  };
-
-  const toDrillRow = (t: Task): DrillRow => ({
-    id: t.id,
-    date: new Date(t.createdAt),
-    client: clients.find(c => c.id === t.clientId)?.name || 'Unknown',
-    vehicle: (() => {
-      const v = vehicles.find(v => v.id === t.vehicleId);
-      return v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
-    })(),
-    description: t.sessions?.find(s => s.description)?.description || '—',
-    status: t.status,
-    timeWorked: getTaskSeconds(t),
-    cost: getTaskCost(t),
-    parts: getTaskParts(t),
-    workerIds: getTaskWorkerIds(t),
-  });
 
   const availableVehicles = useMemo(() => {
     if (rptClient === 'all') return vehicles;
@@ -259,7 +298,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(map)
       .map(([uid, v]) => ({ uid, ...v }))
       .sort((a, b) => b.cost - a.cost);
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const revenueOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};
@@ -271,7 +310,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   // Mirror chart: merge overTime (positive) + received (negative) by month
   const revenueMirror = useMemo(() => {
@@ -304,12 +343,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       billed: Math.round((overTimeMap[month] || 0) * 100) / 100,
       received: -Math.round((receivedMap[month] || 0) * 100) / 100,
     }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const revenueByClient = useMemo(() => {
     const map: Record<string, { clientId: string; name: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
-      const client = clients.find(c => c.id === t.clientId);
+      const client = clientsById.get(t.clientId);
       const key = t.clientId || 'unknown';
       if (!map[key]) map[key] = { clientId: key, name: client?.name || 'Unknown', revenue: 0 };
       map[key].revenue += getTaskCost(t);
@@ -317,13 +356,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.values(map)
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [filteredTasks, clients]);
+  }, [filteredTasks, taskMetrics, clientsById]);
 
   const revenueByVehicle = useMemo(() => {
     const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
-      const v = vehicles.find(v => v.id === t.vehicleId);
-      const label = v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
+      const label = vehicleLabel(t.vehicleId);
       if (!map[t.vehicleId]) map[t.vehicleId] = { vehicleId: t.vehicleId, label, revenue: 0 };
       map[t.vehicleId].revenue += getTaskCost(t);
     });
@@ -331,7 +369,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 20);
-  }, [filteredTasks, vehicles]);
+  }, [filteredTasks, taskMetrics, vehiclesById]);
 
   // Stable color per vehicleId so Revenue by Vehicle + Time per day share a palette.
   const vehicleColorMap = useMemo(() => {
@@ -352,7 +390,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       value: count,
       color: STATUS_COLORS[status] || '#94a3b8',
     }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const hoursOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};
@@ -364,7 +402,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, seconds]) => ({ month, hours: Math.round((seconds / 3600) * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const carsOverTime = useMemo(() => {
     const monthMap: Record<string, Set<string>> = {};
@@ -377,7 +415,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, set]) => ({ month, cars: set.size }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const detailData = useMemo(() => {
     const data = filteredTasks.map(toDrillRow);
@@ -392,12 +430,18 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       }
     });
     return data;
-  }, [filteredTasks, clients, vehicles, sortField, sortDir]);
+  }, [filteredTasks, taskMetrics, clientsById, vehiclesById, sortField, sortDir]);
 
-  const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
-  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks]);
+  const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
+  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks, taskMetrics]);
+  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
+  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks, taskMetrics]);
+  const ROW_WINDOW = 200;
+  const visibleDetailData = useMemo(
+    () => (showAllRows ? detailData : detailData.slice(0, ROW_WINDOW)),
+    [detailData, showAllRows]
+  );
+
   const detailRevenue = useMemo(() => detailData.reduce((s, r) => s + r.cost, 0), [detailData]);
   const detailParts = useMemo(() => detailData.reduce((s, r) => s + r.parts, 0), [detailData]);
 
@@ -451,8 +495,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       let g = 0;
       for (const t of source) {
         const vehKey = `v_${t.vehicleId || 'none'}`;
-        const v = vehicles.find(vh => vh.id === t.vehicleId);
-        const vLabel = v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Unknown vehicle') : 'Unknown vehicle';
+        const vLabel = vehicleLabel(t.vehicleId) || 'Unknown vehicle';
         ensureKey(vehKeys, vehKey, vLabel);
         for (const s of (t.sessions || [])) {
           for (const p of (s.periods || [])) {
@@ -878,7 +921,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   </tr>
                 </thead>
                 <tbody>
-                  {detailData.map(r => (
+                  {visibleDetailData.map(r => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-muted/50">
                       <td className="py-2">{format(r.date, 'MMM d, yyyy')}</td>
                       <td className="py-2">{r.client}</td>
@@ -907,6 +950,13 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 </tfoot>
               </table>
             </div>
+            {!showAllRows && detailData.length > visibleDetailData.length && (
+              <div className="pt-3 text-center">
+                <Button variant="outline" size="sm" onClick={() => setShowAllRows(true)}>
+                  Show all {detailData.length} rows
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

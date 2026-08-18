@@ -295,7 +295,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(map)
       .map(([uid, v]) => ({ uid, ...v }))
       .sort((a, b) => b.cost - a.cost);
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const revenueOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};
@@ -307,7 +307,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   // Mirror chart: merge overTime (positive) + received (negative) by month
   const revenueMirror = useMemo(() => {
@@ -340,12 +340,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       billed: Math.round((overTimeMap[month] || 0) * 100) / 100,
       received: -Math.round((receivedMap[month] || 0) * 100) / 100,
     }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const revenueByClient = useMemo(() => {
     const map: Record<string, { clientId: string; name: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
-      const client = clients.find(c => c.id === t.clientId);
+      const client = clientsById.get(t.clientId);
       const key = t.clientId || 'unknown';
       if (!map[key]) map[key] = { clientId: key, name: client?.name || 'Unknown', revenue: 0 };
       map[key].revenue += getTaskCost(t);
@@ -353,13 +353,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.values(map)
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [filteredTasks, clients]);
+  }, [filteredTasks, taskMetrics, clientsById]);
 
   const revenueByVehicle = useMemo(() => {
     const map: Record<string, { vehicleId: string; label: string; revenue: number }> = {};
     filteredTasks.forEach(t => {
-      const v = vehicles.find(v => v.id === t.vehicleId);
-      const label = v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
+      const label = vehicleLabel(t.vehicleId);
       if (!map[t.vehicleId]) map[t.vehicleId] = { vehicleId: t.vehicleId, label, revenue: 0 };
       map[t.vehicleId].revenue += getTaskCost(t);
     });
@@ -367,7 +366,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       .map(d => ({ ...d, revenue: Math.round(d.revenue * 100) / 100 }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 20);
-  }, [filteredTasks, vehicles]);
+  }, [filteredTasks, taskMetrics, vehiclesById]);
 
   // Stable color per vehicleId so Revenue by Vehicle + Time per day share a palette.
   const vehicleColorMap = useMemo(() => {
@@ -388,7 +387,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       value: count,
       color: STATUS_COLORS[status] || '#94a3b8',
     }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const hoursOverTime = useMemo(() => {
     const monthMap: Record<string, number> = {};
@@ -400,7 +399,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, seconds]) => ({ month, hours: Math.round((seconds / 3600) * 100) / 100 }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const carsOverTime = useMemo(() => {
     const monthMap: Record<string, Set<string>> = {};
@@ -413,7 +412,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, set]) => ({ month, cars: set.size }));
-  }, [filteredTasks]);
+  }, [filteredTasks, taskMetrics]);
 
   const detailData = useMemo(() => {
     const data = filteredTasks.map(toDrillRow);
@@ -428,7 +427,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       }
     });
     return data;
-  }, [filteredTasks, clients, vehicles, sortField, sortDir]);
+  }, [filteredTasks, taskMetrics, clientsById, vehiclesById, sortField, sortDir]);
 
   const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);

@@ -159,6 +159,8 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
   const [sortField, setSortField] = useState<'date' | 'cost' | 'client' | 'status'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const [showAllRows, setShowAllRows] = useState(false);
+
   const [drillRevTime, setDrillRevTime] = useState<DrillState | null>(null);
   const [drillClient, setDrillClient] = useState<DrillState | null>(null);
   const [drillVehicle, setDrillVehicle] = useState<DrillState | null>(null);
@@ -172,6 +174,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setRptShowCompleted(true); setRptShowBilled(true); setRptShowPaid(true); setRptShowActive(true);
     setDrillRevTime(null); setDrillClient(null); setDrillVehicle(null);
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
+    setShowAllRows(false);
   };
 
   // --- Lookup maps (built once per data change) ---
@@ -429,10 +432,16 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     return data;
   }, [filteredTasks, taskMetrics, clientsById, vehiclesById, sortField, sortDir]);
 
-  const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks]);
-  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks]);
-  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks]);
+  const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
+  const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks, taskMetrics]);
+  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
+  const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks, taskMetrics]);
+  const ROW_WINDOW = 200;
+  const visibleDetailData = useMemo(
+    () => (showAllRows ? detailData : detailData.slice(0, ROW_WINDOW)),
+    [detailData, showAllRows]
+  );
+
   const detailRevenue = useMemo(() => detailData.reduce((s, r) => s + r.cost, 0), [detailData]);
   const detailParts = useMemo(() => detailData.reduce((s, r) => s + r.parts, 0), [detailData]);
 
@@ -486,8 +495,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
       let g = 0;
       for (const t of source) {
         const vehKey = `v_${t.vehicleId || 'none'}`;
-        const v = vehicles.find(vh => vh.id === t.vehicleId);
-        const vLabel = v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Unknown vehicle') : 'Unknown vehicle';
+        const vLabel = vehicleLabel(t.vehicleId) || 'Unknown vehicle';
         ensureKey(vehKeys, vehKey, vLabel);
         for (const s of (t.sessions || [])) {
           for (const p of (s.periods || [])) {
@@ -913,7 +921,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                   </tr>
                 </thead>
                 <tbody>
-                  {detailData.map(r => (
+                  {visibleDetailData.map(r => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-muted/50">
                       <td className="py-2">{format(r.date, 'MMM d, yyyy')}</td>
                       <td className="py-2">{r.client}</td>
@@ -942,6 +950,13 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                 </tfoot>
               </table>
             </div>
+            {!showAllRows && detailData.length > visibleDetailData.length && (
+              <div className="pt-3 text-center">
+                <Button variant="outline" size="sm" onClick={() => setShowAllRows(true)}>
+                  Show all {detailData.length} rows
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

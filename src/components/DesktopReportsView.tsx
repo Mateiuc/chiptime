@@ -174,46 +174,82 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
     setDrillStatus(null); setDrillHours(null); setDrillCars(null);
   };
 
+  // --- Lookup maps (built once per data change) ---
+  const clientsById = useMemo(() => {
+    const m = new Map<string, Client>();
+    clients.forEach(c => m.set(c.id, c));
+    return m;
+  }, [clients]);
+
+  const vehiclesById = useMemo(() => {
+    const m = new Map<string, Vehicle>();
+    vehicles.forEach(v => m.set(v.id, v));
+    return m;
+  }, [vehicles]);
+
+  const tasksByVehicleId = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    tasks.forEach(t => {
+      const list = m.get(t.vehicleId);
+      if (list) list.push(t); else m.set(t.vehicleId, [t]);
+    });
+    return m;
+  }, [tasks]);
+
+  const vehicleLabel = (vehicleId: string) => {
+    const v = vehiclesById.get(vehicleId);
+    return v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin) : 'Unknown';
+  };
+
   // Reports-only revenue: labor + services − vehicleDiscount.
   // Parts are EXCLUDED (pass-through cost — $0 shop revenue). Services stays
   // IN (cloning, programming, add-key, all-keys-lost). Vehicle discount is
   // allocated per-task via computeTaskTotalAllocated so vehicle rollups
   // reconcile.
-  const getTaskCost = (task: Task) => {
-    const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
-    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-    const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
-    return Math.max(0, a.labor + a.services - a.discount);
+  //
+  // Each task is billed exactly ONCE here; every chart/KPI/drill-down below
+  // reads from this cache instead of recomputing the billing math.
+  const taskMetrics = useMemo(() => {
+    const cache = new Map<string, { cost: number; parts: number; seconds: number; workerIds: string[] }>();
+    for (const task of tasks) {
+      const client = clientsById.get(task.clientId) || null;
+      const vehicle = vehiclesById.get(task.vehicleId) || null;
+      const vehicleTasks = tasksByVehicleId.get(task.vehicleId) || [task];
+      const a = computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings);
+      const seconds = (task.sessions || []).reduce((total, session) =>
+        total + (session.periods || []).reduce((sum, p) => sum + p.duration, 0), 0);
+      cache.set(task.id, {
+        cost: Math.max(0, a.labor + a.services - a.discount),
+        parts: a.parts,
+        seconds,
+        workerIds: getTaskWorkerIds(task),
+      });
+    }
+    return cache;
+  }, [tasks, clientsById, vehiclesById, tasksByVehicleId, settings]);
+
+  const EMPTY_METRICS = { cost: 0, parts: 0, seconds: 0, workerIds: [] as string[] };
+  const metricsOf = (task: Task) => taskMetrics.get(task.id) || EMPTY_METRICS;
+  const getTaskCost = (task: Task) => metricsOf(task).cost;
+  const getTaskSeconds = (task: Task) => metricsOf(task).seconds;
+  const getTaskParts = (task: Task) => metricsOf(task).parts;
+
+  const toDrillRow = (t: Task): DrillRow => {
+    const m = metricsOf(t);
+    return {
+      id: t.id,
+      date: new Date(t.createdAt),
+      client: clientsById.get(t.clientId)?.name || 'Unknown',
+      vehicle: vehicleLabel(t.vehicleId),
+      description: t.sessions?.find(s => s.description)?.description || '—',
+      status: t.status,
+      timeWorked: m.seconds,
+      cost: m.cost,
+      parts: m.parts,
+      workerIds: m.workerIds,
+    };
   };
 
-  const getTaskSeconds = (task: Task) =>
-    (task.sessions || []).reduce((total, session) =>
-      total + session.periods.reduce((sum, p) => sum + p.duration, 0), 0);
-
-  // Sum of parts on a task (pass-through, tracked separately from revenue).
-  const getTaskParts = (task: Task) => {
-    const client = clients.find(c => c.id === task.clientId) || null;
-    const vehicle = vehicles.find(v => v.id === task.vehicleId) || null;
-    const vehicleTasks = tasks.filter(t => t.vehicleId === task.vehicleId);
-    return computeTaskTotalAllocated(task, vehicle, vehicleTasks, client, settings).parts;
-  };
-
-  const toDrillRow = (t: Task): DrillRow => ({
-    id: t.id,
-    date: new Date(t.createdAt),
-    client: clients.find(c => c.id === t.clientId)?.name || 'Unknown',
-    vehicle: (() => {
-      const v = vehicles.find(v => v.id === t.vehicleId);
-      return v ? [v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin : 'Unknown';
-    })(),
-    description: t.sessions?.find(s => s.description)?.description || '—',
-    status: t.status,
-    timeWorked: getTaskSeconds(t),
-    cost: getTaskCost(t),
-    parts: getTaskParts(t),
-    workerIds: getTaskWorkerIds(t),
-  });
 
   const availableVehicles = useMemo(() => {
     if (rptClient === 'all') return vehicles;

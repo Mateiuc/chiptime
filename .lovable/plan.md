@@ -10,11 +10,12 @@ The client header row in the desktop dashboard currently reads:
 Total: $2,008    Client Deposit: $4,700
 ```
 
-It becomes three figures:
+It becomes three figures (example only — the $2,692 below is just $4,700 − $2,008 from that screenshot, not a value read from your data):
 
 ```text
 Total: $2,008    Deposit Left: $2,692    Full Deposit: $4,700
 ```
+
 
 - **Total** — unchanged.
 - **Deposit Left** — full deposit minus the billed amount for that client. Green while positive; red when the billed work exceeds the deposit (shown as the over-amount so it's obvious the client owes more than they put down).

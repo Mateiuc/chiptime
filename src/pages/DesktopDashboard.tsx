@@ -1113,7 +1113,7 @@ const DesktopDashboard = () => {
           onAdd={addScheduleEntry}
           onUpdate={updateScheduleEntry}
           onDelete={deleteScheduleEntry}
-          onStartTask={(task) => { addTask(task); setDesktopView('tree'); }}
+          onStartTask={(task) => { handleStartScheduledTask(task); setDesktopView('tree'); }}
           onAddVehicle={addVehicle}
           onUpdateVehicle={updateVehicle}
         />

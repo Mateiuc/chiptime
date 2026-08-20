@@ -369,59 +369,20 @@ const Index = () => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [];
+    // Auto-pause every other running task
+    const { updates: pauseUpdates, pausedTasks } = buildPauseUpdatesForRunningTasks(tasks, taskId);
+    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [...pauseUpdates];
 
-    // Auto-pause any other running task
-    const runningTask = tasks.find(t => t.status === 'in-progress' && t.id !== taskId);
-    if (runningTask && runningTask.startTime) {
-      const elapsed = Math.floor((Date.now() - runningTask.startTime.getTime()) / 1000);
-      
-      const autoPeriod: WorkPeriod = {
-        id: crypto.randomUUID(),
-        startTime: runningTask.startTime,
-        endTime: new Date(),
-        duration: elapsed,
-        createdBy: getCurrentUserId() || undefined,
-      };
-
-      let updatedSessions = [...(runningTask.sessions || [])];
-      let activeSessionId = runningTask.activeSessionId;
-      
-      if (!activeSessionId) {
-        const newSession: WorkSession = {
-          id: crypto.randomUUID(),
-          createdAt: new Date(),
-          periods: [],
-          parts: [],
-          createdBy: getCurrentUserId() || undefined,
-        };
-        updatedSessions.push(newSession);
-        activeSessionId = newSession.id;
-      }
-      
-      const activeSession = updatedSessions.find(s => s.id === activeSessionId);
-      if (activeSession) {
-        activeSession.periods = [...(activeSession.periods || []), autoPeriod];
-      }
-
-      // Queue the running task to be paused
-      taskUpdates.push({
-        id: runningTask.id,
-        updates: {
-          status: 'paused',
-          sessions: updatedSessions,
-          totalTime: runningTask.totalTime + elapsed,
-          startTime: undefined,
-          activeSessionId,
-        }
-      });
-
-      const pausedVehicle = vehicles.find(v => v.id === runningTask.vehicleId);
-      toast({ 
-        title: 'Timer Auto-Paused', 
-        description: `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically` 
+    if (pausedTasks.length > 0) {
+      const pausedVehicle = vehicles.find(v => v.id === pausedTasks[0].vehicleId);
+      toast({
+        title: 'Timer Auto-Paused',
+        description: pausedTasks.length > 1
+          ? `${pausedTasks.length} timers paused automatically`
+          : `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically`
       });
     }
+
 
     // Start/resume this task
     let updatedSessions = [...(task.sessions || [])];

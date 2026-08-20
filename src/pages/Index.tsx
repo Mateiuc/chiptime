@@ -113,6 +113,30 @@ const Index = () => {
   };
   const collapsedClients = { has: (id: string) => !expandedClients.has(id) };
 
+  // Self-heal: only one timer may run at a time. If a stale/synced state has
+  // several running tasks, keep the newest and bank + pause the rest.
+  const healedRef = useRef(false);
+  useEffect(() => {
+    if (healedRef.current || tasks.length === 0) return;
+    const { updates, pausedTasks } = buildSingleRunnerHealUpdates(tasks);
+    if (updates.length === 0) return;
+    healedRef.current = true;
+    batchUpdateTasks(updates);
+    toast({
+      title: 'Extra timers paused',
+      description: `${pausedTasks.length} timer${pausedTasks.length > 1 ? 's were' : ' was'} running at the same time — time was saved and paused.`,
+    });
+  }, [tasks, batchUpdateTasks, toast]);
+
+  // Scheduled job start — pause any running timers before the new task starts.
+  const handleStartScheduledTask = (newTask: Task) => {
+    const { updates } = buildPauseUpdatesForRunningTasks(tasks);
+    if (updates.length > 0) batchUpdateTasks(updates);
+    addTask(newTask);
+  };
+
+
+
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
     const client = clients.find(c => c.id === vehicle?.clientId);

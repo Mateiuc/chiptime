@@ -1562,6 +1562,13 @@ const DesktopDashboard = () => {
                           const clientRevenue = Math.max(0, clientGross - clientDiscount);
                           const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0);
                           const clientDep = remainingClientDeposit(client, tasks);
+                          // Info-only: how much of the deposit is left once billed work is subtracted.
+                          const clientFullDeposit = client.prepaidAmount || 0;
+                          const vehicleFullDeposit = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
+                          const clientBilled = tasks.filter(t => t.clientId === client.id && t.status === 'billed').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const clientDepositLeft = clientFullDeposit - clientBilled;
+                          const vehicleBilled = clientVehicles.reduce((sum, cv) => sum + cv.tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), 0);
+                          const vehicleDepositLeft = vehicleFullDeposit - vehicleBilled;
                           const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
                           const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
                           const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);
@@ -1578,9 +1585,28 @@ const DesktopDashboard = () => {
                               }`}>Total: {formatCurrency(clientGross)}</span>
                               {clientDiscount > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-bold">Discount: -{formatCurrency(clientDiscount)}</span>}
                               {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
-                              {vehicleDeps > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Car Deposits: {formatCurrency(vehicleDeps)}</span>}
-                              {clientDep > 0 && <span className={isFullyPaid ? 'text-muted-foreground' : 'text-red-500'}>Client Deposit: {formatCurrency(clientDep)}</span>}
+                              {vehicleFullDeposit > 0 && (
+                                <>
+                                  <span className={`font-bold ${vehicleDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                                    {vehicleDepositLeft >= 0
+                                      ? `Car Deposit Left: ${formatCurrency(vehicleDepositLeft)}`
+                                      : `Car Deposit Over: -${formatCurrency(Math.abs(vehicleDepositLeft))}`}
+                                  </span>
+                                  <span className="text-muted-foreground">Full Car Deposit: {formatCurrency(vehicleFullDeposit)}</span>
+                                </>
+                              )}
+                              {clientFullDeposit > 0 && (
+                                <>
+                                  <span className={`font-bold ${clientDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                                    {clientDepositLeft >= 0
+                                      ? `Deposit Left: ${formatCurrency(clientDepositLeft)}`
+                                      : `Deposit Over: -${formatCurrency(Math.abs(clientDepositLeft))}`}
+                                  </span>
+                                  <span className="text-muted-foreground">Full Deposit: {formatCurrency(clientFullDeposit)}</span>
+                                </>
+                              )}
                             </div>
+
                           );
                         })()}
                       </div>

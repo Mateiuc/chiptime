@@ -44,7 +44,7 @@ import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
-import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
+import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit, sumDepositAppliedToClient, sumDepositAppliedToVehicle } from '@/lib/deposit';
 import { buildPauseUpdatesForRunningTasks, buildSingleRunnerHealUpdates } from '@/lib/timerControl';
 
 
@@ -1562,13 +1562,15 @@ const DesktopDashboard = () => {
                           const clientRevenue = Math.max(0, clientGross - clientDiscount);
                           const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0);
                           const clientDep = remainingClientDeposit(client, tasks);
-                          // Info-only: how much of the deposit is left once billed work is subtracted.
+                          // Info-only: deposit left after billed work AND deposit already consumed by paid tasks.
                           const clientFullDeposit = client.prepaidAmount || 0;
                           const vehicleFullDeposit = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
                           const clientBilled = tasks.filter(t => t.clientId === client.id && t.status === 'billed').reduce((sum, t) => sum + getTaskCost(t), 0);
-                          const clientDepositLeft = clientFullDeposit - clientBilled;
+                          const clientDepositUsed = sumDepositAppliedToClient(client.id, tasks);
+                          const clientDepositLeft = clientFullDeposit - clientBilled - clientDepositUsed;
                           const vehicleBilled = clientVehicles.reduce((sum, cv) => sum + cv.tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), 0);
-                          const vehicleDepositLeft = vehicleFullDeposit - vehicleBilled;
+                          const vehicleDepositUsed = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle ? sumDepositAppliedToVehicle(cv.vehicle.id, tasks) : 0), 0);
+                          const vehicleDepositLeft = vehicleFullDeposit - vehicleBilled - vehicleDepositUsed;
                           const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
                           const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
                           const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);

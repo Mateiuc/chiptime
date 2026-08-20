@@ -117,54 +117,25 @@ const Index = () => {
 
     if (!vehicle || !client) return;
 
-    // AUTO-PAUSE: Check if another timer is running
-    const runningTask = tasks.find(t => t.status === 'in-progress');
-    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [];
-    
-    if (runningTask && runningTask.vehicleId !== vehicleId && runningTask.startTime) {
-      // Calculate elapsed time for the running task
-      const elapsed = Math.floor((Date.now() - runningTask.startTime.getTime()) / 1000);
-      
-      // Create period for the auto-paused task
-      const autoPeriod: WorkPeriod = {
-        id: crypto.randomUUID(),
-        startTime: runningTask.startTime,
-        endTime: new Date(),
-        duration: elapsed,
-        createdBy: getCurrentUserId() || undefined,
-      };
-
-      // Add period to the active session
-      const updatedSessions = [...runningTask.sessions];
-      if (runningTask.activeSessionId) {
-        const activeSession = updatedSessions.find(s => s.id === runningTask.activeSessionId);
-        if (activeSession) {
-          activeSession.periods.push(autoPeriod);
-        }
-      }
-
-      // Queue the running task to be paused
-      taskUpdates.push({
-        id: runningTask.id,
-        updates: {
-          status: 'paused',
-          sessions: updatedSessions,
-          totalTime: runningTask.totalTime + elapsed,
-          startTime: undefined,
-        }
-      });
-
-      const pausedVehicle = vehicles.find(v => v.id === runningTask.vehicleId);
-      toast({ 
-        title: 'Timer Auto-Paused', 
-        description: `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically` 
-      });
-    }
-
     // Find existing task for this vehicle
     const existingTask = tasks.find(
       t => t.vehicleId === vehicleId && ['pending', 'in-progress', 'paused'].includes(t.status)
     );
+
+    // AUTO-PAUSE: pause every other running timer (not just the first one)
+    const { updates: pauseUpdates, pausedTasks } = buildPauseUpdatesForRunningTasks(tasks, existingTask?.id);
+    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [...pauseUpdates];
+
+    if (pausedTasks.length > 0) {
+      const pausedVehicle = vehicles.find(v => v.id === pausedTasks[0].vehicleId);
+      toast({
+        title: 'Timer Auto-Paused',
+        description: pausedTasks.length > 1
+          ? `${pausedTasks.length} timers paused automatically`
+          : `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically`
+      });
+    }
+
 
     if (existingTask) {
       // Resume existing task - create new session if none exists

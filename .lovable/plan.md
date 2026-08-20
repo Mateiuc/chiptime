@@ -17,7 +17,7 @@ Total: $2,008    Deposit Left: $2,692    Full Deposit: $4,700
 ```
 
 - **Total** — unchanged.
-- **Deposit Left** — full deposit minus the value of work already done, counting tasks in **Billed** and **Completed** status. Green while positive; red when the work exceeds the deposit (shown as a negative / "over" figure so it's obvious the client owes more than they put down).
+- **Deposit Left** — full deposit minus the billed amount for that client. Green while positive; red when the billed work exceeds the deposit (shown as the over-amount so it's obvious the client owes more than they put down).
 - **Full Deposit** — the original deposit amount, muted, so the starting number stays visible.
 
 Car deposits get the same left / full treatment on their own entry.

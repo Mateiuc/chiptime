@@ -262,6 +262,29 @@ const DesktopDashboard = () => {
 
   const { toast } = useNotifications();
 
+  // Self-heal: only one timer may run at a time.
+  const timerHealedRef = useRef(false);
+  useEffect(() => {
+    if (timerHealedRef.current || tasks.length === 0) return;
+    const { updates, pausedTasks } = buildSingleRunnerHealUpdates(tasks);
+    if (updates.length === 0) return;
+    timerHealedRef.current = true;
+    batchUpdateTasks(updates);
+    toast({
+      title: 'Extra timers paused',
+      description: `${pausedTasks.length} timer${pausedTasks.length > 1 ? 's were' : ' was'} running at the same time — time was saved and paused.`,
+    });
+  }, [tasks, batchUpdateTasks, toast]);
+
+  // Scheduled job start — pause any running timers before the new task starts.
+  const handleStartScheduledTask = (newTask: Task) => {
+    const { updates } = buildPauseUpdatesForRunningTasks(tasks);
+    if (updates.length > 0) batchUpdateTasks(updates);
+    addTask(newTask);
+  };
+
+
+
   const [desktopView, setDesktopView] = useState<'tree' | 'settings' | 'reports' | 'invoices' | 'clients' | 'addClient' | 'addVehicle' | 'schedule'>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');

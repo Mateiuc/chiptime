@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +23,8 @@ import { syncPortalToCloud } from '@/lib/clientPortalUtils';
 import { calcPeriodCost } from '@/lib/formatTime';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { applyDepositOnPaid } from '@/lib/deposit';
+import { buildPauseUpdatesForRunningTasks, buildSingleRunnerHealUpdates } from '@/lib/timerControl';
+
 
 
 
@@ -111,60 +113,55 @@ const Index = () => {
   };
   const collapsedClients = { has: (id: string) => !expandedClients.has(id) };
 
+  // Self-heal: only one timer may run at a time. If a stale/synced state has
+  // several running tasks, keep the newest and bank + pause the rest.
+  const healedRef = useRef(false);
+  useEffect(() => {
+    if (healedRef.current || tasks.length === 0) return;
+    const { updates, pausedTasks } = buildSingleRunnerHealUpdates(tasks);
+    if (updates.length === 0) return;
+    healedRef.current = true;
+    batchUpdateTasks(updates);
+    toast({
+      title: 'Extra timers paused',
+      description: `${pausedTasks.length} timer${pausedTasks.length > 1 ? 's were' : ' was'} running at the same time — time was saved and paused.`,
+    });
+  }, [tasks, batchUpdateTasks, toast]);
+
+  // Scheduled job start — pause any running timers before the new task starts.
+  const handleStartScheduledTask = (newTask: Task) => {
+    const { updates } = buildPauseUpdatesForRunningTasks(tasks);
+    if (updates.length > 0) batchUpdateTasks(updates);
+    addTask(newTask);
+  };
+
+
+
   const handleStartTimer = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
     const client = clients.find(c => c.id === vehicle?.clientId);
 
     if (!vehicle || !client) return;
 
-    // AUTO-PAUSE: Check if another timer is running
-    const runningTask = tasks.find(t => t.status === 'in-progress');
-    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [];
-    
-    if (runningTask && runningTask.vehicleId !== vehicleId && runningTask.startTime) {
-      // Calculate elapsed time for the running task
-      const elapsed = Math.floor((Date.now() - runningTask.startTime.getTime()) / 1000);
-      
-      // Create period for the auto-paused task
-      const autoPeriod: WorkPeriod = {
-        id: crypto.randomUUID(),
-        startTime: runningTask.startTime,
-        endTime: new Date(),
-        duration: elapsed,
-        createdBy: getCurrentUserId() || undefined,
-      };
-
-      // Add period to the active session
-      const updatedSessions = [...runningTask.sessions];
-      if (runningTask.activeSessionId) {
-        const activeSession = updatedSessions.find(s => s.id === runningTask.activeSessionId);
-        if (activeSession) {
-          activeSession.periods.push(autoPeriod);
-        }
-      }
-
-      // Queue the running task to be paused
-      taskUpdates.push({
-        id: runningTask.id,
-        updates: {
-          status: 'paused',
-          sessions: updatedSessions,
-          totalTime: runningTask.totalTime + elapsed,
-          startTime: undefined,
-        }
-      });
-
-      const pausedVehicle = vehicles.find(v => v.id === runningTask.vehicleId);
-      toast({ 
-        title: 'Timer Auto-Paused', 
-        description: `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically` 
-      });
-    }
-
     // Find existing task for this vehicle
     const existingTask = tasks.find(
       t => t.vehicleId === vehicleId && ['pending', 'in-progress', 'paused'].includes(t.status)
     );
+
+    // AUTO-PAUSE: pause every other running timer (not just the first one)
+    const { updates: pauseUpdates, pausedTasks } = buildPauseUpdatesForRunningTasks(tasks, existingTask?.id);
+    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [...pauseUpdates];
+
+    if (pausedTasks.length > 0) {
+      const pausedVehicle = vehicles.find(v => v.id === pausedTasks[0].vehicleId);
+      toast({
+        title: 'Timer Auto-Paused',
+        description: pausedTasks.length > 1
+          ? `${pausedTasks.length} timers paused automatically`
+          : `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically`
+      });
+    }
+
 
     if (existingTask) {
       // Resume existing task - create new session if none exists
@@ -398,59 +395,20 @@ const Index = () => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [];
+    // Auto-pause every other running task
+    const { updates: pauseUpdates, pausedTasks } = buildPauseUpdatesForRunningTasks(tasks, taskId);
+    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [...pauseUpdates];
 
-    // Auto-pause any other running task
-    const runningTask = tasks.find(t => t.status === 'in-progress' && t.id !== taskId);
-    if (runningTask && runningTask.startTime) {
-      const elapsed = Math.floor((Date.now() - runningTask.startTime.getTime()) / 1000);
-      
-      const autoPeriod: WorkPeriod = {
-        id: crypto.randomUUID(),
-        startTime: runningTask.startTime,
-        endTime: new Date(),
-        duration: elapsed,
-        createdBy: getCurrentUserId() || undefined,
-      };
-
-      let updatedSessions = [...(runningTask.sessions || [])];
-      let activeSessionId = runningTask.activeSessionId;
-      
-      if (!activeSessionId) {
-        const newSession: WorkSession = {
-          id: crypto.randomUUID(),
-          createdAt: new Date(),
-          periods: [],
-          parts: [],
-          createdBy: getCurrentUserId() || undefined,
-        };
-        updatedSessions.push(newSession);
-        activeSessionId = newSession.id;
-      }
-      
-      const activeSession = updatedSessions.find(s => s.id === activeSessionId);
-      if (activeSession) {
-        activeSession.periods = [...(activeSession.periods || []), autoPeriod];
-      }
-
-      // Queue the running task to be paused
-      taskUpdates.push({
-        id: runningTask.id,
-        updates: {
-          status: 'paused',
-          sessions: updatedSessions,
-          totalTime: runningTask.totalTime + elapsed,
-          startTime: undefined,
-          activeSessionId,
-        }
-      });
-
-      const pausedVehicle = vehicles.find(v => v.id === runningTask.vehicleId);
-      toast({ 
-        title: 'Timer Auto-Paused', 
-        description: `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically` 
+    if (pausedTasks.length > 0) {
+      const pausedVehicle = vehicles.find(v => v.id === pausedTasks[0].vehicleId);
+      toast({
+        title: 'Timer Auto-Paused',
+        description: pausedTasks.length > 1
+          ? `${pausedTasks.length} timers paused automatically`
+          : `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically`
       });
     }
+
 
     // Start/resume this task
     let updatedSessions = [...(task.sessions || [])];
@@ -907,7 +865,7 @@ const Index = () => {
               onAdd={addScheduleEntry}
               onUpdate={updateScheduleEntry}
               onDelete={deleteScheduleEntry}
-              onStartTask={addTask}
+              onStartTask={handleStartScheduledTask}
               onAddVehicle={addVehicle}
               onUpdateVehicle={updateVehicle}
             />

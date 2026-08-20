@@ -1729,11 +1729,19 @@ const DesktopDashboard = () => {
                               </div>
                               <Button size="sm" className="h-8" onClick={() => {
                                 const trimmedVin = vehicleEditData.vin.trim().toUpperCase();
-                                if (!trimmedVin || trimmedVin.length !== 17) {
+                                 const originalVin = vehicle.vin.trim().toUpperCase();
+                                 const vinChanged = trimmedVin !== originalVin;
+                                 if (!trimmedVin) {
+                                   toast({ title: 'Invalid VIN', description: 'VIN is required', variant: 'destructive' });
+                                   return;
+                                 }
+                                 if (vinChanged && trimmedVin.length !== 17) {
                                   toast({ title: 'Invalid VIN', description: 'VIN must be 17 characters', variant: 'destructive' });
                                   return;
                                 }
-                                const duplicate = vehicles.find(v => v.id !== vehicle.id && v.vin === trimmedVin);
+                                 const duplicate = vinChanged
+                                   ? vehicles.find(v => v.id !== vehicle.id && v.vin.trim().toUpperCase() === trimmedVin)
+                                   : undefined;
                                 if (duplicate) {
                                   toast({ title: 'Duplicate VIN', description: 'This VIN already exists', variant: 'destructive' });
                                   return;
@@ -1753,8 +1761,8 @@ const DesktopDashboard = () => {
                                 updates.discountType = validDisc > 0 ? vehicleEditData.discountType : undefined;
                                 updates.discountValue = validDisc > 0 ? validDisc : undefined;
                                 updateVehicle(vehicle.id, updates);
-                                if (updates.vin) {
-                                  tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: updates.vin! }));
+                                 if (vinChanged) {
+                                   tasks.filter(t => t.vehicleId === vehicle.id).forEach(t => updateTask(t.id, { carVin: trimmedVin }));
                                 }
                                 setEditingVehicleId(null);
                                 toast({ title: 'Vehicle Updated' });

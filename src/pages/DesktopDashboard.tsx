@@ -78,7 +78,7 @@ const DesktopDashboard = () => {
 
   const { clients, addClient, updateClient, deleteClient } = clientsHook;
   const { vehicles, addVehicle, updateVehicle, deleteVehicle } = vehiclesHook;
-  const { tasks, setTasks, addTask, updateTask, deleteTask } = tasksHook;
+  const { tasks, setTasks, addTask, updateTask, deleteTask, batchUpdateTasks } = tasksHook;
   const { settings, setSettings } = settingsHook;
   const { schedule, addEntry: addScheduleEntry, updateEntry: updateScheduleEntry, deleteEntry: deleteScheduleEntry } = scheduleHook;
 

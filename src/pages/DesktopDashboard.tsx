@@ -45,6 +45,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit } from '@/lib/deposit';
+import { buildPauseUpdatesForRunningTasks, buildSingleRunnerHealUpdates } from '@/lib/timerControl';
 
 
 type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';

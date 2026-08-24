@@ -1586,7 +1586,7 @@ const DesktopDashboard = () => {
                                 'text-emerald-600 dark:text-emerald-400'
                               }`}>Total: {formatCurrency(clientGross)}</span>
                               {clientDiscount > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-bold">Discount: -{formatCurrency(clientDiscount)}</span>}
-                              {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Due: {formatCurrency(balanceDue)}</span>}
+                              {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Still to Pay: {formatCurrency(balanceDue)}</span>}
                               {vehicleFullDeposit > 0 && (
                                 <>
                                   <span className={`font-bold ${vehicleDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
@@ -1601,8 +1601,8 @@ const DesktopDashboard = () => {
                                 <>
                                   <span className={`font-bold ${clientDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
                                     {clientDepositLeft >= 0
-                                      ? `Deposit Left: ${formatCurrency(clientDepositLeft)}`
-                                      : `Deposit Over: -${formatCurrency(Math.abs(clientDepositLeft))}`}
+                                      ? `After Billed: ${formatCurrency(clientDepositLeft)}`
+                                      : `Over After Billed: -${formatCurrency(Math.abs(clientDepositLeft))}`}
                                   </span>
                                   <span className="text-muted-foreground">Full Deposit: {formatCurrency(clientFullDeposit)}</span>
                                 </>

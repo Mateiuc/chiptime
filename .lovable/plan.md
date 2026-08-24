@@ -1,28 +1,37 @@
-# Why the 17-character VIN won't save
+# Rename deposit and due labels on desktop dashboard
 
-## What's actually happening
+## What changes
 
-The save is being blocked by the duplicate-VIN check, not by the length rule.
+The client header row in the desktop dashboard currently shows:
 
-Checking the live data for this workspace, the same client (Lance Naidoo) already has three placeholder vehicles:
+```text
+Total: $2,851    Due: $851    Deposit Left: $1,732    Full Deposit: $2,000
+```
 
-- `0000` — Lamborghini Urus (the one you are editing)
-- `00000000000000` — BMW M5
-- `00000000000000000` — BMW (no model) — **exactly the 17 zeros you are typing**
+These labels are confusing. We will rename them to make the meaning obvious:
 
-So when you type 17 zeros into the Urus and press Save Changes, the editor finds another vehicle already using that VIN and refuses. The dialog does show a "This VIN already exists" toast, but on desktop it appears at the far edge and is easy to miss.
+- **"Due"** → **"Still to Pay"** (or "Balance Due" if preferred)
+- **"Deposit Left"** → **"After Billed"** (or "Remaining After Billed")
+- **"Deposit Over"** → **"Over After Billed"** (keeps red styling)
+- **"Car Deposit Left"** → **"Car After Billed"** for consistency
+- **"Car Deposit Over"** → **"Car Over After Billed"**
+- **"Full Deposit" / "Full Car Deposit"** stay as-is (they clearly show the original amount)
 
-## Proposed fix
+## Options to choose from
 
-1. Make the block obvious: when the save is refused because of a duplicate, show the message inline under the VIN field (red text naming the conflicting vehicle, e.g. "Already used by BMW"), in addition to the toast. Same for the length rule.
-2. Clean up the duplicate placeholder: the empty BMW with 17 zeros looks like leftover junk. Options — you pick:
-   - delete that BMW record so the Urus can take the 17-zero VIN, or
-   - give the Urus a different unique placeholder VIN.
-3. Optionally relax placeholder collisions: keep enforcing uniqueness for real VINs, but allow repeated all-zero placeholders so junk data never blocks an edit.
+| Current label | Option A (recommended) | Option B | Option C |
+|---|---|---|---|
+| Due | Still to Pay | Balance Due | Owed |
+| Deposit Left | After Billed | Remaining After Billed | Deposit After Bills |
+| Deposit Over | Over After Billed | Over-deposit | Exceeded Deposit |
+| Car Deposit Left | Car After Billed | Car Remaining After Billed | Vehicle After Billed |
 
-## Technical notes
+Recommended set: **Still to Pay**, **After Billed**, **Over After Billed**, **Car After Billed**, **Car Over After Billed**.
 
-- `src/components/EditVehicleDialog.tsx` — duplicate check at the VIN comparison; add inline error state next to the VIN input and surface the conflicting vehicle's make/model.
-- `src/pages/DesktopDashboard.tsx` (inline vehicle editor, ~line 1742) — same duplicate check; apply the same inline messaging.
-- If option 3 is chosen, skip the duplicate check when the VIN matches `^0+$`.
-- Deleting the stray BMW vehicle is a data change to the workspace sync record; only done on your confirmation.
+## Scope
+
+Display-only change. No calculations or logic change — only the strings rendered in `src/pages/DesktopDashboard.tsx` (lines ~1589 and ~1594–1605).
+
+## Files to edit
+
+- `src/pages/DesktopDashboard.tsx`

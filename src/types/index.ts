@@ -1,3 +1,15 @@
+export type DepositMethod = 'cash' | 'card' | 'zelle' | 'transfer' | 'check' | 'other';
+
+/** A single deposit payment received from a client (or for a vehicle). */
+export interface DepositEntry {
+  id: string;
+  amount: number;
+  date: Date;
+  method?: DepositMethod;
+  note?: string;
+  createdBy?: string;
+}
+
 export interface Client {
   id: string;
   name: string;

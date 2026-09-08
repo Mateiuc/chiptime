@@ -12,7 +12,7 @@ import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, useSchedule } from '@/hooks/useStorage';
 import { ScheduleView } from '@/components/ScheduleView';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, SessionJob, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
 import { migratePhotosToFilesystem } from '@/lib/photoMigration';
@@ -328,7 +328,7 @@ const Index = () => {
     setShowCompleteWork(true);
   };
 
-  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false, extraCharge: number = 0) => {
+  const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false, extraCharge: number = 0, jobs: SessionJob[] = []) => {
     const activeTask = stoppingTaskId ? tasks.find(t => t.id === stoppingTaskId) : tasks.find(t => t.status === 'in-progress' || t.status === 'paused');
     if (!activeTask) return;
 
@@ -356,6 +356,7 @@ const Index = () => {
       targetSession.isAddKey = isAddKey;
       targetSession.isAllKeysLost = isAllKeysLost;
       targetSession.extraCharge = extraCharge > 0 ? extraCharge : undefined;
+      targetSession.jobs = jobs.length > 0 ? jobs.map(j => (j.createdBy ? j : { ...j, createdBy: uid })) : targetSession.jobs;
     }
 
     updateTask(activeTask.id, {

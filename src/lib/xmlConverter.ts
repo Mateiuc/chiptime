@@ -97,7 +97,22 @@ export const exportToXML = (data: DatabaseExport): string => {
         if (session.isProgramming) xml += `isProgramming="true" `;
         if (session.isAddKey) xml += `isAddKey="true" `;
         if (session.isAllKeysLost) xml += `isAllKeysLost="true" `;
+        if (session.extraCharge) xml += `extraCharge="${escapeXML(session.extraCharge)}" `;
         xml += `>\n`;
+
+        // Jobs (fixed-price work, billed as services)
+        if (session.jobs && session.jobs.length > 0) {
+          xml += '          <Jobs>\n';
+          session.jobs.forEach(job => {
+            xml += `            <Job `;
+            xml += `id="${escapeXML(job.id)}" `;
+            xml += `name="${escapeXML(job.name)}" `;
+            xml += `price="${escapeXML(job.price)}" `;
+            if (job.description) xml += `description="${escapeXML(job.description)}" `;
+            xml += `/>\n`;
+          });
+          xml += '          </Jobs>\n';
+        }
 
         // Periods
         if (session.periods && session.periods.length > 0) {
@@ -306,6 +321,24 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
           if (sessionNode.getAttribute('isProgramming') === 'true') session.isProgramming = true;
           if (sessionNode.getAttribute('isAddKey') === 'true') session.isAddKey = true;
           if (sessionNode.getAttribute('isAllKeysLost') === 'true') session.isAllKeysLost = true;
+          if (sessionNode.getAttribute('extraCharge')) {
+            const ec = parseFloat(sessionNode.getAttribute('extraCharge')!);
+            if (isFinite(ec) && ec > 0) session.extraCharge = ec;
+          }
+
+          // Parse Jobs
+          const jobsNode = sessionNode.querySelector('Jobs');
+          if (jobsNode) {
+            session.jobs = [];
+            jobsNode.querySelectorAll('Job').forEach(jobNode => {
+              session.jobs.push({
+                id: jobNode.getAttribute('id') || `job-${Math.random().toString(36).slice(2)}`,
+                name: jobNode.getAttribute('name') || '',
+                price: parseFloat(jobNode.getAttribute('price') || '0'),
+                description: jobNode.getAttribute('description') || undefined,
+              });
+            });
+          }
 
           // Parse Periods
           const periodsNode = sessionNode.querySelector('Periods');

@@ -240,6 +240,56 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
             </CardContent>
           </Card>
 
+          {/* Jobs — fixed-price work, billed as a service */}
+          <Card className="bg-card/60 backdrop-blur-sm border-primary/20">
+            <CardContent className="pt-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Jobs (fixed price)</Label>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleAddJob}>
+                    <Plus className="h-3.5 w-3.5" /><span className="text-sm">Add Job</span>
+                  </Button>
+                </div>
+                {jobs.map((job, index) => (
+                  <Card key={job.id} className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={job.name}
+                          onChange={(e) => handleUpdateJob(index, { name: e.target.value })}
+                          placeholder="e.g. Brakes"
+                          className="h-9 text-sm flex-1"
+                        />
+                        <div className="relative w-24 shrink-0">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">$</span>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={job.price || ''}
+                            onChange={(e) => handleUpdateJob(index, { price: parseFloat(e.target.value) || 0 })}
+                            onFocus={(e) => e.target.select()}
+                            placeholder="0.00"
+                            min={0}
+                            step={0.01}
+                            className="h-9 text-sm pl-5 text-right"
+                          />
+                        </div>
+                        <Button variant="ghost" size="icon" aria-label="Remove job" onClick={() => handleRemoveJob(index)} className="hover:bg-destructive/10 shrink-0">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                      <Input
+                        value={job.description || ''}
+                        onChange={(e) => handleUpdateJob(index, { description: e.target.value })}
+                        placeholder="Replaced rotor and pads"
+                        className="h-9 text-sm"
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="bg-card/60 backdrop-blur-sm border-primary/20">
             <CardContent className="pt-6">

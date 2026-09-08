@@ -9,13 +9,13 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Trash2, Flag, Copy, Cpu, Key, KeyRound, DollarSign } from 'lucide-react';
-import { Part, WorkPeriod } from '@/types';
+import { Part, SessionJob, WorkPeriod } from '@/types';
 import { formatDuration } from '@/lib/formatTime';
 
 interface CompleteWorkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[], isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean, extraCharge: number) => void;
+  onComplete: (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[], isCloning: boolean, isProgramming: boolean, isAddKey: boolean, isAllKeysLost: boolean, extraCharge: number, jobs?: SessionJob[]) => void;
   vehicleLabel?: string;
   sessionPeriods?: WorkPeriod[]; // periods of the active session
 }
@@ -31,6 +31,17 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
   const [isAddKey, setIsAddKey] = useState(false);
   const [isAllKeysLost, setIsAllKeysLost] = useState(false);
   const [extraCharge, setExtraCharge] = useState('');
+  const [jobs, setJobs] = useState<SessionJob[]>([]);
+
+  const handleAddJob = () => {
+    setJobs(prev => [...prev, { id: `job-${Date.now()}`, name: '', description: '', price: 0 }]);
+  };
+  const handleUpdateJob = (index: number, patch: Partial<SessionJob>) => {
+    setJobs(prev => prev.map((j, i) => (i === index ? { ...j, ...patch } : j)));
+  };
+  const handleRemoveJob = (index: number) => {
+    setJobs(prev => prev.filter((_, i) => i !== index));
+  };
   const [newPart, setNewPart] = useState({
     name: '',
     quantity: '',
@@ -71,7 +82,10 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
       } as Part);
     }
     
-    onComplete(description, finalParts, needsFollowUp, periodMinHourFlags, isCloning, isProgramming, isAddKey, isAllKeysLost, parseFloat(extraCharge) || 0);
+    const finalJobs = jobs.filter(j => (j.name && j.name.trim() !== '') || (j.price || 0) > 0);
+
+    onComplete(description, finalParts, needsFollowUp, periodMinHourFlags, isCloning, isProgramming, isAddKey, isAllKeysLost, parseFloat(extraCharge) || 0, finalJobs);
+    setJobs([]);
     setDescription('');
     setParts([]);
     setNewPart({ name: '', quantity: '', price: '', description: '', providedByClient: false });

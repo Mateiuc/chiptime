@@ -1098,6 +1098,27 @@ export const EditTaskDialog = ({
                       </div>
                     ))}
                   </div>
+                  {/* Jobs — fixed-price work, billed as a service */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Jobs (fixed price)</Label>
+                      <Button variant="outline" size="sm" className="h-6 gap-1" onClick={() => handleAddJob(session.id)}>
+                        <Plus className="h-3 w-3" /><span className="text-xs">Add Job</span>
+                      </Button>
+                    </div>
+                    {(session.jobs || []).map((job, jobIndex) => (
+                      <div key={job.id || jobIndex} className={`${sessionColorScheme.part} border rounded-md p-1 space-y-1`}>
+                        <div className="flex items-center gap-1">
+                          <Input type="text" value={job.name} onChange={e => handleUpdateJob(session.id, jobIndex, { name: e.target.value })} className="h-6 text-xs flex-1" placeholder="e.g. Brakes" />
+                          <Input type="number" min="0" step="0.01" value={job.price} onChange={e => handleUpdateJob(session.id, jobIndex, { price: parseFloat(e.target.value) || 0 })} onFocus={e => e.target.select()} className="h-6 text-xs w-20 text-right" />
+                          <Button variant="ghost" size="icon" aria-label="Delete job" className="h-6 w-6" onClick={() => handleDeleteJob(session.id, jobIndex)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <Input type="text" value={job.description || ''} onChange={e => handleUpdateJob(session.id, jobIndex, { description: e.target.value })} className="h-6 text-xs" placeholder="Replaced rotor and pads" />
+                      </div>
+                    ))}
+                  </div>
                   {renderPhotoStrip(session)}
                   {/* Description */}
                   <div className="space-y-1">

@@ -12,7 +12,7 @@ import { CloudSyncIndicator } from '@/components/CloudSyncIndicator';
 import { useClients, useVehicles, useTasks, useSettings, useCloudSync, useSchedule } from '@/hooks/useStorage';
 import { ScheduleView } from '@/components/ScheduleView';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { Task, WorkSession, WorkPeriod, Part, Client, Vehicle } from '@/types';
+import { Task, WorkSession, WorkPeriod, Part, SessionJob, Client, Vehicle } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
 import { migrateToCapacitorStorage } from '@/lib/storageMigration';
 import { migratePhotosToFilesystem } from '@/lib/photoMigration';

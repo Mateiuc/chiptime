@@ -97,7 +97,22 @@ export const exportToXML = (data: DatabaseExport): string => {
         if (session.isProgramming) xml += `isProgramming="true" `;
         if (session.isAddKey) xml += `isAddKey="true" `;
         if (session.isAllKeysLost) xml += `isAllKeysLost="true" `;
+        if (session.extraCharge) xml += `extraCharge="${escapeXML(session.extraCharge)}" `;
         xml += `>\n`;
+
+        // Jobs (fixed-price work, billed as services)
+        if (session.jobs && session.jobs.length > 0) {
+          xml += '          <Jobs>\n';
+          session.jobs.forEach(job => {
+            xml += `            <Job `;
+            xml += `id="${escapeXML(job.id)}" `;
+            xml += `name="${escapeXML(job.name)}" `;
+            xml += `price="${escapeXML(job.price)}" `;
+            if (job.description) xml += `description="${escapeXML(job.description)}" `;
+            xml += `/>\n`;
+          });
+          xml += '          </Jobs>\n';
+        }
 
         // Periods
         if (session.periods && session.periods.length > 0) {

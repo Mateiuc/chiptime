@@ -321,6 +321,24 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
           if (sessionNode.getAttribute('isProgramming') === 'true') session.isProgramming = true;
           if (sessionNode.getAttribute('isAddKey') === 'true') session.isAddKey = true;
           if (sessionNode.getAttribute('isAllKeysLost') === 'true') session.isAllKeysLost = true;
+          if (sessionNode.getAttribute('extraCharge')) {
+            const ec = parseFloat(sessionNode.getAttribute('extraCharge')!);
+            if (isFinite(ec) && ec > 0) session.extraCharge = ec;
+          }
+
+          // Parse Jobs
+          const jobsNode = sessionNode.querySelector('Jobs');
+          if (jobsNode) {
+            session.jobs = [];
+            jobsNode.querySelectorAll('Job').forEach(jobNode => {
+              session.jobs.push({
+                id: jobNode.getAttribute('id') || `job-${Math.random().toString(36).slice(2)}`,
+                name: jobNode.getAttribute('name') || '',
+                price: parseFloat(jobNode.getAttribute('price') || '0'),
+                description: jobNode.getAttribute('description') || undefined,
+              });
+            });
+          }
 
           // Parse Periods
           const periodsNode = sessionNode.querySelector('Periods');

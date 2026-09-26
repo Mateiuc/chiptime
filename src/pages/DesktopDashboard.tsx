@@ -968,11 +968,11 @@ const DesktopDashboard = () => {
               vehicle.model?.toLowerCase().includes(q);
           });
         return { vehicle, tasks: vehicleTasks };
-      }).filter(v => filter === 'all' ? true : v.tasks.length > 0);
+      }).filter(v => v.tasks.length > 0);
       return { client, vehicles: clientVehicles };
     }).filter(c => {
       if (q && !c.client.name.toLowerCase().includes(q) && c.vehicles.length === 0) return false;
-      if (filter !== 'all' && c.vehicles.length === 0) return false;
+      if (c.vehicles.length === 0) return false;
       return true;
     });
   }, [clients, vehicles, tasks, filter, searchQuery]);
@@ -1222,7 +1222,7 @@ const DesktopDashboard = () => {
             <div className="flex-1 overflow-y-auto">
               {filteredTree.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-sm">
-                  No {filter === 'all' ? 'clients' : `${filter} tasks`} found.
+                  No {filter === "all" ? "open tasks" : `${filter} tasks`} found.
                 </div>
               )}
               {filteredTree.map(({ client, vehicles: clientVehicles }) => {

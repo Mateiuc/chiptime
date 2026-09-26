@@ -1410,6 +1410,7 @@ const DesktopDashboard = () => {
                       {filter === 'all' ? (
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                          <Button variant={chartShowActive ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowActive(v => !v)}>Active</Button>
                           <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
                           <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
                           <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>

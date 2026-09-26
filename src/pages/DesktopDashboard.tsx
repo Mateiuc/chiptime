@@ -415,6 +415,7 @@ const DesktopDashboard = () => {
   const [drillShowCompleted, setDrillShowCompleted] = useState(true);
   const [drillShowBilled, setDrillShowBilled] = useState(true);
   const [drillShowPaid, setDrillShowPaid] = useState(true);
+  const [chartShowActive, setChartShowActive] = useState(true);
   const [chartShowCompleted, setChartShowCompleted] = useState(true);
   const [chartShowBilled, setChartShowBilled] = useState(true);
   const [chartShowPaid, setChartShowPaid] = useState(true);

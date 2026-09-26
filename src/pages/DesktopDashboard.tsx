@@ -782,6 +782,7 @@ const DesktopDashboard = () => {
         return t.status === filter;
       }
       // When 'all' is selected, use the toggle buttons
+      if (['in-progress', 'paused', 'pending'].includes(t.status) && !chartShowActive) return false;
       if (t.status === 'completed' && !chartShowCompleted) return false;
       if (t.status === 'billed' && !chartShowBilled) return false;
       if (t.status === 'paid' && !chartShowPaid) return false;
@@ -796,7 +797,12 @@ const DesktopDashboard = () => {
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [tasks, chartClient, clients, settings, chartShowCompleted, chartShowBilled, chartShowPaid, filter]);
+  }, [tasks, chartClient, clients, settings, chartShowActive, chartShowCompleted, chartShowBilled, chartShowPaid, filter]);
+
+  const monthlyRevenueTotal = useMemo(
+    () => monthlyRevenueData.reduce((sum, d) => sum + d.revenue, 0),
+    [monthlyRevenueData]
+  );
 
   // --- Drill-down data for Money Over Time chart ---
   const drillDownData = useMemo(() => {

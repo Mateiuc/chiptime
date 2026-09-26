@@ -1436,6 +1436,10 @@ const DesktopDashboard = () => {
                       ) : (
                         <p className="text-muted-foreground text-center py-8">No data</p>
                       )}
+                      <div className="mt-2 flex justify-end items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">Total shown:</span>
+                        <span className="text-lg font-bold">{formatCurrency(monthlyRevenueTotal)}</span>
+                      </div>
                     </>
                   )}
                 </div>

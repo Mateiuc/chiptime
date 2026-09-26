@@ -415,6 +415,7 @@ const DesktopDashboard = () => {
   const [drillShowCompleted, setDrillShowCompleted] = useState(true);
   const [drillShowBilled, setDrillShowBilled] = useState(true);
   const [drillShowPaid, setDrillShowPaid] = useState(true);
+  const [chartShowActive, setChartShowActive] = useState(true);
   const [chartShowCompleted, setChartShowCompleted] = useState(true);
   const [chartShowBilled, setChartShowBilled] = useState(true);
   const [chartShowPaid, setChartShowPaid] = useState(true);
@@ -781,6 +782,7 @@ const DesktopDashboard = () => {
         return t.status === filter;
       }
       // When 'all' is selected, use the toggle buttons
+      if (['in-progress', 'paused', 'pending'].includes(t.status) && !chartShowActive) return false;
       if (t.status === 'completed' && !chartShowCompleted) return false;
       if (t.status === 'billed' && !chartShowBilled) return false;
       if (t.status === 'paid' && !chartShowPaid) return false;
@@ -795,7 +797,12 @@ const DesktopDashboard = () => {
     return Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }));
-  }, [tasks, chartClient, clients, settings, chartShowCompleted, chartShowBilled, chartShowPaid, filter]);
+  }, [tasks, chartClient, clients, settings, chartShowActive, chartShowCompleted, chartShowBilled, chartShowPaid, filter]);
+
+  const monthlyRevenueTotal = useMemo(
+    () => monthlyRevenueData.reduce((sum, d) => sum + d.revenue, 0),
+    [monthlyRevenueData]
+  );
 
   // --- Drill-down data for Money Over Time chart ---
   const drillDownData = useMemo(() => {
@@ -1403,6 +1410,7 @@ const DesktopDashboard = () => {
                       {filter === 'all' ? (
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                          <Button variant={chartShowActive ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowActive(v => !v)}>Active</Button>
                           <Button variant={chartShowCompleted ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowCompleted(v => !v)}>Completed</Button>
                           <Button variant={chartShowBilled ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowBilled(v => !v)}>Billed</Button>
                           <Button variant={chartShowPaid ? 'default' : 'outline'} size="sm" className="h-6 px-2 text-xs" onClick={() => setChartShowPaid(v => !v)}>Paid</Button>
@@ -1428,6 +1436,10 @@ const DesktopDashboard = () => {
                       ) : (
                         <p className="text-muted-foreground text-center py-8">No data</p>
                       )}
+                      <div className="mt-2 flex justify-end items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">Total shown:</span>
+                        <span className="text-lg font-bold">{formatCurrency(monthlyRevenueTotal)}</span>
+                      </div>
                     </>
                   )}
                 </div>

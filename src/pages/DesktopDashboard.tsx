@@ -1222,7 +1222,7 @@ const DesktopDashboard = () => {
             <div className="flex-1 overflow-y-auto">
               {filteredTree.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-sm">
-                  No {filter === 'all' ? 'clients' : `${filter} tasks`} found.
+                  No {filter === "all" ? "open tasks" : `${filter} tasks`} found.
                 </div>
               )}
               {filteredTree.map(({ client, vehicles: clientVehicles }) => {

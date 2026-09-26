@@ -968,11 +968,11 @@ const DesktopDashboard = () => {
               vehicle.model?.toLowerCase().includes(q);
           });
         return { vehicle, tasks: vehicleTasks };
-      }).filter(v => filter === 'all' ? true : v.tasks.length > 0);
+      }).filter(v => v.tasks.length > 0);
       return { client, vehicles: clientVehicles };
     }).filter(c => {
       if (q && !c.client.name.toLowerCase().includes(q) && c.vehicles.length === 0) return false;
-      if (filter !== 'all' && c.vehicles.length === 0) return false;
+      if (c.vehicles.length === 0) return false;
       return true;
     });
   }, [clients, vehicles, tasks, filter, searchQuery]);

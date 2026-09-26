@@ -52,7 +52,7 @@ type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
 
 const statusMatches = (status: string, filter: FilterType): boolean => {
   switch (filter) {
-    case 'all': return true;
+    case 'all': return status !== 'paid';
     case 'active': return ['pending', 'in-progress', 'paused'].includes(status);
     case 'completed': return status === 'completed';
     case 'billed': return status === 'billed';
@@ -974,7 +974,7 @@ const DesktopDashboard = () => {
   const allFilteredTasks = filteredTree.flatMap(c => c.vehicles.flatMap(v => v.tasks));
   const totalRevenue = allFilteredTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
   const countByStatus = {
-    all: tasks.length,
+    all: tasks.filter(t => t.status !== 'paid').length,
     active: tasks.filter(t => statusMatches(t.status, 'active')).length,
     completed: tasks.filter(t => t.status === 'completed').length,
     billed: tasks.filter(t => t.status === 'billed').length,

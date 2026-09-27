@@ -252,9 +252,6 @@ export const AddVehicleDialog = ({
       <VinScanner
         onVinDetected={handleVinDetected}
         onClose={() => setShowVinScanner(false)}
-        googleApiKey={settings.googleApiKey}
-        grokApiKey={settings.grokApiKey}
-        ocrSpaceApiKey={settings.ocrSpaceApiKey}
         ocrProvider={settings.ocrProvider}
       />
     )}

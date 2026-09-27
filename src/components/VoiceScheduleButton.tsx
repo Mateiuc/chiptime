@@ -1,12 +1,15 @@
 // Developed by Chip
-// Fully offline voice → schedule draft. No network calls, no edge functions,
-// no STT/LLM APIs. Uses the browser Web Speech API + chrono-node + fuse.js.
+// Voice → schedule draft. Speech is captured free in the browser (Web Speech
+// API); understanding the sentence is done by the app's AI (Claude) so the
+// client, car, date and work can be picked out of free-form speech. If the AI
+// is unreachable we fall back to fully offline parsing (chrono + fuse).
 import { useEffect, useRef, useState } from 'react';
 import * as chrono from 'chrono-node';
 import Fuse from 'fuse.js';
-import { Mic, Square } from 'lucide-react';
+import { Mic, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNotifications } from '@/hooks/useNotifications';
+import { supabase } from '@/integrations/supabase/client';
 
 // Minimal local typings for webkitSpeechRecognition so we don't pull extra @types.
 interface SRAlternative { transcript: string }
@@ -17,6 +20,7 @@ interface SpeechRecognitionLike {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
+  maxAlternatives?: number;
   onresult: ((e: SREvent) => void) | null;
   onerror: ((e: SRErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -34,17 +38,24 @@ export interface VoiceContext {
 
 export interface VoiceDraft {
   clientId: string | null;
+  clientName: string | null;
+  clientPhone: string | null;
   vehicleId: string | null;
+  carInfo: string | null;
   assignedTo: string | null;
   date: string | null; // YYYY-MM-DD local
   time: string | null; // HH:mm 24h local
   requestedWork: string;
+  notes: string | null;
 }
 
 interface Props {
   context: VoiceContext;
   onParsed: (draft: VoiceDraft, transcript: string) => void;
+  /** Spoken language, e.g. 'en-US'. */
+  lang?: string;
 }
+
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -140,13 +151,72 @@ const parseTranscript = (raw: string, ctx: VoiceContext): VoiceDraft => {
   let requestedWork = stripSpans(raw, spans);
   if (!requestedWork) requestedWork = raw.trim();
 
-  return { clientId, vehicleId, assignedTo, date, time, requestedWork };
+  return {
+    clientId,
+    clientName: clientId ? null : null,
+    clientPhone: null,
+    vehicleId,
+    carInfo: null,
+    assignedTo,
+    date,
+    time,
+    requestedWork,
+    notes: null,
+  };
 };
 
-export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
+/** Ask the app's AI to understand the sentence. Returns null when unavailable. */
+const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft | null> => {
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const now = new Date();
+  const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+
+  const clientName = new Map(ctx.clients.map(c => [c.id, c.name]));
+  const { data, error } = await supabase.functions.invoke('ai-parse-schedule', {
+    body: {
+      transcript: raw,
+      today,
+      clients: ctx.clients.map(c => ({ id: c.id, label: c.name })),
+      vehicles: ctx.vehicles.map(v => ({
+        id: v.id,
+        label: `${clientName.get(v.clientId) || 'unknown owner'} — ${[v.year, v.make, v.model, v.color].filter(Boolean).join(' ')}`,
+      })),
+    },
+  });
+
+  if (error || !data?.draft) return null;
+  const d = data.draft;
+
+  // Worker is matched locally — the AI is not given the worker list.
+  let assignedTo: string | null = null;
+  if (ctx.workers.length > 0) {
+    const fuse = new Fuse(ctx.workers, { keys: ['firstName'], threshold: 0.4 });
+    assignedTo = fuse.search(raw)[0]?.item.id || null;
+  }
+
+  const clientId = d.clientId && ctx.clients.some(c => c.id === d.clientId) ? d.clientId : null;
+  const vehicleId = d.vehicleId && ctx.vehicles.some(v => v.id === d.vehicleId) ? d.vehicleId : null;
+
+  return {
+    clientId,
+    clientName: d.clientName || null,
+    clientPhone: d.clientPhone || null,
+    vehicleId,
+    carInfo: d.carInfo || null,
+    assignedTo,
+    date: d.date || null,
+    time: d.time || null,
+    requestedWork: (d.requestedWork || raw).trim(),
+    notes: d.notes || null,
+  };
+};
+
+
+export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props) => {
   const { toast } = useNotifications();
   const SR = getSRCtor();
   const [listening, setListening] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [interim, setInterim] = useState('');
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const finalRef = useRef<string>('');
@@ -164,12 +234,14 @@ export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
     try { recRef.current?.stop(); } catch { /* noop */ }
   };
 
+  // Generous pause window so a normal mid-sentence breath doesn't cut you off.
   const armSilence = () => {
     clearSilence();
     silenceTimerRef.current = setTimeout(() => {
       try { recRef.current?.stop(); } catch { /* noop */ }
-    }, 1500);
+    }, 4000);
   };
+
 
   useEffect(() => {
     return () => {
@@ -199,9 +271,11 @@ export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
       toast({ title: 'Voice input unavailable', variant: 'destructive' });
       return;
     }
-    rec.lang = 'en-US';
+    rec.lang = lang;
     rec.interimResults = true;
     rec.continuous = true;
+    rec.maxAlternatives = 1;
+
     finalRef.current = '';
     setInterim('');
 
@@ -233,9 +307,18 @@ export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
       setInterim('');
       const transcript = (finalRef.current || '').trim();
       if (!transcript) return;
-      const draft = parseTranscript(transcript, context);
-      onParsed(draft, transcript);
+      setThinking(true);
+      parseWithAi(transcript, context)
+        .catch(() => null)
+        .then((aiDraft) => {
+          if (!aiDraft) {
+            toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
+          }
+          onParsed(aiDraft || parseTranscript(transcript, context), transcript);
+        })
+        .finally(() => setThinking(false));
     };
+
 
     recRef.current = rec;
     try {
@@ -251,36 +334,47 @@ export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
       <Button
         size="sm"
         onClick={start}
+        disabled={thinking}
         className="h-9 w-9 rounded-full p-0 bg-primary hover:bg-primary/90"
         title="Voice schedule"
       >
-        <Mic className="h-4 w-4" />
+        {thinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
       </Button>
 
-      {listening && (
+      {(listening || thinking) && (
         <div className="fixed inset-x-0 bottom-0 z-50 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pointer-events-none">
           <div className="mx-auto max-w-md rounded-2xl border-2 border-primary bg-card shadow-2xl p-4 space-y-3 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
-              </span>
-              <span className="font-bold text-sm">Listening…</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">auto-stops on pause</span>
-            </div>
-            <div className="min-h-[3rem] max-h-32 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
-              <span className="text-foreground">{finalRef.current}</span>
-              {interim && <span className="text-muted-foreground"> {interim}</span>}
-              {!finalRef.current && !interim && (
-                <span className="text-muted-foreground italic">Say the client, car, work, and when…</span>
-              )}
-            </div>
-            <Button size="sm" variant="destructive" className="w-full" onClick={stop}>
-              <Square className="h-4 w-4 mr-1" /> Stop
-            </Button>
+            {thinking ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-bold text-sm">Writing the job…</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                  </span>
+                  <span className="font-bold text-sm">Listening…</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">tap Stop when done</span>
+                </div>
+                <div className="min-h-[3rem] max-h-32 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
+                  <span className="text-foreground">{finalRef.current}</span>
+                  {interim && <span className="text-muted-foreground"> {interim}</span>}
+                  {!finalRef.current && !interim && (
+                    <span className="text-muted-foreground italic">Say the date, the client, the car and the work…</span>
+                  )}
+                </div>
+                <Button size="sm" variant="destructive" className="w-full" onClick={stop}>
+                  <Square className="h-4 w-4 mr-1" /> Stop
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
+
     </>
   );
 };

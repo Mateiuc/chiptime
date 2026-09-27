@@ -15,6 +15,8 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
+import { entryClientName, entryCarLabel, entryIsNewClient, parseCarInfo } from '@/lib/scheduleEntry';
+
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -27,10 +29,14 @@ interface Props {
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  onAddClient: (c: Client) => Promise<void> | void;
+
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
 }
 
 const NEW_VEHICLE = '__new__';
+const NEW_CLIENT = '__newclient__';
+
 const DRAFT_ID = '__draft__';
 
 const toLocalDate = (d?: Date) => {
@@ -55,7 +61,7 @@ const formatWhen = (d?: Date): string => {
 
 export const DesktopScheduleView = ({
   schedule, clients, vehicles, tasks, settings,
-  onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle,
+  onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onAddClient, onUpdateVehicle,
 }: Props) => {
   const { getWorker, allWorkers } = useWorkers();
   const uid = useCurrentUserId();
@@ -69,7 +75,12 @@ export const DesktopScheduleView = ({
 
   // Editor form state
   const [clientId, setClientId] = useState('');
+  const [newClient, setNewClient] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [carInfo, setCarInfo] = useState('');
   const [vehicleId, setVehicleId] = useState('');
+
   const [requestedWork, setRequestedWork] = useState('');
   const [dateStr, setDateStr] = useState('');
   const [timeStr, setTimeStr] = useState('');
@@ -144,13 +155,19 @@ export const DesktopScheduleView = ({
   // Load entry into form on selection
   useEffect(() => {
     if (isDraft) {
-      setClientId(''); setVehicleId(''); setRequestedWork('');
+      setClientId(''); setNewClient(false); setClientName(''); setClientPhone('');
+      setCarInfo(''); setVehicleId(''); setRequestedWork('');
       setDateStr(draftDefaultDate); setTimeStr(''); setAssignedTo('any'); setNotes('');
       setDirty(false); resetNewVehicle();
       return;
     }
     if (!selectedEntry) return;
-    setClientId(selectedEntry.clientId || '');
+    const existing = selectedEntry.clientId && clients.some(c => c.id === selectedEntry.clientId);
+    setClientId(existing ? selectedEntry.clientId! : '');
+    setNewClient(!existing && !!selectedEntry.clientName);
+    setClientName(selectedEntry.clientName || '');
+    setClientPhone(selectedEntry.clientPhone || '');
+    setCarInfo(selectedEntry.carInfo || '');
     setVehicleId(selectedEntry.vehicleId || '');
     setRequestedWork(selectedEntry.requestedWork || '');
     setDateStr(toLocalDate(selectedEntry.scheduledAt));
@@ -160,6 +177,7 @@ export const DesktopScheduleView = ({
     setDirty(false);
     resetNewVehicle();
   }, [selectedId, isDraft, selectedEntry?.id]);
+
 
   const markDirty = () => setDirty(true);
 
@@ -243,8 +261,10 @@ export const DesktopScheduleView = ({
   };
 
   const handleSave = () => {
-    if (!clientId || !vehicleId || !requestedWork.trim()) {
-      toast({ title: 'Missing fields', description: 'Client, vehicle and requested work are required', variant: 'destructive' });
+    const clientOk = clientId || (newClient && clientName.trim());
+    const carOk = vehicleId || carInfo.trim();
+    if (!clientOk || !carOk || !requestedWork.trim()) {
+      toast({ title: 'Missing details', description: 'Client, car and the work to be done are required', variant: 'destructive' });
       return;
     }
     let scheduledAt: Date | undefined;
@@ -252,14 +272,21 @@ export const DesktopScheduleView = ({
       const t = timeStr || '09:00';
       scheduledAt = new Date(`${dateStr}T${t}:00`);
     }
+    const shared = {
+      clientId: clientId || undefined,
+      clientName: clientId ? undefined : clientName.trim() || undefined,
+      clientPhone: clientId ? undefined : clientPhone.trim() || undefined,
+      vehicleId: vehicleId || undefined,
+      carInfo: vehicleId ? undefined : carInfo.trim() || undefined,
+      requestedWork: requestedWork.trim(),
+      scheduledAt,
+      assignedTo: assignedTo === 'any' ? undefined : assignedTo,
+      notes: notes.trim() || undefined,
+    };
     if (isDraft) {
       const entry: ScheduleEntry = {
         id: crypto.randomUUID(),
-        clientId, vehicleId,
-        requestedWork: requestedWork.trim(),
-        scheduledAt,
-        assignedTo: assignedTo === 'any' ? undefined : assignedTo,
-        notes: notes.trim() || undefined,
+        ...shared,
         status: 'scheduled',
         createdAt: new Date(),
         createdBy: getCurrentUserId() || undefined,
@@ -269,25 +296,26 @@ export const DesktopScheduleView = ({
       setSelectedId(entry.id);
       toast({ title: 'Job scheduled' });
     } else if (selectedEntry) {
-      onUpdate(selectedEntry.id, {
-        clientId, vehicleId,
-        requestedWork: requestedWork.trim(),
-        scheduledAt,
-        assignedTo: assignedTo === 'any' ? undefined : assignedTo,
-        notes: notes.trim() || undefined,
-      });
+      onUpdate(selectedEntry.id, shared);
       toast({ title: 'Saved' });
     }
     setDirty(false);
   };
 
+
   const handleCancel = () => {
     if (isDraft) { setIsDraft(false); setSelectedId(null); }
     else if (selectedEntry) {
       // reload from source
-      setClientId(selectedEntry.clientId);
-      setVehicleId(selectedEntry.vehicleId);
+      const existing = selectedEntry.clientId && clients.some(c => c.id === selectedEntry.clientId);
+      setClientId(existing ? selectedEntry.clientId! : '');
+      setNewClient(!existing && !!selectedEntry.clientName);
+      setClientName(selectedEntry.clientName || '');
+      setClientPhone(selectedEntry.clientPhone || '');
+      setCarInfo(selectedEntry.carInfo || '');
+      setVehicleId(selectedEntry.vehicleId || '');
       setRequestedWork(selectedEntry.requestedWork);
+
       setDateStr(toLocalDate(selectedEntry.scheduledAt));
       setTimeStr(toLocalTime(selectedEntry.scheduledAt));
       setAssignedTo(selectedEntry.assignedTo || 'any');
@@ -305,13 +333,45 @@ export const DesktopScheduleView = ({
     setDirty(false);
   };
 
-  const handleStart = (entry: ScheduleEntry) => {
-    const client = clients.find(c => c.id === entry.clientId);
-    const vehicle = vehicles.find(v => v.id === entry.vehicleId);
-    if (!client || !vehicle) {
-      toast({ title: 'Cannot start', description: 'Client or vehicle missing', variant: 'destructive' });
-      return;
+  const handleStart = async (entry: ScheduleEntry) => {
+    let client = clients.find(c => c.id === entry.clientId);
+    let vehicle = vehicles.find(v => v.id === entry.vehicleId);
+    if (!client) {
+      const name = entry.clientName?.trim();
+      if (!name) {
+        toast({ title: 'Cannot start', description: 'No client on this job', variant: 'destructive' });
+        return;
+      }
+      const created: Client = {
+        id: crypto.randomUUID(),
+        name,
+        phone: entry.clientPhone?.trim() || undefined,
+        createdAt: new Date(),
+        createdBy: getCurrentUserId() || undefined,
+      } as Client;
+      await onAddClient(created);
+      client = created;
     }
+    if (!vehicle) {
+      const info = entry.carInfo?.trim();
+      if (!info) {
+        toast({ title: 'Cannot start', description: 'No car on this job', variant: 'destructive' });
+        return;
+      }
+      const parsed = parseCarInfo(info);
+      const created: Vehicle = {
+        id: crypto.randomUUID(),
+        clientId: client.id,
+        vin: '',
+        make: parsed.make,
+        model: parsed.model,
+        year: parsed.year,
+        createdAt: new Date(),
+      } as Vehicle;
+      await onAddVehicle(created);
+      vehicle = created;
+    }
+
     const session: WorkSession = {
       id: crypto.randomUUID(),
       createdAt: new Date(),
@@ -336,8 +396,8 @@ export const DesktopScheduleView = ({
       createdBy: getCurrentUserId() || undefined,
     };
     onStartTask(newTask);
-    onUpdate(entry.id, { status: 'started', startedTaskId: newTask.id });
-    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() });
+    onUpdate(entry.id, { clientId: client.id, vehicleId: vehicle.id, clientName: undefined, carInfo: undefined, status: 'started', startedTaskId: newTask.id });
+    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || client.name });
   };
 
   const handleScanForCard = async (scanned: string) => {
@@ -371,10 +431,9 @@ export const DesktopScheduleView = ({
   const selectionLabel = (() => {
     if (isDraft) return 'New scheduled job';
     if (!selectedEntry) return null;
-    const c = clients.find(x => x.id === selectedEntry.clientId);
-    const v = vehicles.find(x => x.id === selectedEntry.vehicleId);
-    return `${c?.name || 'Client'} — ${v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'vehicle') : 'vehicle'}`;
+    return `${entryClientName(selectedEntry, clients)} — ${entryCarLabel(selectedEntry, vehicles)}`;
   })();
+
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -409,6 +468,8 @@ export const DesktopScheduleView = ({
               const isOverdue = entry.scheduledAt && new Date(entry.scheduledAt) < new Date();
               const isSelected = !isDraft && selectedId === entry.id;
               const hasVin = !!vehicle?.vin?.trim();
+              const isNew = entryIsNewClient(entry, clients);
+
               return (
                 <button
                   key={entry.id}
@@ -419,13 +480,11 @@ export const DesktopScheduleView = ({
                     'border-border bg-card hover:bg-accent/40'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm truncate">{client?.name || 'Unknown'}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle' : 'Unknown vehicle'}
-                      </div>
-                    </div>
+                  {/* 1. When */}
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline" className={`gap-1 text-[10px] h-5 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
+                      <Calendar className="h-2.5 w-2.5" /> {formatWhen(entry.scheduledAt)}
+                    </Badge>
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                       {vehicle && (
                         <Button
@@ -444,19 +503,28 @@ export const DesktopScheduleView = ({
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-foreground/80 line-clamp-2">{entry.requestedWork}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <Badge variant="outline" className={`gap-1 text-[10px] h-5 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
-                      <Calendar className="h-2.5 w-2.5" /> {formatWhen(entry.scheduledAt)}
-                    </Badge>
-                    {worker && (
-                      <Badge variant="outline" className="gap-1 text-[10px] h-5" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
-                        <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
-                      </Badge>
-                    )}
+
+                  {/* 2. Client   3. Car */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-bold text-sm truncate">{entryClientName(entry, clients)}</span>
+                      {isNew && <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-500/60 text-sky-700 dark:text-sky-400 shrink-0">New</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{entryCarLabel(entry, vehicles)}</div>
                   </div>
+
+                  {/* 4. Work   5. Notes */}
+                  <p className="text-xs text-foreground/80 line-clamp-2">{entry.requestedWork}</p>
+                  {entry.notes && <p className="text-[11px] text-muted-foreground line-clamp-2 italic">{entry.notes}</p>}
+
+                  {worker && (
+                    <Badge variant="outline" className="gap-1 text-[10px] h-5" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
+                      <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
+                    </Badge>
+                  )}
                 </button>
               );
+
             })}
           </div>
         </ScrollArea>
@@ -545,12 +613,17 @@ export const DesktopScheduleView = ({
                               <div className="font-bold text-sm tabular-nums">{time}</div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="font-bold text-sm truncate">{client?.name || 'Unknown'}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle' : 'Unknown vehicle'}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-bold text-sm truncate">{entryClientName(entry, clients)}</span>
+                                {entryIsNewClient(entry, clients) && (
+                                  <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-500/60 text-sky-700 dark:text-sky-400 shrink-0">New</Badge>
+                                )}
                               </div>
+                              <div className="text-xs text-muted-foreground truncate">{entryCarLabel(entry, vehicles)}</div>
                               <div className="text-xs text-foreground/70 truncate mt-0.5">{entry.requestedWork}</div>
+                              {entry.notes && <div className="text-[11px] text-muted-foreground truncate italic">{entry.notes}</div>}
                             </div>
+
                             {worker && (
                               <Badge variant="outline" className="gap-1 text-[10px] h-5 shrink-0" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
                                 <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
@@ -583,31 +656,69 @@ export const DesktopScheduleView = ({
                   <div className="space-y-4">
                     <div>
                       <Label className="text-xs">Client</Label>
-                      <Select value={clientId} onValueChange={v => { setClientId(v); setVehicleId(''); resetNewVehicle(); markDirty(); }}>
+                      <Select
+                        value={newClient ? NEW_CLIENT : clientId}
+                        onValueChange={v => {
+                          if (v === NEW_CLIENT) {
+                            setNewClient(true); setClientId(''); setVehicleId('');
+                            resetNewVehicle(); markDirty();
+                            return;
+                          }
+                          setNewClient(false); setClientName(''); setClientPhone(''); setCarInfo('');
+                          setClientId(v); setVehicleId(''); resetNewVehicle(); markDirty();
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={NEW_CLIENT}>
+                            <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> New client (not in the app yet)</span>
+                          </SelectItem>
                           {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label className="text-xs">Vehicle</Label>
-                      <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
-                        <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
-                        <SelectContent>
-                          {clientId && (
-                            <SelectItem value={NEW_VEHICLE}>
-                              <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
-                            </SelectItem>
-                          )}
-                          {clientVehicles.map(v => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {newClient && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Name</Label>
+                          <Input value={clientName} onChange={e => { setClientName(e.target.value); markDirty(); }} placeholder="Client name" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Phone (optional)</Label>
+                          <Input value={clientPhone} onChange={e => { setClientPhone(e.target.value); markDirty(); }} placeholder="Phone" />
+                        </div>
+                      </div>
+                    )}
+                    {newClient ? (
+                      <div>
+                        <Label className="text-xs">Car</Label>
+                        <Input value={carInfo} onChange={e => { setCarInfo(e.target.value); markDirty(); }} placeholder="e.g. 2019 BMW X5, white" />
+                        <p className="text-[11px] text-muted-foreground mt-1">The client and car are saved into the app when you press Start.</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label className="text-xs">Vehicle</Label>
+                        <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
+                          <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
+                          <SelectContent>
+                            {clientId && (
+                              <SelectItem value={NEW_VEHICLE}>
+                                <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
+                              </SelectItem>
+                            )}
+                            {clientVehicles.map(v => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!vehicleId && clientId && carInfo.trim() && (
+                          <p className="text-[11px] text-muted-foreground mt-1">Heard: "{carInfo}" — pick the matching vehicle or add it.</p>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <Label className="text-xs">Assigned worker</Label>
                       <Select value={assignedTo} onValueChange={v => { setAssignedTo(v); markDirty(); }}>
@@ -728,9 +839,6 @@ export const DesktopScheduleView = ({
         <VinScanner
           onVinDetected={handleVinScanned}
           onClose={() => setShowVinScanner(false)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}
@@ -738,9 +846,6 @@ export const DesktopScheduleView = ({
         <VinScanner
           onVinDetected={handleScanForCard}
           onClose={() => setScanForVehicleId(null)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}

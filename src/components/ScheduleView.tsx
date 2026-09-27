@@ -11,6 +11,8 @@ import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
 import VoiceScheduleButton, { VoiceDraft } from './VoiceScheduleButton';
+import { entryClientName, entryCarLabel, entryIsNewClient, parseCarInfo } from '@/lib/scheduleEntry';
+
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -23,6 +25,8 @@ interface Props {
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  onAddClient: (c: Client) => Promise<void> | void;
+
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
 }
 
@@ -37,7 +41,7 @@ const formatWhen = (d?: Date): string => {
   });
 };
 
-export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle }: Props) => {
+export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onAddClient, onUpdateVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
   const [voiceInitial, setVoiceInitial] = useState<ScheduleEntry | null>(null);
@@ -64,14 +68,19 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
     }
     const synthetic: ScheduleEntry = {
       id: 'voice-draft',
-      clientId: draft.clientId || '',
-      vehicleId: draft.vehicleId || '',
+      clientId: draft.clientId || undefined,
+      clientName: draft.clientId ? undefined : draft.clientName || undefined,
+      clientPhone: draft.clientId ? undefined : draft.clientPhone || undefined,
+      vehicleId: draft.vehicleId || undefined,
+      carInfo: draft.vehicleId ? undefined : draft.carInfo || undefined,
       requestedWork: draft.requestedWork,
       scheduledAt,
       assignedTo: draft.assignedTo || undefined,
+      notes: draft.notes || undefined,
       status: 'scheduled',
       createdAt: new Date(),
     };
+
     setEditing(null);
     setVoiceInitial(synthetic);
     setVoiceTranscript(transcript);
@@ -119,13 +128,48 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       });
   }, [schedule]);
 
-  const handleStart = (entry: ScheduleEntry) => {
-    const client = clients.find(c => c.id === entry.clientId);
-    const vehicle = vehicles.find(v => v.id === entry.vehicleId);
-    if (!client || !vehicle) {
-      toast({ title: 'Cannot start', description: 'Client or vehicle missing', variant: 'destructive' });
-      return;
+  const handleStart = async (entry: ScheduleEntry) => {
+    let client = clients.find(c => c.id === entry.clientId);
+    let vehicle = vehicles.find(v => v.id === entry.vehicleId);
+
+    // The job may have been booked for someone who isn't in the app yet —
+    // register the client and the car on the spot.
+    if (!client) {
+      const name = entry.clientName?.trim();
+      if (!name) {
+        toast({ title: 'Cannot start', description: 'No client on this job', variant: 'destructive' });
+        return;
+      }
+      const created: Client = {
+        id: crypto.randomUUID(),
+        name,
+        phone: entry.clientPhone?.trim() || undefined,
+        createdAt: new Date(),
+        createdBy: getCurrentUserId() || undefined,
+      } as Client;
+      await onAddClient(created);
+      client = created;
     }
+    if (!vehicle) {
+      const info = entry.carInfo?.trim();
+      if (!info) {
+        toast({ title: 'Cannot start', description: 'No car on this job', variant: 'destructive' });
+        return;
+      }
+      const parsed = parseCarInfo(info);
+      const created: Vehicle = {
+        id: crypto.randomUUID(),
+        clientId: client.id,
+        vin: '',
+        make: parsed.make,
+        model: parsed.model,
+        year: parsed.year,
+        createdAt: new Date(),
+      } as Vehicle;
+      await onAddVehicle(created);
+      vehicle = created;
+    }
+
     const session: WorkSession = {
       id: crypto.randomUUID(),
       createdAt: new Date(),
@@ -150,9 +194,10 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       createdBy: getCurrentUserId() || undefined,
     };
     onStartTask(newTask);
-    onUpdate(entry.id, { status: 'started', startedTaskId: newTask.id });
-    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() });
+    onUpdate(entry.id, { clientId: client.id, vehicleId: vehicle.id, clientName: undefined, carInfo: undefined, status: 'started', startedTaskId: newTask.id });
+    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || client.name });
   };
+
 
   return (
     <div className="space-y-3">
@@ -181,15 +226,15 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
             const isOverdue = entry.scheduledAt && new Date(entry.scheduledAt) < new Date();
             const canEdit = !entry.createdBy || entry.createdBy === uid;
             const hasVin = !!vehicle?.vin?.trim();
+            const isNew = entryIsNewClient(entry, clients);
+
             return (
               <div key={entry.id} className={`rounded-xl border p-3 space-y-2 ${isOverdue ? 'border-orange-400/60 bg-orange-500/5' : 'border-border bg-card'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-sm">{client?.name || 'Unknown client'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle (no info yet)' : 'Unknown vehicle'}
-                    </div>
-                  </div>
+                {/* 1. When */}
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline" className={`gap-1 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
+                    <Calendar className="h-3 w-3" /> {formatWhen(entry.scheduledAt)}
+                  </Badge>
                   <div className="flex items-center gap-1 shrink-0">
                     {vehicle && (
                       <Button
@@ -213,16 +258,32 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                     </Button>
                   </div>
                 </div>
+
+                {/* 2. Client   3. Car */}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm">{entryClientName(entry, clients)}</span>
+                    {isNew && (
+                      <Badge variant="outline" className="border-sky-500/60 text-sky-700 dark:text-sky-400 text-[10px]">New client</Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{entryCarLabel(entry, vehicles)}</div>
+                </div>
+
+                {/* 4. Work to be done */}
                 <p className="text-sm whitespace-pre-wrap break-words">{entry.requestedWork}</p>
+
+                {/* 5. Notes */}
+                {entry.notes && (
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-border pl-2">{entry.notes}</p>
+                )}
+
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <Badge variant="outline" className={`gap-1 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
-                    <Calendar className="h-3 w-3" /> {formatWhen(entry.scheduledAt)}
-                  </Badge>
-                  {hasVin ? (
-                    <Badge variant="outline" className="font-mono text-[10px]">{vehicle!.vin}</Badge>
+                  {vehicle && (hasVin ? (
+                    <Badge variant="outline" className="font-mono text-[10px]">{vehicle.vin}</Badge>
                   ) : (
                     <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400">No VIN yet</Badge>
-                  )}
+                  ))}
                   {worker && (
                     <Badge variant="outline" className="gap-1" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
                       <UserIcon className="h-3 w-3" /> {worker.firstName}
@@ -230,6 +291,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                   )}
                 </div>
               </div>
+
             );
           })}
         </div>
@@ -239,9 +301,6 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
         <VinScanner
           onVinDetected={handleVinScanned}
           onClose={() => setScanForVehicleId(null)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}

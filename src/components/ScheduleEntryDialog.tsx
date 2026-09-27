@@ -42,11 +42,16 @@ const toLocalTime = (d?: Date) => {
 };
 
 const NEW_VEHICLE = '__new__';
+const NEW_CLIENT = '__newclient__';
 
 export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tasks, settings, initial, onSave, onDelete, onAddVehicle, aiTranscript }: Props) => {
   const { allWorkers } = useWorkers();
   const { toast } = useNotifications();
   const [clientId, setClientId] = useState('');
+  const [newClient, setNewClient] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [carInfo, setCarInfo] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [requestedWork, setRequestedWork] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -72,7 +77,12 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
 
   useEffect(() => {
     if (!open) return;
-    setClientId(initial?.clientId || '');
+    const existing = initial?.clientId && clients.some(c => c.id === initial.clientId);
+    setClientId(existing ? initial!.clientId! : '');
+    setNewClient(!existing && !!initial?.clientName);
+    setClientName(initial?.clientName || '');
+    setClientPhone(initial?.clientPhone || '');
+    setCarInfo(initial?.carInfo || '');
     setVehicleId(initial?.vehicleId || '');
     setRequestedWork(initial?.requestedWork || '');
     setDateStr(toLocalDate(initial?.scheduledAt));
@@ -80,7 +90,14 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     setAssignedTo(initial?.assignedTo || 'any');
     setNotes(initial?.notes || '');
     resetNewVehicle();
-  }, [open, initial]);
+  }, [open, initial, clients]);
+
+  const canSave = Boolean(
+    (clientId || (newClient && clientName.trim())) &&
+    (vehicleId || carInfo.trim()) &&
+    requestedWork.trim(),
+  );
+
 
   const clientVehicles = useMemo(
     () => vehicles.filter(v => !clientId || v.clientId === clientId),
@@ -154,7 +171,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
 
 
   const handleSave = () => {
-    if (!clientId || !vehicleId || !requestedWork.trim()) return;
+    if (!canSave) return;
     let scheduledAt: Date | undefined;
     if (dateStr) {
       const t = timeStr || '09:00';
@@ -162,8 +179,11 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     }
     const entry: ScheduleEntry = {
       id: initial?.id || crypto.randomUUID(),
-      clientId,
-      vehicleId,
+      clientId: clientId || undefined,
+      clientName: clientId ? undefined : clientName.trim() || undefined,
+      clientPhone: clientId ? undefined : clientPhone.trim() || undefined,
+      vehicleId: vehicleId || undefined,
+      carInfo: vehicleId ? undefined : carInfo.trim() || undefined,
       requestedWork: requestedWork.trim(),
       scheduledAt,
       assignedTo: assignedTo === 'any' ? undefined : assignedTo,
@@ -176,6 +196,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     onSave(entry);
     onOpenChange(false);
   };
+
 
   return (
     <>
@@ -208,31 +229,76 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Client</Label>
-                <Select value={clientId} onValueChange={v => { setClientId(v); setVehicleId(''); resetNewVehicle(); }}>
+                <Select
+                  value={newClient ? NEW_CLIENT : clientId}
+                  onValueChange={v => {
+                    if (v === NEW_CLIENT) {
+                      setNewClient(true);
+                      setClientId('');
+                      setVehicleId('');
+                      resetNewVehicle();
+                      return;
+                    }
+                    setNewClient(false);
+                    setClientName('');
+                    setClientPhone('');
+                    setCarInfo('');
+                    setClientId(v);
+                    setVehicleId('');
+                    resetNewVehicle();
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NEW_CLIENT}>
+                      <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> New client (not in the app yet)</span>
+                    </SelectItem>
                     {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-xs">Vehicle</Label>
-                <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
-                  <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
-                  <SelectContent>
-                    {clientId && (
-                      <SelectItem value={NEW_VEHICLE}>
-                        <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
-                      </SelectItem>
-                    )}
-                    {clientVehicles.map(v => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {newClient && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client name" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Phone (optional)</Label>
+                    <Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Phone" />
+                  </div>
+                </div>
+              )}
+              {newClient ? (
+                <div>
+                  <Label className="text-xs">Car</Label>
+                  <Input value={carInfo} onChange={e => setCarInfo(e.target.value)} placeholder="e.g. 2019 BMW X5, white" />
+                  <p className="text-[11px] text-muted-foreground mt-1">The client and car are saved into the app when you press Start.</p>
+                </div>
+              ) : (
+                <div>
+                  <Label className="text-xs">Vehicle</Label>
+                  <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
+                    <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
+                    <SelectContent>
+                      {clientId && (
+                        <SelectItem value={NEW_VEHICLE}>
+                          <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
+                        </SelectItem>
+                      )}
+                      {clientVehicles.map(v => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!vehicleId && clientId && carInfo.trim() && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Heard: "{carInfo}" — pick the matching vehicle or add it.</p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <Label className="text-xs">Assigned worker</Label>
                 <Select value={assignedTo} onValueChange={setAssignedTo}>
@@ -325,7 +391,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
             </Button>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!clientId || !vehicleId || !requestedWork.trim()} className="min-w-24">Save</Button>
+          <Button onClick={handleSave} disabled={!canSave} className="min-w-24">Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -334,9 +400,6 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
       <VinScanner
         onVinDetected={handleVinScanned}
         onClose={() => setShowVinScanner(false)}
-        googleApiKey={settings.googleApiKey}
-        grokApiKey={settings.grokApiKey}
-        ocrSpaceApiKey={settings.ocrSpaceApiKey}
         ocrProvider={settings.ocrProvider}
       />
     )}

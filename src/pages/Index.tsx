@@ -868,7 +868,9 @@ const Index = () => {
               onDelete={deleteScheduleEntry}
               onStartTask={handleStartScheduledTask}
               onAddVehicle={addVehicle}
+              onAddClient={addClient}
               onUpdateVehicle={updateVehicle}
+
             />
           </TabsContent>
         </Tabs>

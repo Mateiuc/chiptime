@@ -227,15 +227,15 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
             const isOverdue = entry.scheduledAt && new Date(entry.scheduledAt) < new Date();
             const canEdit = !entry.createdBy || entry.createdBy === uid;
             const hasVin = !!vehicle?.vin?.trim();
+            const isNew = entryIsNewClient(entry, clients);
+
             return (
               <div key={entry.id} className={`rounded-xl border p-3 space-y-2 ${isOverdue ? 'border-orange-400/60 bg-orange-500/5' : 'border-border bg-card'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-sm">{client?.name || 'Unknown client'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle (no info yet)' : 'Unknown vehicle'}
-                    </div>
-                  </div>
+                {/* 1. When */}
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline" className={`gap-1 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
+                    <Calendar className="h-3 w-3" /> {formatWhen(entry.scheduledAt)}
+                  </Badge>
                   <div className="flex items-center gap-1 shrink-0">
                     {vehicle && (
                       <Button
@@ -259,16 +259,32 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                     </Button>
                   </div>
                 </div>
+
+                {/* 2. Client   3. Car */}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm">{entryClientName(entry, clients)}</span>
+                    {isNew && (
+                      <Badge variant="outline" className="border-sky-500/60 text-sky-700 dark:text-sky-400 text-[10px]">New client</Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{entryCarLabel(entry, vehicles)}</div>
+                </div>
+
+                {/* 4. Work to be done */}
                 <p className="text-sm whitespace-pre-wrap break-words">{entry.requestedWork}</p>
+
+                {/* 5. Notes */}
+                {entry.notes && (
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words border-l-2 border-border pl-2">{entry.notes}</p>
+                )}
+
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <Badge variant="outline" className={`gap-1 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
-                    <Calendar className="h-3 w-3" /> {formatWhen(entry.scheduledAt)}
-                  </Badge>
-                  {hasVin ? (
-                    <Badge variant="outline" className="font-mono text-[10px]">{vehicle!.vin}</Badge>
+                  {vehicle && (hasVin ? (
+                    <Badge variant="outline" className="font-mono text-[10px]">{vehicle.vin}</Badge>
                   ) : (
                     <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400">No VIN yet</Badge>
-                  )}
+                  ))}
                   {worker && (
                     <Badge variant="outline" className="gap-1" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
                       <UserIcon className="h-3 w-3" /> {worker.firstName}
@@ -276,6 +292,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
                   )}
                 </div>
               </div>
+
             );
           })}
         </div>

@@ -396,7 +396,7 @@ export const DesktopScheduleView = ({
     };
     onStartTask(newTask);
     onUpdate(entry.id, { status: 'started', startedTaskId: newTask.id });
-    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() });
+    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || client.name });
   };
 
   const handleScanForCard = async (scanned: string) => {
@@ -430,10 +430,9 @@ export const DesktopScheduleView = ({
   const selectionLabel = (() => {
     if (isDraft) return 'New scheduled job';
     if (!selectedEntry) return null;
-    const c = clients.find(x => x.id === selectedEntry.clientId);
-    const v = vehicles.find(x => x.id === selectedEntry.vehicleId);
-    return `${c?.name || 'Client'} — ${v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'vehicle') : 'vehicle'}`;
+    return `${entryClientName(selectedEntry, clients)} — ${entryCarLabel(selectedEntry, vehicles)}`;
   })();
+
 
   return (
     <div className="flex-1 flex overflow-hidden">

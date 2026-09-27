@@ -391,7 +391,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
             </Button>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!clientId || !vehicleId || !requestedWork.trim()} className="min-w-24">Save</Button>
+          <Button onClick={handleSave} disabled={!canSave} className="min-w-24">Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

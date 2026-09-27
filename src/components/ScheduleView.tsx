@@ -239,9 +239,6 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
         <VinScanner
           onVinDetected={handleVinScanned}
           onClose={() => setScanForVehicleId(null)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}

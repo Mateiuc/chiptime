@@ -334,9 +334,6 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
       <VinScanner
         onVinDetected={handleVinScanned}
         onClose={() => setShowVinScanner(false)}
-        googleApiKey={settings.googleApiKey}
-        grokApiKey={settings.grokApiKey}
-        ocrSpaceApiKey={settings.ocrSpaceApiKey}
         ocrProvider={settings.ocrProvider}
       />
     )}

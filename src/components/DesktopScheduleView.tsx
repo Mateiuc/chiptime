@@ -728,9 +728,6 @@ export const DesktopScheduleView = ({
         <VinScanner
           onVinDetected={handleVinScanned}
           onClose={() => setShowVinScanner(false)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}
@@ -738,9 +735,6 @@ export const DesktopScheduleView = ({
         <VinScanner
           onVinDetected={handleScanForCard}
           onClose={() => setScanForVehicleId(null)}
-          googleApiKey={settings.googleApiKey}
-          grokApiKey={settings.grokApiKey}
-          ocrSpaceApiKey={settings.ocrSpaceApiKey}
           ocrProvider={settings.ocrProvider}
         />
       )}

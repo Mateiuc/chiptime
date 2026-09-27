@@ -264,7 +264,6 @@ export const EditVehicleDialog = ({
           <VinScanner
             onVinDetected={handleScan}
             onClose={() => setShowScanner(false)}
-            googleApiKey={settings.googleApiKey}
           />
         </div>
       )}

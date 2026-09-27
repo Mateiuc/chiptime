@@ -169,7 +169,6 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       await onAddVehicle(created);
       vehicle = created;
     }
-    onUpdate(entry.id, { clientId: client.id, vehicleId: vehicle.id, clientName: undefined, carInfo: undefined });
 
     const session: WorkSession = {
       id: crypto.randomUUID(),
@@ -195,7 +194,7 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       createdBy: getCurrentUserId() || undefined,
     };
     onStartTask(newTask);
-    onUpdate(entry.id, { status: 'started', startedTaskId: newTask.id });
+    onUpdate(entry.id, { clientId: client.id, vehicleId: vehicle.id, clientName: undefined, carInfo: undefined, status: 'started', startedTaskId: newTask.id });
     toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || client.name });
   };
 

@@ -35,6 +35,8 @@ interface Props {
 }
 
 const NEW_VEHICLE = '__new__';
+const NEW_CLIENT = '__newclient__';
+
 const DRAFT_ID = '__draft__';
 
 const toLocalDate = (d?: Date) => {
@@ -655,31 +657,69 @@ export const DesktopScheduleView = ({
                   <div className="space-y-4">
                     <div>
                       <Label className="text-xs">Client</Label>
-                      <Select value={clientId} onValueChange={v => { setClientId(v); setVehicleId(''); resetNewVehicle(); markDirty(); }}>
+                      <Select
+                        value={newClient ? NEW_CLIENT : clientId}
+                        onValueChange={v => {
+                          if (v === NEW_CLIENT) {
+                            setNewClient(true); setClientId(''); setVehicleId('');
+                            resetNewVehicle(); markDirty();
+                            return;
+                          }
+                          setNewClient(false); setClientName(''); setClientPhone(''); setCarInfo('');
+                          setClientId(v); setVehicleId(''); resetNewVehicle(); markDirty();
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={NEW_CLIENT}>
+                            <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> New client (not in the app yet)</span>
+                          </SelectItem>
                           {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label className="text-xs">Vehicle</Label>
-                      <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
-                        <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
-                        <SelectContent>
-                          {clientId && (
-                            <SelectItem value={NEW_VEHICLE}>
-                              <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
-                            </SelectItem>
-                          )}
-                          {clientVehicles.map(v => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {newClient && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Name</Label>
+                          <Input value={clientName} onChange={e => { setClientName(e.target.value); markDirty(); }} placeholder="Client name" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Phone (optional)</Label>
+                          <Input value={clientPhone} onChange={e => { setClientPhone(e.target.value); markDirty(); }} placeholder="Phone" />
+                        </div>
+                      </div>
+                    )}
+                    {newClient ? (
+                      <div>
+                        <Label className="text-xs">Car</Label>
+                        <Input value={carInfo} onChange={e => { setCarInfo(e.target.value); markDirty(); }} placeholder="e.g. 2019 BMW X5, white" />
+                        <p className="text-[11px] text-muted-foreground mt-1">The client and car are saved into the app when you press Start.</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label className="text-xs">Vehicle</Label>
+                        <Select value={vehicleId} onValueChange={handleVehicleSelect} disabled={!clientId}>
+                          <SelectTrigger><SelectValue placeholder={clientId ? 'Select vehicle' : 'Pick a client first'} /></SelectTrigger>
+                          <SelectContent>
+                            {clientId && (
+                              <SelectItem value={NEW_VEHICLE}>
+                                <span className="flex items-center gap-1 text-primary font-medium"><Plus className="h-3.5 w-3.5" /> Add new vehicle</span>
+                              </SelectItem>
+                            )}
+                            {clientVehicles.map(v => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!vehicleId && clientId && carInfo.trim() && (
+                          <p className="text-[11px] text-muted-foreground mt-1">Heard: "{carInfo}" — pick the matching vehicle or add it.</p>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <Label className="text-xs">Assigned worker</Label>
                       <Select value={assignedTo} onValueChange={v => { setAssignedTo(v); markDirty(); }}>

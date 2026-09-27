@@ -23,6 +23,8 @@ interface Props {
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  onAddClient: (c: Client) => Promise<void> | void;
+
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
 }
 
@@ -37,7 +39,7 @@ const formatWhen = (d?: Date): string => {
   });
 };
 
-export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle }: Props) => {
+export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onAddClient, onUpdateVehicle }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEntry | null>(null);
   const [voiceInitial, setVoiceInitial] = useState<ScheduleEntry | null>(null);
@@ -64,14 +66,19 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
     }
     const synthetic: ScheduleEntry = {
       id: 'voice-draft',
-      clientId: draft.clientId || '',
-      vehicleId: draft.vehicleId || '',
+      clientId: draft.clientId || undefined,
+      clientName: draft.clientId ? undefined : draft.clientName || undefined,
+      clientPhone: draft.clientId ? undefined : draft.clientPhone || undefined,
+      vehicleId: draft.vehicleId || undefined,
+      carInfo: draft.vehicleId ? undefined : draft.carInfo || undefined,
       requestedWork: draft.requestedWork,
       scheduledAt,
       assignedTo: draft.assignedTo || undefined,
+      notes: draft.notes || undefined,
       status: 'scheduled',
       createdAt: new Date(),
     };
+
     setEditing(null);
     setVoiceInitial(synthetic);
     setVoiceTranscript(transcript);

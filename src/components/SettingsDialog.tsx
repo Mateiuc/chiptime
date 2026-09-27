@@ -91,25 +91,20 @@ export const SettingsDialog = ({
     }
   }, [open]);
 
-  const [googleApiKey, setGoogleApiKey] = useState(settings.googleApiKey || '');
-  const [grokApiKey, setGrokApiKey] = useState(settings.grokApiKey || '');
-  const [ocrSpaceApiKey, setOcrSpaceApiKey] = useState(settings.ocrSpaceApiKey || '');
-  const [ocrProvider, setOcrProvider] = useState<'gemini' | 'grok' | 'ocrspace' | 'tesseract'>(settings.ocrProvider || 'gemini');
+  const [ocrProvider, setOcrProvider] = useState<'claude' | 'tesseract'>(settings.ocrProvider || 'claude');
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notificationsEnabled !== false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(
     settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
   );
 
   useEffect(() => {
-    setGoogleApiKey(settings.googleApiKey || '');
-    setGrokApiKey(settings.grokApiKey || '');
-    setOcrSpaceApiKey(settings.ocrSpaceApiKey || '');
-    setOcrProvider(settings.ocrProvider || 'gemini');
+    setOcrProvider(settings.ocrProvider || 'claude');
     setNotificationsEnabled(settings.notificationsEnabled !== false);
     setPaymentMethods(
       settings.paymentMethods || (settings.paymentLink ? [{ label: settings.paymentLabel || 'Pay', url: settings.paymentLink }] : [])
     );
-  }, [settings.googleApiKey, settings.grokApiKey, settings.ocrSpaceApiKey, settings.ocrProvider, settings.notificationsEnabled, settings.paymentMethods, settings.paymentLink, settings.paymentLabel]);
+  }, [settings.ocrProvider, settings.notificationsEnabled, settings.paymentMethods, settings.paymentLink, settings.paymentLabel]);
+
 
   const handleSaveSettings = () => {
     onSave({
@@ -118,10 +113,9 @@ export const SettingsDialog = ({
       defaultProgrammingRate: programmingRate ? parseFloat(programmingRate) : undefined,
       defaultAddKeyRate: addKeyRate ? parseFloat(addKeyRate) : undefined,
       defaultAllKeysLostRate: allKeysLostRate ? parseFloat(allKeysLostRate) : undefined,
-      googleApiKey: googleApiKey.trim() || undefined,
-      grokApiKey: grokApiKey.trim() || undefined,
-      ocrSpaceApiKey: ocrSpaceApiKey.trim() || undefined,
+      googleApiKey: settings.googleApiKey,
       ocrProvider,
+
       backup: settings.backup,
       notificationsEnabled,
       paymentMethods: paymentMethods.filter(m => m.label.trim() && m.url.trim()),

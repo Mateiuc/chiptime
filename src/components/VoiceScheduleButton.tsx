@@ -1,12 +1,15 @@
 // Developed by Chip
-// Fully offline voice → schedule draft. No network calls, no edge functions,
-// no STT/LLM APIs. Uses the browser Web Speech API + chrono-node + fuse.js.
+// Voice → schedule draft. Speech is captured free in the browser (Web Speech
+// API); understanding the sentence is done by the app's AI (Claude) so the
+// client, car, date and work can be picked out of free-form speech. If the AI
+// is unreachable we fall back to fully offline parsing (chrono + fuse).
 import { useEffect, useRef, useState } from 'react';
 import * as chrono from 'chrono-node';
 import Fuse from 'fuse.js';
-import { Mic, Square } from 'lucide-react';
+import { Mic, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNotifications } from '@/hooks/useNotifications';
+import { supabase } from '@/integrations/supabase/client';
 
 // Minimal local typings for webkitSpeechRecognition so we don't pull extra @types.
 interface SRAlternative { transcript: string }
@@ -17,6 +20,7 @@ interface SpeechRecognitionLike {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
+  maxAlternatives?: number;
   onresult: ((e: SREvent) => void) | null;
   onerror: ((e: SRErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -34,17 +38,24 @@ export interface VoiceContext {
 
 export interface VoiceDraft {
   clientId: string | null;
+  clientName: string | null;
+  clientPhone: string | null;
   vehicleId: string | null;
+  carInfo: string | null;
   assignedTo: string | null;
   date: string | null; // YYYY-MM-DD local
   time: string | null; // HH:mm 24h local
   requestedWork: string;
+  notes: string | null;
 }
 
 interface Props {
   context: VoiceContext;
   onParsed: (draft: VoiceDraft, transcript: string) => void;
+  /** Spoken language, e.g. 'en-US'. */
+  lang?: string;
 }
+
 
 const pad = (n: number) => String(n).padStart(2, '0');
 

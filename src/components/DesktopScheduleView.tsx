@@ -153,13 +153,19 @@ export const DesktopScheduleView = ({
   // Load entry into form on selection
   useEffect(() => {
     if (isDraft) {
-      setClientId(''); setVehicleId(''); setRequestedWork('');
+      setClientId(''); setNewClient(false); setClientName(''); setClientPhone('');
+      setCarInfo(''); setVehicleId(''); setRequestedWork('');
       setDateStr(draftDefaultDate); setTimeStr(''); setAssignedTo('any'); setNotes('');
       setDirty(false); resetNewVehicle();
       return;
     }
     if (!selectedEntry) return;
-    setClientId(selectedEntry.clientId || '');
+    const existing = selectedEntry.clientId && clients.some(c => c.id === selectedEntry.clientId);
+    setClientId(existing ? selectedEntry.clientId! : '');
+    setNewClient(!existing && !!selectedEntry.clientName);
+    setClientName(selectedEntry.clientName || '');
+    setClientPhone(selectedEntry.clientPhone || '');
+    setCarInfo(selectedEntry.carInfo || '');
     setVehicleId(selectedEntry.vehicleId || '');
     setRequestedWork(selectedEntry.requestedWork || '');
     setDateStr(toLocalDate(selectedEntry.scheduledAt));
@@ -169,6 +175,7 @@ export const DesktopScheduleView = ({
     setDirty(false);
     resetNewVehicle();
   }, [selectedId, isDraft, selectedEntry?.id]);
+
 
   const markDirty = () => setDirty(true);
 

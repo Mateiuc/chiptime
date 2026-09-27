@@ -3,9 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { X, Bug, Copy, Flashlight, Sun, ZoomIn, ZoomOut } from 'lucide-react';
 import { validateVinStrict } from '@/lib/vinDecoder';
-import { readVinWithGemini, type OcrResult as GeminiOcrResult } from '@/lib/geminiVinOcr';
-import { readVinWithGrok, type OcrResult as GrokOcrResult } from '@/lib/grokVinOcr';
-import { readVinWithOcrSpace, type OcrResult as OcrSpaceOcrResult } from '@/lib/ocrSpaceVinOcr';
+import { readVinWithClaude, type OcrResult as ClaudeOcrResult } from '@/lib/claudeVinOcr';
 import { readVinWithTesseract, type OcrResult as TesseractOcrResult } from '@/lib/tesseractVinOcr';
 import { useNotifications } from '@/hooks/useNotifications';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
@@ -13,25 +11,21 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { pickMainRearCameraId } from '@/lib/cameraSelect';
 
-type OcrResult = GeminiOcrResult | GrokOcrResult | OcrSpaceOcrResult | TesseractOcrResult;
+type OcrResult = ClaudeOcrResult | TesseractOcrResult;
+type OcrProvider = 'claude' | 'tesseract';
 
 interface VinScannerProps {
   onVinDetected: (vin: string) => void;
   onClose: () => void;
-  googleApiKey?: string;
-  grokApiKey?: string;
-  ocrSpaceApiKey?: string;
-  ocrProvider?: 'gemini' | 'grok' | 'ocrspace' | 'tesseract';
+  ocrProvider?: OcrProvider;
 }
 
-const VinScanner: React.FC<VinScannerProps> = ({ 
-  onVinDetected, 
-  onClose, 
-  googleApiKey, 
-  grokApiKey,
-  ocrSpaceApiKey, 
-  ocrProvider = 'gemini' 
+const VinScanner: React.FC<VinScannerProps> = ({
+  onVinDetected,
+  onClose,
+  ocrProvider = 'claude'
 }) => {
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

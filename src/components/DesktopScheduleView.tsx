@@ -305,9 +305,15 @@ export const DesktopScheduleView = ({
     if (isDraft) { setIsDraft(false); setSelectedId(null); }
     else if (selectedEntry) {
       // reload from source
-      setClientId(selectedEntry.clientId);
-      setVehicleId(selectedEntry.vehicleId);
+      const existing = selectedEntry.clientId && clients.some(c => c.id === selectedEntry.clientId);
+      setClientId(existing ? selectedEntry.clientId! : '');
+      setNewClient(!existing && !!selectedEntry.clientName);
+      setClientName(selectedEntry.clientName || '');
+      setClientPhone(selectedEntry.clientPhone || '');
+      setCarInfo(selectedEntry.carInfo || '');
+      setVehicleId(selectedEntry.vehicleId || '');
       setRequestedWork(selectedEntry.requestedWork);
+
       setDateStr(toLocalDate(selectedEntry.scheduledAt));
       setTimeStr(toLocalTime(selectedEntry.scheduledAt));
       setAssignedTo(selectedEntry.assignedTo || 'any');

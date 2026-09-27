@@ -167,21 +167,11 @@ const VinScanner: React.FC<VinScannerProps> = ({
 
   // Auto-start continuous OCR scan when frame is ready
   useEffect(() => {
-    const hasApiKey = ocrProvider === 'tesseract' ||
-                     (ocrProvider === 'grok' && grokApiKey) || 
-                     (ocrProvider === 'gemini' && googleApiKey) ||
-                     (ocrProvider === 'ocrspace' && ocrSpaceApiKey);
-    if (hasApiKey && isFrameReady && stream && !scanningRef.current) {
+    if (isFrameReady && stream && !scanningRef.current) {
       startContinuousOcrScan();
-    } else if (!hasApiKey && isFrameReady && stream && !warnedNoKeyRef.current) {
-      warnedNoKeyRef.current = true;
-      toast({
-        title: 'OCR provider not configured',
-        description: `Set an API key for ${ocrProvider.toUpperCase()} in Settings to enable VIN scanning.`,
-        variant: 'destructive'
-      });
     }
-  }, [googleApiKey, grokApiKey, ocrSpaceApiKey, ocrProvider, isFrameReady, stream]);
+  }, [ocrProvider, isFrameReady, stream]);
+
 
 
   const startCamera = async () => {
@@ -371,7 +361,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
   };
 
   // Capture single frame for manual mode
-  const captureSingleFrame = async (provider?: 'gemini' | 'grok' | 'ocrspace' | 'tesseract') => {
+  const captureSingleFrame = async (provider?: OcrProvider) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -380,19 +370,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
     if (!context || !containerRef.current || !guideRef.current) return;
 
     const providerToUse = provider || ocrProvider;
-    const apiKey = providerToUse === 'grok' ? grokApiKey : 
-                   providerToUse === 'ocrspace' ? ocrSpaceApiKey : 
-                   providerToUse === 'tesseract' ? undefined : googleApiKey;
 
-    // Tesseract doesn't need an API key
-    if (providerToUse !== 'tesseract' && !apiKey) {
-      toast({
-        title: 'API key missing',
-        description: `Configure ${providerToUse.toUpperCase()} API key in Settings.`,
-        variant: 'destructive'
-      });
-      return;
-    }
 
     // Get DOM rectangles
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -476,13 +454,10 @@ const VinScanner: React.FC<VinScannerProps> = ({
       let result: string | null | OcrResult = null;
       if (providerToUse === 'tesseract') {
         result = await readVinWithTesseract({ base64Image: base64, signal: controller.signal, debug: true });
-      } else if (providerToUse === 'grok') {
-        result = await readVinWithGrok({ base64Image: base64, apiKey: apiKey!, signal: controller.signal, debug: true });
-      } else if (providerToUse === 'ocrspace') {
-        result = await readVinWithOcrSpace({ base64Image: base64, apiKey: apiKey!, signal: controller.signal, debug: true });
       } else {
-        result = await readVinWithGemini({ base64Image: base64, apiKey: apiKey!, signal: controller.signal, debug: true });
+        result = await readVinWithClaude({ base64Image: base64, mediaType: 'image/png', signal: controller.signal, debug: true });
       }
+
 
       if (result && typeof result === 'object') {
         setLastOcrResult(result);
@@ -527,11 +502,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
   };
 
   const startContinuousOcrScan = async () => {
-    const hasApiKey = ocrProvider === 'tesseract' ||
-                     (ocrProvider === 'grok' && grokApiKey) || 
-                     (ocrProvider === 'gemini' && googleApiKey) ||
-                     (ocrProvider === 'ocrspace' && ocrSpaceApiKey);
-    if (!videoRef.current || !canvasRef.current || !hasApiKey) return;
+    if (!videoRef.current || !canvasRef.current) return;
+
 
     setIsScanning(true);
     scanningRef.current = true;
@@ -655,14 +627,11 @@ const VinScanner: React.FC<VinScannerProps> = ({
         try {
           if (ocrProvider === 'tesseract') {
             vin = await readVinWithTesseract({ base64Image: base64, signal: controller.signal, debug: false }) as string | null;
-          } else if (ocrProvider === 'grok' && grokApiKey) {
-            vin = await readVinWithGrok({ base64Image: base64, apiKey: grokApiKey, signal: controller.signal, debug: false }) as string | null;
-          } else if (ocrProvider === 'ocrspace' && ocrSpaceApiKey) {
-            vin = await readVinWithOcrSpace({ base64Image: base64, apiKey: ocrSpaceApiKey, signal: controller.signal, debug: false }) as string | null;
-          } else if (googleApiKey) {
-            vin = await readVinWithGemini({ base64Image: base64, apiKey: googleApiKey, signal: controller.signal, debug: false }) as string | null;
+          } else {
+            vin = await readVinWithClaude({ base64Image: base64, mediaType: 'image/png', signal: controller.signal, debug: false }) as string | null;
           }
         } finally {
+
           clearTimeout(timeoutId);
         }
 
@@ -833,49 +802,19 @@ const VinScanner: React.FC<VinScannerProps> = ({
                 onClick={() => captureSingleFrame()}
                 className="w-full"
               >
-                Capture with {ocrProvider.toUpperCase()}
+                Capture with {ocrProvider === 'tesseract' ? 'offline reader' : 'AI'}
               </Button>
-              <div className="flex gap-2">
-                {ocrProvider !== 'gemini' && googleApiKey && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => captureSingleFrame('gemini')}
-                    className="flex-1"
-                  >
-                    Retry: Gemini
-                  </Button>
-                )}
-                {ocrProvider !== 'grok' && grokApiKey && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => captureSingleFrame('grok')}
-                    className="flex-1"
-                  >
-                    Retry: Grok
-                  </Button>
-                )}
-                {ocrProvider !== 'ocrspace' && ocrSpaceApiKey && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => captureSingleFrame('ocrspace')}
-                    className="flex-1"
-                  >
-                    Retry: OCR.space
-                  </Button>
-                )}
-              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => captureSingleFrame(ocrProvider === 'tesseract' ? 'claude' : 'tesseract')}
+              >
+                Retry with {ocrProvider === 'tesseract' ? 'AI' : 'offline reader'}
+              </Button>
             </div>
           )}
 
-          {lastFrameDataUrl && (
-            <div>
-              <p className="font-medium mb-1">Last Captured Frame:</p>
-              <img src={lastFrameDataUrl} alt="Last frame" className="w-full border rounded" />
-            </div>
-          )}
 
           {lastOcrResult && (
             <>

@@ -612,12 +612,17 @@ export const DesktopScheduleView = ({
                               <div className="font-bold text-sm tabular-nums">{time}</div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="font-bold text-sm truncate">{client?.name || 'Unknown'}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle' : 'Unknown vehicle'}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-bold text-sm truncate">{entryClientName(entry, clients)}</span>
+                                {entryIsNewClient(entry, clients) && (
+                                  <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-500/60 text-sky-700 dark:text-sky-400 shrink-0">New</Badge>
+                                )}
                               </div>
+                              <div className="text-xs text-muted-foreground truncate">{entryCarLabel(entry, vehicles)}</div>
                               <div className="text-xs text-foreground/70 truncate mt-0.5">{entry.requestedWork}</div>
+                              {entry.notes && <div className="text-[11px] text-muted-foreground truncate italic">{entry.notes}</div>}
                             </div>
+
                             {worker && (
                               <Badge variant="outline" className="gap-1 text-[10px] h-5 shrink-0" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
                                 <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}

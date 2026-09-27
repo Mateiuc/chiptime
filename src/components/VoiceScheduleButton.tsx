@@ -151,8 +151,66 @@ const parseTranscript = (raw: string, ctx: VoiceContext): VoiceDraft => {
   let requestedWork = stripSpans(raw, spans);
   if (!requestedWork) requestedWork = raw.trim();
 
-  return { clientId, vehicleId, assignedTo, date, time, requestedWork };
+  return {
+    clientId,
+    clientName: clientId ? null : null,
+    clientPhone: null,
+    vehicleId,
+    carInfo: null,
+    assignedTo,
+    date,
+    time,
+    requestedWork,
+    notes: null,
+  };
 };
+
+/** Ask the app's AI to understand the sentence. Returns null when unavailable. */
+const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft | null> => {
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const now = new Date();
+  const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+
+  const clientName = new Map(ctx.clients.map(c => [c.id, c.name]));
+  const { data, error } = await supabase.functions.invoke('ai-parse-schedule', {
+    body: {
+      transcript: raw,
+      today,
+      clients: ctx.clients.map(c => ({ id: c.id, label: c.name })),
+      vehicles: ctx.vehicles.map(v => ({
+        id: v.id,
+        label: `${clientName.get(v.clientId) || 'unknown owner'} — ${[v.year, v.make, v.model, v.color].filter(Boolean).join(' ')}`,
+      })),
+    },
+  });
+
+  if (error || !data?.draft) return null;
+  const d = data.draft;
+
+  // Worker is matched locally — the AI is not given the worker list.
+  let assignedTo: string | null = null;
+  if (ctx.workers.length > 0) {
+    const fuse = new Fuse(ctx.workers, { keys: ['firstName'], threshold: 0.4 });
+    assignedTo = fuse.search(raw)[0]?.item.id || null;
+  }
+
+  const clientId = d.clientId && ctx.clients.some(c => c.id === d.clientId) ? d.clientId : null;
+  const vehicleId = d.vehicleId && ctx.vehicles.some(v => v.id === d.vehicleId) ? d.vehicleId : null;
+
+  return {
+    clientId,
+    clientName: d.clientName || null,
+    clientPhone: d.clientPhone || null,
+    vehicleId,
+    carInfo: d.carInfo || null,
+    assignedTo,
+    date: d.date || null,
+    time: d.time || null,
+    requestedWork: (d.requestedWork || raw).trim(),
+    notes: d.notes || null,
+  };
+};
+
 
 export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
   const { toast } = useNotifications();

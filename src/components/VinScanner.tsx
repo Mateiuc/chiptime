@@ -46,7 +46,6 @@ const VinScanner: React.FC<VinScannerProps> = ({
   const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
-  const warnedNoKeyRef = useRef(false);
   
   // Debug state
   const [debugMode, setDebugMode] = useState(false);
@@ -615,8 +614,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
         context.putImageData(imgData, 0, 0);
 
         // PNG for Tesseract (lossless), JPEG for other providers
-        const isPng = ocrProvider === 'tesseract';
-        const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.95);
+        const dataUrl = canvas.toDataURL('image/png');
+
         const base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
 
         // Call selected OCR provider with timeout

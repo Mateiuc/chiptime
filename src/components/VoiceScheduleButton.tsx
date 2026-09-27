@@ -334,36 +334,47 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
       <Button
         size="sm"
         onClick={start}
+        disabled={thinking}
         className="h-9 w-9 rounded-full p-0 bg-primary hover:bg-primary/90"
         title="Voice schedule"
       >
-        <Mic className="h-4 w-4" />
+        {thinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
       </Button>
 
-      {listening && (
+      {(listening || thinking) && (
         <div className="fixed inset-x-0 bottom-0 z-50 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pointer-events-none">
           <div className="mx-auto max-w-md rounded-2xl border-2 border-primary bg-card shadow-2xl p-4 space-y-3 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
-              </span>
-              <span className="font-bold text-sm">Listening…</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">auto-stops on pause</span>
-            </div>
-            <div className="min-h-[3rem] max-h-32 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
-              <span className="text-foreground">{finalRef.current}</span>
-              {interim && <span className="text-muted-foreground"> {interim}</span>}
-              {!finalRef.current && !interim && (
-                <span className="text-muted-foreground italic">Say the client, car, work, and when…</span>
-              )}
-            </div>
-            <Button size="sm" variant="destructive" className="w-full" onClick={stop}>
-              <Square className="h-4 w-4 mr-1" /> Stop
-            </Button>
+            {thinking ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-bold text-sm">Writing the job…</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                  </span>
+                  <span className="font-bold text-sm">Listening…</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">tap Stop when done</span>
+                </div>
+                <div className="min-h-[3rem] max-h-32 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
+                  <span className="text-foreground">{finalRef.current}</span>
+                  {interim && <span className="text-muted-foreground"> {interim}</span>}
+                  {!finalRef.current && !interim && (
+                    <span className="text-muted-foreground italic">Say the date, the client, the car and the work…</span>
+                  )}
+                </div>
+                <Button size="sm" variant="destructive" className="w-full" onClick={stop}>
+                  <Square className="h-4 w-4 mr-1" /> Stop
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
+
     </>
   );
 };

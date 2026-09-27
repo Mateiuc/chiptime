@@ -11,6 +11,8 @@ import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
 import VoiceScheduleButton, { VoiceDraft } from './VoiceScheduleButton';
+import { entryClientName, entryCarLabel, entryIsNewClient, parseCarInfo } from '@/lib/scheduleEntry';
+
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -126,13 +128,49 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
       });
   }, [schedule]);
 
-  const handleStart = (entry: ScheduleEntry) => {
-    const client = clients.find(c => c.id === entry.clientId);
-    const vehicle = vehicles.find(v => v.id === entry.vehicleId);
-    if (!client || !vehicle) {
-      toast({ title: 'Cannot start', description: 'Client or vehicle missing', variant: 'destructive' });
-      return;
+  const handleStart = async (entry: ScheduleEntry) => {
+    let client = clients.find(c => c.id === entry.clientId);
+    let vehicle = vehicles.find(v => v.id === entry.vehicleId);
+
+    // The job may have been booked for someone who isn't in the app yet —
+    // register the client and the car on the spot.
+    if (!client) {
+      const name = entry.clientName?.trim();
+      if (!name) {
+        toast({ title: 'Cannot start', description: 'No client on this job', variant: 'destructive' });
+        return;
+      }
+      const created: Client = {
+        id: crypto.randomUUID(),
+        name,
+        phone: entry.clientPhone?.trim() || undefined,
+        createdAt: new Date(),
+        createdBy: getCurrentUserId() || undefined,
+      } as Client;
+      await onAddClient(created);
+      client = created;
     }
+    if (!vehicle) {
+      const info = entry.carInfo?.trim();
+      if (!info) {
+        toast({ title: 'Cannot start', description: 'No car on this job', variant: 'destructive' });
+        return;
+      }
+      const parsed = parseCarInfo(info);
+      const created: Vehicle = {
+        id: crypto.randomUUID(),
+        clientId: client.id,
+        vin: '',
+        make: parsed.make,
+        model: parsed.model,
+        year: parsed.year,
+        createdAt: new Date(),
+      } as Vehicle;
+      await onAddVehicle(created);
+      vehicle = created;
+    }
+    onUpdate(entry.id, { clientId: client.id, vehicleId: vehicle.id, clientName: undefined, carInfo: undefined });
+
     const session: WorkSession = {
       id: crypto.randomUUID(),
       createdAt: new Date(),
@@ -158,8 +196,9 @@ export const ScheduleView = ({ schedule, clients, vehicles, tasks, settings, onA
     };
     onStartTask(newTask);
     onUpdate(entry.id, { status: 'started', startedTaskId: newTask.id });
-    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() });
+    toast({ title: 'Timer started', description: `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || client.name });
   };
+
 
   return (
     <div className="space-y-3">

@@ -259,8 +259,10 @@ export const DesktopScheduleView = ({
   };
 
   const handleSave = () => {
-    if (!clientId || !vehicleId || !requestedWork.trim()) {
-      toast({ title: 'Missing fields', description: 'Client, vehicle and requested work are required', variant: 'destructive' });
+    const clientOk = clientId || (newClient && clientName.trim());
+    const carOk = vehicleId || carInfo.trim();
+    if (!clientOk || !carOk || !requestedWork.trim()) {
+      toast({ title: 'Missing details', description: 'Client, car and the work to be done are required', variant: 'destructive' });
       return;
     }
     let scheduledAt: Date | undefined;
@@ -268,14 +270,21 @@ export const DesktopScheduleView = ({
       const t = timeStr || '09:00';
       scheduledAt = new Date(`${dateStr}T${t}:00`);
     }
+    const shared = {
+      clientId: clientId || undefined,
+      clientName: clientId ? undefined : clientName.trim() || undefined,
+      clientPhone: clientId ? undefined : clientPhone.trim() || undefined,
+      vehicleId: vehicleId || undefined,
+      carInfo: vehicleId ? undefined : carInfo.trim() || undefined,
+      requestedWork: requestedWork.trim(),
+      scheduledAt,
+      assignedTo: assignedTo === 'any' ? undefined : assignedTo,
+      notes: notes.trim() || undefined,
+    };
     if (isDraft) {
       const entry: ScheduleEntry = {
         id: crypto.randomUUID(),
-        clientId, vehicleId,
-        requestedWork: requestedWork.trim(),
-        scheduledAt,
-        assignedTo: assignedTo === 'any' ? undefined : assignedTo,
-        notes: notes.trim() || undefined,
+        ...shared,
         status: 'scheduled',
         createdAt: new Date(),
         createdBy: getCurrentUserId() || undefined,
@@ -285,17 +294,12 @@ export const DesktopScheduleView = ({
       setSelectedId(entry.id);
       toast({ title: 'Job scheduled' });
     } else if (selectedEntry) {
-      onUpdate(selectedEntry.id, {
-        clientId, vehicleId,
-        requestedWork: requestedWork.trim(),
-        scheduledAt,
-        assignedTo: assignedTo === 'any' ? undefined : assignedTo,
-        notes: notes.trim() || undefined,
-      });
+      onUpdate(selectedEntry.id, shared);
       toast({ title: 'Saved' });
     }
     setDirty(false);
   };
+
 
   const handleCancel = () => {
     if (isDraft) { setIsDraft(false); setSelectedId(null); }

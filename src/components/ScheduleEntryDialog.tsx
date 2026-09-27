@@ -171,7 +171,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
 
 
   const handleSave = () => {
-    if (!clientId || !vehicleId || !requestedWork.trim()) return;
+    if (!canSave) return;
     let scheduledAt: Date | undefined;
     if (dateStr) {
       const t = timeStr || '09:00';
@@ -179,8 +179,11 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     }
     const entry: ScheduleEntry = {
       id: initial?.id || crypto.randomUUID(),
-      clientId,
-      vehicleId,
+      clientId: clientId || undefined,
+      clientName: clientId ? undefined : clientName.trim() || undefined,
+      clientPhone: clientId ? undefined : clientPhone.trim() || undefined,
+      vehicleId: vehicleId || undefined,
+      carInfo: vehicleId ? undefined : carInfo.trim() || undefined,
       requestedWork: requestedWork.trim(),
       scheduledAt,
       assignedTo: assignedTo === 'any' ? undefined : assignedTo,
@@ -193,6 +196,7 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     onSave(entry);
     onOpenChange(false);
   };
+
 
   return (
     <>

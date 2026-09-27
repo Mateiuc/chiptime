@@ -467,6 +467,8 @@ export const DesktopScheduleView = ({
               const isOverdue = entry.scheduledAt && new Date(entry.scheduledAt) < new Date();
               const isSelected = !isDraft && selectedId === entry.id;
               const hasVin = !!vehicle?.vin?.trim();
+              const isNew = entryIsNewClient(entry, clients);
+
               return (
                 <button
                   key={entry.id}
@@ -477,13 +479,11 @@ export const DesktopScheduleView = ({
                     'border-border bg-card hover:bg-accent/40'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm truncate">{client?.name || 'Unknown'}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin || 'Vehicle' : 'Unknown vehicle'}
-                      </div>
-                    </div>
+                  {/* 1. When */}
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline" className={`gap-1 text-[10px] h-5 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
+                      <Calendar className="h-2.5 w-2.5" /> {formatWhen(entry.scheduledAt)}
+                    </Badge>
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                       {vehicle && (
                         <Button
@@ -502,19 +502,28 @@ export const DesktopScheduleView = ({
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-foreground/80 line-clamp-2">{entry.requestedWork}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <Badge variant="outline" className={`gap-1 text-[10px] h-5 ${isOverdue ? 'border-orange-500/60 text-orange-700 dark:text-orange-400' : ''}`}>
-                      <Calendar className="h-2.5 w-2.5" /> {formatWhen(entry.scheduledAt)}
-                    </Badge>
-                    {worker && (
-                      <Badge variant="outline" className="gap-1 text-[10px] h-5" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
-                        <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
-                      </Badge>
-                    )}
+
+                  {/* 2. Client   3. Car */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-bold text-sm truncate">{entryClientName(entry, clients)}</span>
+                      {isNew && <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-500/60 text-sky-700 dark:text-sky-400 shrink-0">New</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{entryCarLabel(entry, vehicles)}</div>
                   </div>
+
+                  {/* 4. Work   5. Notes */}
+                  <p className="text-xs text-foreground/80 line-clamp-2">{entry.requestedWork}</p>
+                  {entry.notes && <p className="text-[11px] text-muted-foreground line-clamp-2 italic">{entry.notes}</p>}
+
+                  {worker && (
+                    <Badge variant="outline" className="gap-1 text-[10px] h-5" style={{ borderColor: worker.border, color: worker.color, background: worker.bg }}>
+                      <UserIcon className="h-2.5 w-2.5" /> {worker.firstName}
+                    </Badge>
+                  )}
                 </button>
               );
+
             })}
           </div>
         </ScrollArea>

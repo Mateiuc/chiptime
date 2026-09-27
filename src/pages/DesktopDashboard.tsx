@@ -1147,7 +1147,9 @@ const DesktopDashboard = () => {
           onDelete={deleteScheduleEntry}
           onStartTask={(task) => { handleStartScheduledTask(task); setDesktopView('tree'); }}
           onAddVehicle={addVehicle}
+          onAddClient={addClient}
           onUpdateVehicle={updateVehicle}
+
         />
 
       ) : desktopView === 'reports' ? (

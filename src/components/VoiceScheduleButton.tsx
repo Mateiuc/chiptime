@@ -212,10 +212,11 @@ const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft |
 };
 
 
-export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
+export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props) => {
   const { toast } = useNotifications();
   const SR = getSRCtor();
   const [listening, setListening] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [interim, setInterim] = useState('');
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const finalRef = useRef<string>('');
@@ -233,12 +234,14 @@ export const VoiceScheduleButton = ({ context, onParsed }: Props) => {
     try { recRef.current?.stop(); } catch { /* noop */ }
   };
 
+  // Generous pause window so a normal mid-sentence breath doesn't cut you off.
   const armSilence = () => {
     clearSilence();
     silenceTimerRef.current = setTimeout(() => {
       try { recRef.current?.stop(); } catch { /* noop */ }
-    }, 1500);
+    }, 4000);
   };
+
 
   useEffect(() => {
     return () => {

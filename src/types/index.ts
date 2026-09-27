@@ -166,8 +166,14 @@ export interface CloudSyncSettings {
  */
 export interface ScheduleEntry {
   id: string;
-  clientId: string;       // existing client (required)
-  vehicleId: string;      // existing vehicle (required)
+  // Either an existing client (clientId) OR a name-only client that is not in
+  // the app yet (clientName). The client record is created when work starts.
+  clientId?: string;
+  clientName?: string;
+  clientPhone?: string;
+  // Either an existing vehicle (vehicleId) OR a free-text car description.
+  vehicleId?: string;
+  carInfo?: string;
   requestedWork: string;  // what the client asked for
   scheduledAt?: Date;     // optional date/time; undefined = unscheduled
   assignedTo?: string;    // user_id of worker pinned to this job, or undefined = anyone
@@ -177,6 +183,7 @@ export interface ScheduleEntry {
   createdAt: Date;
   createdBy?: string;
 }
+
 
 
 export interface PaymentMethod {
@@ -192,10 +199,9 @@ export interface Settings {
   defaultProgrammingRate?: number;
   defaultAddKeyRate?: number;
   defaultAllKeysLostRate?: number;
-  googleApiKey?: string;
-  grokApiKey?: string;
-  ocrSpaceApiKey?: string;
-  ocrProvider?: 'gemini' | 'grok' | 'ocrspace' | 'tesseract';
+  googleApiKey?: string; // Google Drive client ID for cloud backup (not AI)
+  ocrProvider?: 'claude' | 'tesseract';
+
   backup?: BackupSettings;
   cloudSync?: CloudSyncSettings;
   notificationsEnabled?: boolean;

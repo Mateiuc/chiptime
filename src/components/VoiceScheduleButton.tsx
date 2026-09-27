@@ -271,9 +271,11 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
       toast({ title: 'Voice input unavailable', variant: 'destructive' });
       return;
     }
-    rec.lang = 'en-US';
+    rec.lang = lang;
     rec.interimResults = true;
     rec.continuous = true;
+    rec.maxAlternatives = 1;
+
     finalRef.current = '';
     setInterim('');
 
@@ -305,9 +307,18 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
       setInterim('');
       const transcript = (finalRef.current || '').trim();
       if (!transcript) return;
-      const draft = parseTranscript(transcript, context);
-      onParsed(draft, transcript);
+      setThinking(true);
+      parseWithAi(transcript, context)
+        .catch(() => null)
+        .then((aiDraft) => {
+          if (!aiDraft) {
+            toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
+          }
+          onParsed(aiDraft || parseTranscript(transcript, context), transcript);
+        })
+        .finally(() => setThinking(false));
     };
+
 
     recRef.current = rec;
     try {

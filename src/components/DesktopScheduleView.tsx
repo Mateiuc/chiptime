@@ -15,6 +15,8 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useNotifications } from '@/hooks/useNotifications';
 import VinScanner from './VinScanner';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
+import { entryClientName, entryCarLabel, entryIsNewClient, parseCarInfo } from '@/lib/scheduleEntry';
+
 
 interface Props {
   schedule: ScheduleEntry[];
@@ -27,6 +29,8 @@ interface Props {
   onDelete: (id: string) => void;
   onStartTask: (task: Task) => void;
   onAddVehicle: (v: Vehicle) => Promise<void> | void;
+  onAddClient: (c: Client) => Promise<void> | void;
+
   onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => void;
 }
 
@@ -55,7 +59,7 @@ const formatWhen = (d?: Date): string => {
 
 export const DesktopScheduleView = ({
   schedule, clients, vehicles, tasks, settings,
-  onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onUpdateVehicle,
+  onAdd, onUpdate, onDelete, onStartTask, onAddVehicle, onAddClient, onUpdateVehicle,
 }: Props) => {
   const { getWorker, allWorkers } = useWorkers();
   const uid = useCurrentUserId();
@@ -69,7 +73,12 @@ export const DesktopScheduleView = ({
 
   // Editor form state
   const [clientId, setClientId] = useState('');
+  const [newClient, setNewClient] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [carInfo, setCarInfo] = useState('');
   const [vehicleId, setVehicleId] = useState('');
+
   const [requestedWork, setRequestedWork] = useState('');
   const [dateStr, setDateStr] = useState('');
   const [timeStr, setTimeStr] = useState('');

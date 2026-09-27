@@ -264,6 +264,8 @@ export const EditVehicleDialog = ({
           <VinScanner
             onVinDetected={handleScan}
             onClose={() => setShowScanner(false)}
+            ocrProvider={settings?.ocrProvider}
+
           />
         </div>
       )}

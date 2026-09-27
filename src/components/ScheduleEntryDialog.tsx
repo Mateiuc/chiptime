@@ -42,11 +42,16 @@ const toLocalTime = (d?: Date) => {
 };
 
 const NEW_VEHICLE = '__new__';
+const NEW_CLIENT = '__newclient__';
 
 export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tasks, settings, initial, onSave, onDelete, onAddVehicle, aiTranscript }: Props) => {
   const { allWorkers } = useWorkers();
   const { toast } = useNotifications();
   const [clientId, setClientId] = useState('');
+  const [newClient, setNewClient] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [carInfo, setCarInfo] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [requestedWork, setRequestedWork] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -72,7 +77,12 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
 
   useEffect(() => {
     if (!open) return;
-    setClientId(initial?.clientId || '');
+    const existing = initial?.clientId && clients.some(c => c.id === initial.clientId);
+    setClientId(existing ? initial!.clientId! : '');
+    setNewClient(!existing && !!initial?.clientName);
+    setClientName(initial?.clientName || '');
+    setClientPhone(initial?.clientPhone || '');
+    setCarInfo(initial?.carInfo || '');
     setVehicleId(initial?.vehicleId || '');
     setRequestedWork(initial?.requestedWork || '');
     setDateStr(toLocalDate(initial?.scheduledAt));
@@ -80,7 +90,14 @@ export const ScheduleEntryDialog = ({ open, onOpenChange, clients, vehicles, tas
     setAssignedTo(initial?.assignedTo || 'any');
     setNotes(initial?.notes || '');
     resetNewVehicle();
-  }, [open, initial]);
+  }, [open, initial, clients]);
+
+  const canSave = Boolean(
+    (clientId || (newClient && clientName.trim())) &&
+    (vehicleId || carInfo.trim()) &&
+    requestedWork.trim(),
+  );
+
 
   const clientVehicles = useMemo(
     () => vehicles.filter(v => !clientId || v.clientId === clientId),

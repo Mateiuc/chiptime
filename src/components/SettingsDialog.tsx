@@ -496,127 +496,41 @@ export const SettingsDialog = ({
               </div>
 
               <div className="space-y-2">
-                <Label>OCR Provider (for VIN Scanning)</Label>
-                <RadioGroup value={ocrProvider} onValueChange={(value) => setOcrProvider(value as 'gemini' | 'grok' | 'ocrspace' | 'tesseract')}>
+                <Label>VIN Scanning</Label>
+                <RadioGroup value={ocrProvider} onValueChange={(value) => setOcrProvider(value as 'claude' | 'tesseract')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="claude" id="claude" />
+                    <Label htmlFor="claude" className="font-normal cursor-pointer">Smart reader (online, recommended)</Label>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="tesseract" id="tesseract" />
-                    <Label htmlFor="tesseract" className="font-normal cursor-pointer">Tesseract.js (Free - Offline)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="gemini" id="gemini" />
-                    <Label htmlFor="gemini" className="font-normal cursor-pointer">Google Gemini</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="grok" id="grok" />
-                    <Label htmlFor="grok" className="font-normal cursor-pointer">Grok AI</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="ocrspace" id="ocrspace" />
-                    <Label htmlFor="ocrspace" className="font-normal cursor-pointer">OCR Space</Label>
+                    <Label htmlFor="tesseract" className="font-normal cursor-pointer">Offline reader (works with no signal)</Label>
                   </div>
                 </RadioGroup>
               </div>
 
+              {ocrProvider === 'claude' && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                    ✓ Nothing to set up — reading happens through the app, no key needed.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Needs an internet connection. Switch to the offline reader when you have no signal.
+                  </p>
+                </div>
+              )}
+
               {ocrProvider === 'tesseract' && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                   <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                    ✓ Tesseract.js runs entirely in your browser — no API key needed!
+                    ✓ Runs entirely on this device — works with no signal.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    First scan may take a few seconds to download the language model (~4MB, cached afterward).
+                    First scan takes a few seconds to download the language pack (~4MB, kept afterwards). Less accurate than the smart reader.
                   </p>
                 </div>
               )}
 
-              {ocrProvider === 'gemini' && (
-                <div className="space-y-2">
-                  <Label>Google AI API Key</Label>
-                  <Input
-                    type="password"
-                    value={googleApiKey}
-                    onChange={(e) => setGoogleApiKey(e.target.value)}
-                    placeholder="Enter API key from aistudio.google.com/apikey"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Optional: Get your key from{' '}
-                    <a 
-                      href="https://aistudio.google.com/apikey" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="underline text-primary"
-                    >
-                      Google AI Studio
-                    </a>
-                    . Restrict by HTTP referrer for security.
-                  </p>
-                </div>
-              )}
-
-              {ocrProvider === 'grok' && (
-                <div className="space-y-2">
-                  <Label>Grok API Key</Label>
-                  <Input
-                    type="password"
-                    value={grokApiKey}
-                    onChange={(e) => setGrokApiKey(e.target.value)}
-                    placeholder="Enter API key from console.x.ai"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Optional: Get your key from{' '}
-                    <a 
-                      href="https://console.x.ai" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="underline text-primary"
-                    >
-                      xAI Console
-                    </a>
-                    . Enables Grok-powered VIN scanning.
-                  </p>
-                </div>
-              )}
-
-              {ocrProvider === 'ocrspace' && (
-                <div className="space-y-2">
-                  <Label>OCR Space API Key</Label>
-                  <Input
-                    type="password"
-                    value={ocrSpaceApiKey}
-                    onChange={(e) => setOcrSpaceApiKey(e.target.value)}
-                    placeholder="Enter API key from ocr.space"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Optional: Get your free key from{' '}
-                    <a 
-                      href="https://ocr.space/ocrapi" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="underline text-primary"
-                    >
-                      OCR Space API
-                    </a>
-                    . 25,000 requests/month on free tier.
-                  </p>
-                </div>
-              )}
-
-
-              {(ocrProvider === 'gemini' || ocrProvider === 'grok' || ocrProvider === 'ocrspace') && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                  <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-                    ⚠️ Security Notice
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    API keys are stored locally on your device. To protect your keys:
-                  </p>
-                  <ul className="text-xs text-amber-600 dark:text-amber-400 mt-1 list-disc list-inside space-y-0.5">
-                    <li>Restrict keys by HTTP referrer/domain in provider settings</li>
-                    <li>Use keys with limited quotas or spending limits</li>
-                    <li>Avoid installing untrusted browser extensions</li>
-                    <li>Consider using Tesseract.js for fully offline scanning</li>
-                  </ul>
-                </div>
-              )}
             </div>
           )}
 

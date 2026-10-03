@@ -305,41 +305,40 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
     rec.maxAlternatives = 1;
 
     rec.onresult = (e) => {
+      // Rebuild the whole transcript from scratch each time. Android repeats
+      // the full phrase so far in every result, so a result that starts with
+      // the previous one replaces it instead of being added again.
+      const parts: string[] = [];
       let interimText = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        const txt = r[0].transcript;
-        if (r.isFinal) finalRef.current += (finalRef.current ? ' ' : '') + txt.trim();
-        else interimText += txt;
+        const txt = r[0].transcript.trim();
+        if (!txt) continue;
+        if (!r.isFinal) { interimText = txt; continue; }
+        const last = parts[parts.length - 1];
+        if (last && txt.toLowerCase().startsWith(last.toLowerCase())) parts[parts.length - 1] = txt;
+        else if (last && last.toLowerCase().startsWith(txt.toLowerCase())) { /* older, shorter copy */ }
+        else parts.push(txt);
       }
+      const last = parts[parts.length - 1];
+      if (interimText && last && interimText.toLowerCase().startsWith(last.toLowerCase())) {
+        parts.pop();
+      }
+      finalRef.current = parts.join(' ');
       pendingInterimRef.current = interimText;
       setInterim(interimText);
       armSilence();
     };
     rec.onerror = (e) => {
-      if (e.error === 'no-speech' || e.error === 'aborted' || e.error === 'network') return; // onend restarts
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
       wantRef.current = false;
       const msg = e.error === 'not-allowed' || e.error === 'service-not-allowed'
         ? 'Microphone permission denied'
         : `Voice error: ${e.error}`;
       toast({ title: msg, variant: 'destructive' });
     };
-    rec.onend = () => {
-      if (pendingInterimRef.current.trim()) {
-        finalRef.current += (finalRef.current ? ' ' : '') + pendingInterimRef.current.trim();
-        pendingInterimRef.current = '';
-        setInterim('');
-      }
-      if (wantRef.current) {
-        // Premature end (breath/pause) — keep listening.
-        setTimeout(() => {
-          if (!wantRef.current) { finish(); return; }
-          if (!startSession()) finish();
-        }, 150);
-        return;
-      }
-      finish();
-    };
+    // One session only — no auto-restart (each restart makes the phone beep).
+    rec.onend = () => finish();
 
     recRef.current = rec;
     try { rec.start(); return true; } catch { return false; }

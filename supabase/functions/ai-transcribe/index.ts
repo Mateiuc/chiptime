@@ -1,7 +1,7 @@
 // Turns a recorded voice clip (WAV) into text via the Lovable AI Gateway.
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
-const MODEL = 'openai/gpt-4o-transcribe';
+const MODEL = 'openai/gpt-4o-mini-transcribe';
 const MAX_BYTES = 14 * 1024 * 1024;
 
 Deno.serve(async (req) => {

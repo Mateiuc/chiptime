@@ -713,8 +713,12 @@ export const DesktopScheduleView = ({
                             ))}
                           </SelectContent>
                         </Select>
-                        {!vehicleId && clientId && carInfo.trim() && (
-                          <p className="text-[11px] text-muted-foreground mt-1">Heard: "{carInfo}" — pick the matching vehicle or add it.</p>
+                        {!vehicleId && clientId && (
+                          <div className="mt-2">
+                            <Label className="text-xs">Or a new car (not in the list)</Label>
+                            <Input value={carInfo} onChange={e => { setCarInfo(e.target.value); markDirty(); }} placeholder="e.g. 2019 BMW X5, white" />
+                            <p className="text-[11px] text-muted-foreground mt-1">The car is saved to this client when you press Start.</p>
+                          </div>
                         )}
                       </div>
                     )}

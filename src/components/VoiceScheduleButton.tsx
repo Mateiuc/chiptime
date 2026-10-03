@@ -197,6 +197,14 @@ const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft |
   const clientId = d.clientId && ctx.clients.some(c => c.id === d.clientId) ? d.clientId : null;
   const vehicleId = d.vehicleId && ctx.vehicles.some(v => v.id === d.vehicleId) ? d.vehicleId : null;
 
+  const clean = (v: unknown): string | null => {
+    if (typeof v !== 'string') return null;
+    const t = v.trim();
+    if (!t || /^<?\s*(unknown|none|null|n\/a)\s*>?$/i.test(t)) return null;
+    return t;
+  };
+  d = { ...d, clientName: clean(d.clientName), clientPhone: clean(d.clientPhone), carInfo: clean(d.carInfo), date: clean(d.date), time: clean(d.time), notes: clean(d.notes) };
+
   return {
     clientId,
     clientName: d.clientName || null,

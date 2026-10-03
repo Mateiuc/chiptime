@@ -212,162 +212,159 @@ const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft |
 };
 
 
+// ---- Recording (no system beeps, no auto cut-off) -------------------------
+// Audio is captured directly from the microphone as WAV, then transcribed in
+// the cloud. Unlike the phone's speech service, this makes no sounds and keeps
+// recording until Stop is tapped.
+
+const TARGET_RATE = 16000;
+const MAX_SECONDS = 180;
+
+const encodeWav = (chunks: Float32Array[], inRate: number): Blob => {
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const merged = new Float32Array(total);
+  let o = 0;
+  for (const c of chunks) { merged.set(c, o); o += c.length; }
+  // Downsample to 16 kHz to keep the upload small.
+  const ratio = inRate > TARGET_RATE ? inRate / TARGET_RATE : 1;
+  const outRate = Math.round(inRate / ratio);
+  const length = Math.floor(merged.length / ratio);
+  const buf = new ArrayBuffer(44 + length * 2);
+  const v = new DataView(buf);
+  const tag = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  tag(0, 'RIFF'); v.setUint32(4, 36 + length * 2, true); tag(8, 'WAVE'); tag(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, outRate, true); v.setUint32(28, outRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); tag(36, 'data'); v.setUint32(40, length * 2, true);
+  let off = 44;
+  for (let i = 0; i < length; i++) {
+    const s = Math.max(-1, Math.min(1, merged[Math.floor(i * ratio)]));
+    v.setInt16(off, s * (s < 0 ? 32768 : 32767), true);
+    off += 2;
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+};
+
+interface Recorder { stop: () => Blob | null; cancel: () => void }
+
+const startRecorder = async (onLevel: (l: number) => void): Promise<Recorder> => {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  });
+  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new Ctx();
+  await ctx.resume();
+  const source = ctx.createMediaStreamSource(stream);
+  const node = ctx.createScriptProcessor(4096, 1, 1);
+  const mute = ctx.createGain();
+  mute.gain.value = 0; // never play the mic back through the speaker
+  const chunks: Float32Array[] = [];
+  node.onaudioprocess = (e) => {
+    const data = e.inputBuffer.getChannelData(0);
+    chunks.push(new Float32Array(data));
+    let peak = 0;
+    for (let i = 0; i < data.length; i += 64) peak = Math.max(peak, Math.abs(data[i]));
+    onLevel(peak);
+  };
+  source.connect(node); node.connect(mute); mute.connect(ctx.destination);
+  const cleanup = () => {
+    node.onaudioprocess = null;
+    try { source.disconnect(); node.disconnect(); mute.disconnect(); } catch { /* noop */ }
+    stream.getTracks().forEach(t => t.stop());
+    ctx.close().catch(() => {});
+  };
+  return {
+    stop: () => {
+      cleanup();
+      const blob = encodeWav(chunks, ctx.sampleRate);
+      return blob.size < 4096 ? null : blob;
+    },
+    cancel: cleanup,
+  };
+};
+
+const transcribe = async (blob: Blob, language: string): Promise<string> => {
+  const form = new FormData();
+  form.append('file', new File([blob], 'recording.wav', { type: 'audio/wav' }));
+  const short = language.split('-')[0];
+  if (short) form.append('language', short);
+  const { data, error } = await supabase.functions.invoke('ai-transcribe', { body: form });
+  if (error) throw error;
+  return (data?.text || '').trim();
+};
+
 export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props) => {
   const { toast } = useNotifications();
-  const SR = getSRCtor();
   const [listening, setListening] = useState(false);
-  const [thinking, setThinking] = useState(false);
-  const [interim, setInterim] = useState('');
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
-  const finalRef = useRef<string>('');
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // True while the user wants to keep talking. Phones end recognition at every
-  // breath; we silently restart until Stop is tapped or a long silence passes.
-  const wantRef = useRef(false);
-  const pendingInterimRef = useRef('');
+  const [thinking, setThinking] = useState<false | 'hearing' | 'writing'>(false);
+  const [seconds, setSeconds] = useState(0);
+  const [level, setLevel] = useState(0);
+  const recRef = useRef<Recorder | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const spokenLang = lang !== 'en-US' ? lang : (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+  const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 
-  const clearSilence = () => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-  };
+  const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
 
-  const finish = () => {
-    wantRef.current = false;
-    clearSilence();
-    // Keep any words still in-flight when the session ended.
-    if (pendingInterimRef.current.trim()) {
-      finalRef.current += (finalRef.current ? ' ' : '') + pendingInterimRef.current.trim();
-      pendingInterimRef.current = '';
-    }
+  useEffect(() => () => { clearTick(); recRef.current?.cancel(); }, []);
+
+  const stop = async () => {
+    const rec = recRef.current;
+    recRef.current = null;
+    clearTick();
     setListening(false);
-    setInterim('');
-    const transcript = (finalRef.current || '').trim();
-    if (!transcript) return;
-    setThinking(true);
-    parseWithAi(transcript, context)
-      .catch(() => null)
-      .then((aiDraft) => {
-        if (!aiDraft) {
-          toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
-        }
-        onParsed(aiDraft || parseTranscript(transcript, context), transcript);
-      })
-      .finally(() => setThinking(false));
+    if (!rec) return;
+    const blob = rec.stop();
+    if (!blob) { toast({ title: 'Nothing recorded — try again.' }); return; }
+    setThinking('hearing');
+    try {
+      const transcript = await transcribe(blob, spokenLang);
+      if (!transcript) { toast({ title: "Couldn't hear any words — try again." }); return; }
+      setThinking('writing');
+      const aiDraft = await parseWithAi(transcript, context).catch(() => null);
+      if (!aiDraft) toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
+      onParsed(aiDraft || parseTranscript(transcript, context), transcript);
+    } catch {
+      toast({ title: 'Could not understand the recording', description: 'Check your connection and try again.', variant: 'destructive' });
+    } finally {
+      setThinking(false);
+    }
   };
 
-  const stop = () => {
-    wantRef.current = false;
-    clearSilence();
-    try { recRef.current?.stop(); } catch { /* noop */ }
+  const start = async () => {
+    if (listening || thinking) return;
+    try {
+      recRef.current = await startRecorder((l) => setLevel(l));
+    } catch {
+      toast({ title: 'Microphone permission denied', variant: 'destructive' });
+      return;
+    }
+    setSeconds(0);
+    setListening(true);
+    tickRef.current = setInterval(() => {
+      setSeconds((s) => {
+        if (s + 1 >= MAX_SECONDS) void stop();
+        return s + 1;
+      });
+    }, 1000);
   };
 
-  // Long pause window: only a real 6s silence ends listening automatically.
-  const armSilence = () => {
-    clearSilence();
-    silenceTimerRef.current = setTimeout(() => {
-      wantRef.current = false;
-      try { recRef.current?.stop(); } catch { /* noop */ }
-    }, 6000);
-  };
-
-  useEffect(() => {
-    return () => {
-      wantRef.current = false;
-      clearSilence();
-      try { recRef.current?.abort(); } catch { /* noop */ }
-    };
-  }, []);
-
-  if (!SR) {
+  if (!supported) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-9 w-9 rounded-full p-0"
-        onClick={() => toast({ title: 'Voice input needs Chrome.', variant: 'destructive' })}
-        title="Voice input needs Chrome"
-      >
+      <Button size="sm" variant="outline" className="h-9 w-9 rounded-full p-0"
+        onClick={() => toast({ title: 'Voice input is not available on this device.', variant: 'destructive' })}
+        title="Voice input unavailable">
         <Mic className="h-4 w-4 opacity-50" />
       </Button>
     );
   }
 
-  const startSession = (): boolean => {
-    let rec: SpeechRecognitionLike;
-    try { rec = new SR(); } catch { return false; }
-    rec.lang = spokenLang;
-    rec.interimResults = true;
-    rec.continuous = true;
-    rec.maxAlternatives = 1;
-
-    rec.onresult = (e) => {
-      // Rebuild the whole transcript from scratch each time. Android repeats
-      // the full phrase so far in every result, so a result that starts with
-      // the previous one replaces it instead of being added again.
-      const parts: string[] = [];
-      let interimText = '';
-      for (let i = 0; i < e.results.length; i++) {
-        const r = e.results[i];
-        const txt = r[0].transcript.trim();
-        if (!txt) continue;
-        if (!r.isFinal) { interimText = txt; continue; }
-        const last = parts[parts.length - 1];
-        if (last && txt.toLowerCase().startsWith(last.toLowerCase())) parts[parts.length - 1] = txt;
-        else if (last && last.toLowerCase().startsWith(txt.toLowerCase())) { /* older, shorter copy */ }
-        else parts.push(txt);
-      }
-      const last = parts[parts.length - 1];
-      if (interimText && last && interimText.toLowerCase().startsWith(last.toLowerCase())) {
-        parts.pop();
-      }
-      finalRef.current = parts.join(' ');
-      pendingInterimRef.current = interimText;
-      setInterim(interimText);
-      armSilence();
-    };
-    rec.onerror = (e) => {
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
-      wantRef.current = false;
-      const msg = e.error === 'not-allowed' || e.error === 'service-not-allowed'
-        ? 'Microphone permission denied'
-        : `Voice error: ${e.error}`;
-      toast({ title: msg, variant: 'destructive' });
-    };
-    // One session only — no auto-restart (each restart makes the phone beep).
-    rec.onend = () => finish();
-
-    recRef.current = rec;
-    try { rec.start(); return true; } catch { return false; }
-  };
-
-  const start = () => {
-    if (listening) return;
-    finalRef.current = '';
-    pendingInterimRef.current = '';
-    setInterim('');
-    wantRef.current = true;
-    if (startSession()) {
-      setListening(true);
-      armSilence();
-    } else {
-      wantRef.current = false;
-      toast({ title: 'Could not start microphone', variant: 'destructive' });
-    }
-  };
+  const mm = `${Math.floor(seconds / 60)}:${pad(seconds % 60)}`;
 
   return (
     <>
-      <Button
-        size="sm"
-        onClick={start}
-        disabled={thinking}
-        className="h-9 w-9 rounded-full p-0 bg-primary hover:bg-primary/90"
-        title="Voice schedule"
-      >
+      <Button size="sm" onClick={start} disabled={!!thinking}
+        className="h-9 w-9 rounded-full p-0 bg-primary hover:bg-primary/90" title="Voice schedule">
         {thinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
       </Button>
 
@@ -377,26 +374,23 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
             {thinking ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-bold text-sm">Writing the job…</span>
+                <span className="font-bold text-sm">{thinking === 'hearing' ? 'Listening back…' : 'Writing the job…'}</span>
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-destructive" />
                   </span>
-                  <span className="font-bold text-sm">Listening…</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">tap Stop when done</span>
+                  <span className="font-bold text-sm">Recording {mm}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">pause freely — tap Stop when done</span>
                 </div>
-                <div className="min-h-[3rem] max-h-32 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
-                  <span className="text-foreground">{finalRef.current}</span>
-                  {interim && <span className="text-muted-foreground"> {interim}</span>}
-                  {!finalRef.current && !interim && (
-                    <span className="text-muted-foreground italic">Say the date, the client, the car and the work…</span>
-                  )}
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-primary transition-[width] duration-100" style={{ width: `${Math.min(100, level * 250)}%` }} />
                 </div>
-                <Button size="sm" variant="destructive" className="w-full" onClick={stop}>
+                <p className="text-xs text-muted-foreground italic">Say the date, the client, the car and the work…</p>
+                <Button size="sm" variant="destructive" className="w-full" onClick={() => void stop()}>
                   <Square className="h-4 w-4 mr-1" /> Stop
                 </Button>
               </>
@@ -404,7 +398,6 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
           </div>
         </div>
       )}
-
     </>
   );
 };

@@ -274,7 +274,7 @@ export const SettingsDialog = ({
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
           {currentView === 'menu' && (
             <div className="space-y-2">
               <Button
@@ -678,7 +678,7 @@ export const SettingsDialog = ({
         </div>
 
         {currentView === 'settings' && (
-          <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm">
+          <DialogFooter className="px-4 pt-3 border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 sticky bottom-0 z-10 bg-card">
             <Button variant="outline" onClick={() => setCurrentView('menu')}>
               Cancel
             </Button>

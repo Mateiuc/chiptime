@@ -108,7 +108,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
           </div>
         </header>
 
-        <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
+        <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1 min-h-0">
           {vehicleLabel && (
             <Card className="bg-primary/10 border-primary/30">
               <CardContent className="py-3 px-4">
@@ -408,7 +408,7 @@ export const CompleteWorkDialog = ({ open, onOpenChange, onComplete, vehicleLabe
           </Card>
         </div>
 
-        <DialogFooter className="px-4 py-3 border-t bg-card/80 backdrop-blur-sm">
+        <DialogFooter className="px-4 pt-3 border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 sticky bottom-0 z-10 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

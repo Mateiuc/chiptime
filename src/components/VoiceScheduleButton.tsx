@@ -222,6 +222,12 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
   const finalRef = useRef<string>('');
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // True while the user wants to keep talking. Phones end recognition at every
+  // breath; we silently restart until Stop is tapped or a long silence passes.
+  const wantRef = useRef(false);
+  const pendingInterimRef = useRef('');
+  const spokenLang = lang !== 'en-US' ? lang : (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+
   const clearSilence = () => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
@@ -229,22 +235,48 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
     }
   };
 
+  const finish = () => {
+    wantRef.current = false;
+    clearSilence();
+    // Keep any words still in-flight when the session ended.
+    if (pendingInterimRef.current.trim()) {
+      finalRef.current += (finalRef.current ? ' ' : '') + pendingInterimRef.current.trim();
+      pendingInterimRef.current = '';
+    }
+    setListening(false);
+    setInterim('');
+    const transcript = (finalRef.current || '').trim();
+    if (!transcript) return;
+    setThinking(true);
+    parseWithAi(transcript, context)
+      .catch(() => null)
+      .then((aiDraft) => {
+        if (!aiDraft) {
+          toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
+        }
+        onParsed(aiDraft || parseTranscript(transcript, context), transcript);
+      })
+      .finally(() => setThinking(false));
+  };
+
   const stop = () => {
+    wantRef.current = false;
     clearSilence();
     try { recRef.current?.stop(); } catch { /* noop */ }
   };
 
-  // Generous pause window so a normal mid-sentence breath doesn't cut you off.
+  // Long pause window: only a real 6s silence ends listening automatically.
   const armSilence = () => {
     clearSilence();
     silenceTimerRef.current = setTimeout(() => {
+      wantRef.current = false;
       try { recRef.current?.stop(); } catch { /* noop */ }
-    }, 4000);
+    }, 6000);
   };
-
 
   useEffect(() => {
     return () => {
+      wantRef.current = false;
       clearSilence();
       try { recRef.current?.abort(); } catch { /* noop */ }
     };
@@ -264,20 +296,13 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
     );
   }
 
-  const start = () => {
-    if (listening) return;
+  const startSession = (): boolean => {
     let rec: SpeechRecognitionLike;
-    try { rec = new SR(); } catch {
-      toast({ title: 'Voice input unavailable', variant: 'destructive' });
-      return;
-    }
-    rec.lang = lang;
+    try { rec = new SR(); } catch { return false; }
+    rec.lang = spokenLang;
     rec.interimResults = true;
     rec.continuous = true;
     rec.maxAlternatives = 1;
-
-    finalRef.current = '';
-    setInterim('');
 
     rec.onresult = (e) => {
       let interimText = '';
@@ -287,44 +312,50 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
         if (r.isFinal) finalRef.current += (finalRef.current ? ' ' : '') + txt.trim();
         else interimText += txt;
       }
+      pendingInterimRef.current = interimText;
       setInterim(interimText);
       armSilence();
     };
     rec.onerror = (e) => {
-      clearSilence();
+      if (e.error === 'no-speech' || e.error === 'aborted' || e.error === 'network') return; // onend restarts
+      wantRef.current = false;
       const msg = e.error === 'not-allowed' || e.error === 'service-not-allowed'
         ? 'Microphone permission denied'
-        : e.error === 'no-speech'
-          ? 'No speech detected'
-          : `Voice error: ${e.error}`;
+        : `Voice error: ${e.error}`;
       toast({ title: msg, variant: 'destructive' });
-      setListening(false);
-      setInterim('');
     };
     rec.onend = () => {
-      clearSilence();
-      setListening(false);
-      setInterim('');
-      const transcript = (finalRef.current || '').trim();
-      if (!transcript) return;
-      setThinking(true);
-      parseWithAi(transcript, context)
-        .catch(() => null)
-        .then((aiDraft) => {
-          if (!aiDraft) {
-            toast({ title: 'Understood it offline', description: 'Check the details before saving.' });
-          }
-          onParsed(aiDraft || parseTranscript(transcript, context), transcript);
-        })
-        .finally(() => setThinking(false));
+      if (pendingInterimRef.current.trim()) {
+        finalRef.current += (finalRef.current ? ' ' : '') + pendingInterimRef.current.trim();
+        pendingInterimRef.current = '';
+        setInterim('');
+      }
+      if (wantRef.current) {
+        // Premature end (breath/pause) — keep listening.
+        setTimeout(() => {
+          if (!wantRef.current) { finish(); return; }
+          if (!startSession()) finish();
+        }, 150);
+        return;
+      }
+      finish();
     };
 
-
     recRef.current = rec;
-    try {
-      rec.start();
+    try { rec.start(); return true; } catch { return false; }
+  };
+
+  const start = () => {
+    if (listening) return;
+    finalRef.current = '';
+    pendingInterimRef.current = '';
+    setInterim('');
+    wantRef.current = true;
+    if (startSession()) {
       setListening(true);
-    } catch {
+      armSilence();
+    } else {
+      wantRef.current = false;
       toast({ title: 'Could not start microphone', variant: 'destructive' });
     }
   };

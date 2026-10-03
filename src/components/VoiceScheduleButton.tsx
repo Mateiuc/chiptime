@@ -283,11 +283,11 @@ const startRecorder = async (onLevel: (l: number) => void): Promise<Recorder> =>
   };
 };
 
-const transcribe = async (blob: Blob, language: string): Promise<string> => {
+const transcribe = async (blob: Blob, _language: string, names: string[]): Promise<string> => {
   const form = new FormData();
   form.append('file', new File([blob], 'recording.wav', { type: 'audio/wav' }));
-  const short = language.split('-')[0];
-  if (short) form.append('language', short);
+  // No language lock: lets foreign names come through as spoken.
+  if (names.length) form.append('names', names.slice(0, 200).join(', ').slice(0, 2000));
   const { data, error } = await supabase.functions.invoke('ai-transcribe', { body: form });
   if (error) throw error;
   return (data?.text || '').trim();
@@ -318,7 +318,7 @@ export const VoiceScheduleButton = ({ context, onParsed, lang = 'en-US' }: Props
     if (!blob) { toast({ title: 'Nothing recorded — try again.' }); return; }
     setThinking('hearing');
     try {
-      const transcript = await transcribe(blob, spokenLang);
+      const transcript = await transcribe(blob, spokenLang, context.clients.map(c => c.name).filter(Boolean));
       if (!transcript) { toast({ title: "Couldn't hear any words — try again." }); return; }
       setThinking('writing');
       const aiDraft = await parseWithAi(transcript, context).catch(() => null);

@@ -185,7 +185,7 @@ const parseWithAi = async (raw: string, ctx: VoiceContext): Promise<VoiceDraft |
   });
 
   if (error || !data?.draft) return null;
-  const d = data.draft;
+  let d = data.draft;
 
   // Worker is matched locally — the AI is not given the worker list.
   let assignedTo: string | null = null;

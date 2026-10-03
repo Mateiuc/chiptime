@@ -1,7 +1,7 @@
 // Turns a recorded voice clip (WAV) into text via the Lovable AI Gateway.
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
-const MODEL = 'google/gemini-3.5-transcribe';
+const MODEL = 'openai/gpt-4o-transcribe';
 const MAX_BYTES = 14 * 1024 * 1024;
 
 Deno.serve(async (req) => {
@@ -24,8 +24,12 @@ Deno.serve(async (req) => {
     out.append('model', MODEL);
     out.append('file', audio, 'recording.wav');
     out.append('response_format', 'json');
-    const lang = form.get('language');
-    if (typeof lang === 'string' && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(lang)) out.append('language', lang);
+    const names = form.get('names');
+    const nameHint = typeof names === 'string' ? names.replace(/[\r\n]+/g, ' ').slice(0, 2000) : '';
+    out.append('prompt',
+      'Auto repair shop scheduling a job: date/time, client name, car, work to do. ' +
+      'Client names are often Romanian, Eastern European, Indian, Italian or Spanish — spell them as spoken, do not anglicize. ' +
+      (nameHint ? `Known clients: ${nameHint}.` : ''));
 
     const res = await fetch('https://ai.gateway.lovable.dev/v1/audio/transcriptions', {
       method: 'POST',

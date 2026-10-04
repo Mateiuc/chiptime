@@ -248,10 +248,7 @@ const ClientPortal = () => {
                   {costSummary?.portalBusinessName || 'Service Portal'}
                 </p>
                 {costSummary && (
-                  <p className="text-white font-semibold text-base leading-tight">Hello, {costSummary.client.name}</p>
-                )}
-                {costSummary && (
-                  <p className="text-blue-100/80 text-xs leading-tight">Your service records</p>
+                  <p className="text-blue-100/80 text-xs leading-tight">Hello, {costSummary.client.name}</p>
                 )}
               </div>
             </div>
@@ -260,6 +257,14 @@ const ClientPortal = () => {
               <span>Live</span>
             </div>
           </div>
+
+          {/* Client greeting — big, centered, attached to the blue band */}
+          {costSummary && (
+            <div className="text-center mt-3">
+              <h2 className="text-xl md:text-2xl font-bold text-white">Hello, {costSummary.client.name}</h2>
+              <p className="text-sm text-blue-100/80 mt-1">Your service records</p>
+            </div>
+          )}
 
           {/* Tab bar */}
           <div className="mt-3">

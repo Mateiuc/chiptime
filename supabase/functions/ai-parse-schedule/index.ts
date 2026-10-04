@@ -1,5 +1,6 @@
 // Turns a spoken sentence into a schedule draft using Claude.
 // The client may be brand new — we never force a match against existing records.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { callClaude } from '../_shared/claude.ts';
 
@@ -30,7 +31,23 @@ Deno.serve(async (req) => {
   const pre = handlePreflight(req);
   if (pre) return pre;
 
-  const headers = { ...corsHeaders(req), 'Content-Type': 'application/json' };
+  const cors = corsHeaders(req);
+  const headers = { ...cors, 'Content-Type': 'application/json' };
+
+  // ---- Auth check ----
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
+  }
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { auth: { persistSession: false } }
+  );
+  const { data: userData, error: userErr } = await admin.auth.getUser(authHeader.replace('Bearer ', ''));
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
+  }
 
   try {
     const body = await req.json();
@@ -65,10 +82,7 @@ Deno.serve(async (req) => {
     });
 
     if (!result.ok) {
-      return new Response(JSON.stringify({ error: result.error.message }), {
-        status: result.error.status,
-        headers,
-      });
+      return new Response(JSON.stringify({ error: result.error.message }), { status: result.error.status, headers });
     }
 
     const toolUse = result.content.find((c) => c.type === 'tool_use');

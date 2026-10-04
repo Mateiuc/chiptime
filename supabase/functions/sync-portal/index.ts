@@ -89,7 +89,12 @@ Deno.serve(async (req) => {
     // - existing row    → keep whatever is already stored, ignore incoming code
     // - new row         → use the caller's code, or generate a 4-digit one
     let effectiveAccessCode: string | null
-    const gen4 = () => String(Math.floor(1000 + Math.random() * 9000))
+    const gen4 = () => {
+      // Cryptographically random 4-digit PIN (Math.random is predictable).
+      const arr = new Uint32Array(1)
+      crypto.getRandomValues(arr)
+      return String(1000 + (arr[0] % 9000))
+    }
     if (regenerate === true) {
       effectiveAccessCode = (accessCode && String(accessCode)) || gen4()
     } else if (existing) {

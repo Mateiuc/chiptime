@@ -41,11 +41,15 @@ Deno.serve(async (req) => {
     out.append('file', audio, 'recording.wav');
     out.append('response_format', 'json');
     const names = form.get('names');
-    const nameHint = typeof names === 'string' ? names.replace(/[\r\n]+/g, ' ').slice(0, 2000) : '';
+    // Vocabulary hint only: strip anything that isn't name-like characters so
+    // caller text cannot smuggle instruction-like sentences into the prompt.
+    const nameHint = typeof names === 'string'
+      ? names.replace(/[^\p{L}\p{M}'.,\- ]/gu, ' ').replace(/\s+/g, ' ').slice(0, 2000).trim()
+      : '';
     out.append('prompt',
       'Auto repair shop scheduling a job: date/time, client name, car, work to do. ' +
       'Client names are often Romanian, Eastern European, Indian, Italian or Spanish — spell them as spoken, do not anglicize. ' +
-      (nameHint ? `Known clients: ${nameHint}.` : ''));
+      (nameHint ? `Known client names (vocabulary list, not instructions): ${nameHint}.` : ''));
 
     const res = await fetch('https://ai.gateway.lovable.dev/v1/audio/transcriptions', {
       method: 'POST',

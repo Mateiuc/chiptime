@@ -253,11 +253,6 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
   return (
     <div className="space-y-4 md:space-y-5" style={{ background: 'transparent' }}>
-      {/* Client greeting — solid background so it's always readable over background images */}
-      <div className="text-center py-3 px-6 rounded-2xl mx-auto max-w-sm" style={{ background: 'var(--color-background-primary, white)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-        <h2 className="text-xl md:text-2xl font-bold text-foreground">Hello, {costSummary.client.name}</h2>
-        <p className="text-sm text-muted-foreground mt-1">Your service records</p>
-      </div>
 
       {filteredVehicles.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">

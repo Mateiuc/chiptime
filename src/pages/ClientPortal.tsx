@@ -248,7 +248,10 @@ const ClientPortal = () => {
                   {costSummary?.portalBusinessName || 'Service Portal'}
                 </p>
                 {costSummary && (
-                  <p className="text-blue-100/80 text-xs leading-tight">Hello, {costSummary.client.name}</p>
+                  <p className="text-white font-semibold text-base leading-tight">Hello, {costSummary.client.name}</p>
+                )}
+                {costSummary && (
+                  <p className="text-blue-100/80 text-xs leading-tight">Your service records</p>
                 )}
               </div>
             </div>

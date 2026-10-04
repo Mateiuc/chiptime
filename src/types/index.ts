@@ -4,7 +4,7 @@ export type DepositMethod = 'cash' | 'card' | 'zelle' | 'transfer' | 'check' | '
 export interface DepositEntry {
   id: string;
   amount: number;
-  date: Date;
+  date: string;
   method?: DepositMethod;
   note?: string;
   createdBy?: string;
@@ -29,6 +29,7 @@ export interface Client {
   allKeysLostRate?: number;
   accessCode?: string;
   prepaidAmount?: number;
+  deposits?: DepositEntry[];
   portalId?: string;
   createdAt: Date;
   // Per-client portal branding (overrides Settings defaults)
@@ -49,6 +50,7 @@ export interface Vehicle {
   diagnosticPdfUrl?: string;
   diagnosticPdfPath?: string; // Storage path in private bucket (re-sign on demand)
   prepaidAmount?: number;
+  deposits?: DepositEntry[];
   // Per-vehicle labor discount — applied to each task's labor for this vehicle.
   // Parts and deposit are not affected. Locked (billed) tasks are not re-discounted.
   discountType?: 'fixed' | 'percent';

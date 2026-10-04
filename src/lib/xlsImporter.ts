@@ -1,4 +1,19 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+/** Normalize an exceljs cell value to a plain string/number/Date. */
+function cellValue(v: ExcelJS.CellValue): any {
+  if (v == null) return v;
+  if (v instanceof Date) return v;
+  if (typeof v === 'object') {
+    const o = v as any;
+    if (Array.isArray(o.richText)) return o.richText.map((r: any) => r.text).join('');
+    if ('result' in o) return o.result;
+    if ('text' in o) return o.text;
+    if ('error' in o) return null;
+    return String(o);
+  }
+  return v;
+}
 
 export interface ImportedSession {
   tag: string;
@@ -18,9 +33,15 @@ export interface ImportedSession {
  */
 export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]> => {
   const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: 'array' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(data);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return [];
+  const raw: any[][] = [];
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    // row.values is 1-indexed (index 0 is undefined)
+    raw.push((row.values as any[]).slice(1).map(cellValue));
+  });
 
   if (raw.length === 0) return [];
 
@@ -132,8 +153,10 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
 function parseExcelDate(val: any): Date | null {
   if (val instanceof Date) return val;
   if (typeof val === 'number') {
-    const d = XLSX.SSF.parse_date_code(val);
-    if (d) return new Date(d.y, d.m - 1, d.d);
+    // Excel serial date (days since 1899-12-30)
+    const ms = Math.round((val - 25569) * 86400 * 1000);
+    const d = new Date(ms);
+    if (!isNaN(d.getTime())) return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
   if (typeof val === 'string') {
     const d = new Date(val);

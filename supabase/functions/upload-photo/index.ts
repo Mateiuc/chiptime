@@ -61,11 +61,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Enforce a size cap before decoding (base64 inflates ~4/3).
+    const MAX_BYTES = 15 * 1024 * 1024
+    if (base64.length > Math.ceil(MAX_BYTES / 3) * 4) {
+      return new Response(JSON.stringify({ error: 'File too large' }), {
+        status: 413,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Decode base64 to binary
     const binaryString = atob(base64)
     const bytes = new Uint8Array(binaryString.length)
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // Verify the bytes are actually a JPEG (magic bytes FF D8 FF).
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+      return new Response(JSON.stringify({ error: 'File must be a JPEG image' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
     }
 
     const filePath = `${wsId}/${taskId}/${photoId}.jpg`

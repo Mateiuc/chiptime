@@ -107,6 +107,7 @@
   },
   "overrides": {
     "uuid": "^11.1.1",
+    "vite>esbuild": "^0.25.12",
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@adobe/css-tools/-/css-tools-4.5.0.tgz", {}, ""],

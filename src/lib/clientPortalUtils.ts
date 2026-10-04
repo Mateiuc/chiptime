@@ -538,6 +538,14 @@ export async function decodeClientData(encoded: string): Promise<{ data: ClientC
 // is encrypted with AES-GCM using a key derived from the access code via
 // PBKDF2 (200k iters, SHA-256). The recipient must enter the correct PIN to
 // decrypt — wrong PINs fail decryption and reveal nothing.
+// HTML-escape for values interpolated into the generated portal document
+// (e.g. the <title>), so client names cannot inject markup/script.
+function escapeHtml(s: string): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)
+  );
+}
+
 export async function generatePortalHtmlFile(data: ClientCostSummary, accessCode: string): Promise<Blob> {
   const slim = slimDown(data);
   const enc = new TextEncoder();

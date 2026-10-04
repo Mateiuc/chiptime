@@ -58,11 +58,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Enforce a size cap before decoding (base64 inflates ~4/3).
+    const MAX_BYTES = 25 * 1024 * 1024
+    if (base64.length > Math.ceil(MAX_BYTES / 3) * 4) {
+      return new Response(JSON.stringify({ error: 'File too large' }), {
+        status: 413,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Decode base64 to binary
     const binaryString = atob(base64)
     const bytes = new Uint8Array(binaryString.length)
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // Verify the bytes are actually a PDF (magic bytes "%PDF-").
+    if (bytes.length < 5 || bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) {
+      return new Response(JSON.stringify({ error: 'File must be a PDF' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
     }
 
     const safeName = (fileName || 'diagnostic.pdf').replace(/[^a-zA-Z0-9._-]/g, '_')

@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ const Index = () => {
       // Migrate photos to filesystem (runs after storage migration)
       const photoMigration = await migratePhotosToFilesystem();
       if (photoMigration.migrated) {
-        console.log(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
+        dlog(`[Index] Migrated ${photoMigration.photoCount} photos to filesystem`);
       }
     };
     performMigration();
@@ -101,7 +102,7 @@ const Index = () => {
   // Client collapse/expand — all collapsed by default. Track expanded set.
   const [expandedClients, setExpandedClients] = useState<Set<string>>(() => new Set());
   useEffect(() => {
-    console.log('[Index] mount — expandedClients size:', expandedClients.size);
+    dlog('[Index] mount — expandedClients size:', expandedClients.size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleClientCollapse = (clientId: string) => {

@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { Preferences } from '@capacitor/preferences';
 import { indexedDB } from './indexedDB';
 import { capacitorStorage } from './capacitorStorage';
@@ -40,7 +41,7 @@ export async function migrateToCapacitorStorage(): Promise<boolean> {
     // Mark migration as completed
     await Preferences.set({ key: MIGRATION_KEY, value: 'true' });
 
-    console.log('Migration completed successfully:', {
+    dlog('Migration completed successfully:', {
       clients: clients.length,
       vehicles: vehicles.length,
       tasks: tasks.length,

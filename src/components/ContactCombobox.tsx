@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { useState, useEffect, useRef } from 'react';
 import { Check, User, Loader2, X, Contact } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -68,14 +69,14 @@ export const ContactCombobox = ({
   }, []);
 
   const loadContacts = async () => {
-    console.log('[ContactCombobox] Starting to load phone contacts...');
+    dlog('[ContactCombobox] Starting to load phone contacts...');
     setIsLoading(true);
     try {
       const phoneContacts = await contactsService.getAllContacts();
-      console.log(`[ContactCombobox] Loaded ${phoneContacts.length} phone contacts`);
+      dlog(`[ContactCombobox] Loaded ${phoneContacts.length} phone contacts`);
       
       if (phoneContacts.length === 0) {
-        console.log('[ContactCombobox] No contacts returned - check permissions in AndroidManifest.xml');
+        dlog('[ContactCombobox] No contacts returned - check permissions in AndroidManifest.xml');
       }
       
       setContacts(phoneContacts);

@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -342,7 +343,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
           upsert: false,
         });
 
-      console.log(`[VIN Upload] Saved ${success ? 'success' : 'failed'} frame:`, `${baseName}.jpg`, {
+      dlog(`[VIN Upload] Saved ${success ? 'success' : 'failed'} frame:`, `${baseName}.jpg`, {
         provider,
         vin: detectedVin,
         rawText: result.rawText?.substring(0, 100),
@@ -570,7 +571,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
         sw = Math.round(sw);
         sh = Math.round(sh);
 
-        console.log('[VIN Scan] attempt', attempts, 'provider', ocrProvider, {
+        dlog('[VIN Scan] attempt', attempts, 'provider', ocrProvider, {
           video: { w: vsw, h: vsh },
           display: { w: cw, h: ch, scale, dx, dy },
           crop: { sx, sy, sw, sh }
@@ -636,7 +637,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
 
         // If valid VIN found with strict validation, stop scanning
         if (vin && validateVinStrict(vin)) {
-          console.log('[VIN Scan] Valid VIN detected:', vin);
+          dlog('[VIN Scan] Valid VIN detected:', vin);
           onVinDetected(vin);
           stopCamera();
           scanningRef.current = false;

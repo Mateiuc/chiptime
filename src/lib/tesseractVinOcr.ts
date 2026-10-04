@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { createWorker } from 'tesseract.js';
 import { generateVinCandidates, validateVin, validateVinStrict } from './vinDecoder';
 
@@ -123,7 +124,7 @@ export const readVinWithTesseract = async ({
     return validVin;
   } catch (error) {
     if (error instanceof Error && error.message === 'Aborted') {
-      console.log('[Tesseract] Scan aborted');
+      dlog('[Tesseract] Scan aborted');
     } else {
       console.error('[Tesseract] OCR error:', error);
     }

@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { BackgroundTask } from '@capawesome/capacitor-background-task';
 import { Capacitor } from '@capacitor/core';
 import { backupManager } from '@/lib/backupManager';
@@ -90,7 +91,7 @@ class AutoBackupService {
         (now.getTime() - lastBackup.getTime()) > 24 * 60 * 60 * 1000;
 
       if (shouldBackup) {
-        console.log('Performing daily auto-backup...');
+        dlog('Performing daily auto-backup...');
         await backupManager.createAutoBackup();
       }
     } catch (error) {

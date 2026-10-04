@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { indexedDB } from '@/lib/indexedDB';
@@ -66,11 +67,11 @@ class PhotoStorageService {
         directory: Directory.Data,
       });
       
-      console.log(`[PhotoStorage] Saved photo to filesystem: ${filePath}`);
+      dlog(`[PhotoStorage] Saved photo to filesystem: ${filePath}`);
     } else {
       // Web: Save to IndexedDB using a custom store
       await this.savePhotoToIndexedDB(filePath, base64);
-      console.log(`[PhotoStorage] Saved photo to IndexedDB: ${filePath}`);
+      dlog(`[PhotoStorage] Saved photo to IndexedDB: ${filePath}`);
     }
 
     return filePath;
@@ -118,10 +119,10 @@ class PhotoStorageService {
           path: filePath,
           directory: Directory.Data,
         });
-        console.log(`[PhotoStorage] Deleted photo: ${filePath}`);
+        dlog(`[PhotoStorage] Deleted photo: ${filePath}`);
       } else {
         await this.deletePhotoFromIndexedDB(filePath);
-        console.log(`[PhotoStorage] Deleted photo from IndexedDB: ${filePath}`);
+        dlog(`[PhotoStorage] Deleted photo from IndexedDB: ${filePath}`);
       }
     } catch (error) {
       console.warn(`[PhotoStorage] Failed to delete photo: ${filePath}`, error);
@@ -142,10 +143,10 @@ class PhotoStorageService {
           directory: Directory.Data,
           recursive: true,
         });
-        console.log(`[PhotoStorage] Deleted all photos for task: ${taskId}`);
+        dlog(`[PhotoStorage] Deleted all photos for task: ${taskId}`);
       } else {
         await this.deleteTaskPhotosFromIndexedDB(taskId);
-        console.log(`[PhotoStorage] Deleted all photos for task from IndexedDB: ${taskId}`);
+        dlog(`[PhotoStorage] Deleted all photos for task from IndexedDB: ${taskId}`);
       }
     } catch (error) {
       console.warn(`[PhotoStorage] Failed to delete photos for task: ${taskId}`, error);

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp, Square } from 'lucide-react';
 import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,9 @@ import { ScheduleView } from '@/components/ScheduleView';
 import { DesktopScheduleView } from '@/components/DesktopScheduleView';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
-import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part } from '@/types';
+import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part, DepositEntry } from '@/types';
+import { DepositLedger } from '@/components/DepositLedger';
+import { normalizeDeposits, depositTotal } from '@/lib/depositLedger';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
 import { computeTaskTotal, computeVehicleTotal, computeTaskCost } from '@/lib/billing';
@@ -302,6 +305,7 @@ const DesktopDashboard = () => {
   const [editFormData, setEditFormData] = useState<Partial<Client>>({});
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [vehicleEditData, setVehicleEditData] = useState<{ vin: string; make: string; model: string; year: string; color: string; prepaidAmount: string; discountType: 'fixed' | 'percent'; discountValue: string }>({ vin: '', make: '', model: '', year: '', color: '', prepaidAmount: '', discountType: 'fixed', discountValue: '' });
+  const [depositDialog, setDepositDialog] = useState<{ type: 'client' | 'vehicle'; id: string; name: string } | null>(null);
   const [importingClientId, setImportingClientId] = useState<string | null>(null);
   // Delete confirmation dialogs
   const [deleteVehicleDialog, setDeleteVehicleDialog] = useState<{ open: boolean; vehicleId: string | null }>({ open: false, vehicleId: null });
@@ -1608,7 +1612,9 @@ const DesktopDashboard = () => {
                                       ? `Car Deposit Left: ${formatCurrency(vehicleDepositLeft)}`
                                       : `Car Deposit Over: -${formatCurrency(Math.abs(vehicleDepositLeft))}`}
                                   </span>
-                                  <span className="text-muted-foreground">Full Car Deposit: {formatCurrency(vehicleFullDeposit)}</span>
+                                  <button className="text-muted-foreground underline underline-offset-2 cursor-pointer" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'vehicle', id: client.id + '__vehicles', name: client.name + ' — Car Deposits' }); }}>
+                                    Full Car Deposit: {formatCurrency(vehicleFullDeposit)}
+                                  </button>
                                 </>
                               )}
                               {clientFullDeposit > 0 && (
@@ -1618,8 +1624,13 @@ const DesktopDashboard = () => {
                                       ? `After Billed: ${formatCurrency(clientDepositLeft)}`
                                       : `Over After Billed: -${formatCurrency(Math.abs(clientDepositLeft))}`}
                                   </span>
-                                  <span className="text-muted-foreground">Full Deposit: {formatCurrency(clientFullDeposit)}</span>
+                                  <button className="text-muted-foreground underline underline-offset-2 cursor-pointer" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'client', id: client.id, name: client.name }); }}>
+                                    Full Deposit: {formatCurrency(clientFullDeposit)}
+                                  </button>
                                 </>
+                              )}
+                              {vehicleFullDeposit === 0 && clientFullDeposit === 0 && !isFullyPaid && (
+                                <button className="text-muted-foreground hover:text-primary text-xs underline underline-offset-2" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'client', id: client.id, name: client.name }); }}>+ Add deposit</button>
                               )}
                             </div>
 
@@ -2169,6 +2180,46 @@ const DesktopDashboard = () => {
           return session?.periods || [];
         })()}
       />
+
+      {/* Deposit Ledger Dialog */}
+      <Dialog open={!!depositDialog} onOpenChange={open => !open && setDepositDialog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Deposits — {depositDialog?.name}</DialogTitle>
+          </DialogHeader>
+          {depositDialog && (() => {
+            const isClient = depositDialog.type === 'client' && !depositDialog.id.includes('__vehicles');
+            if (isClient) {
+              const client = clients.find(c => c.id === depositDialog.id);
+              if (!client) return null;
+              const deps = normalizeDeposits(client);
+              return (
+                <DepositLedger
+                  deposits={deps}
+                  onChange={(updated, total) => updateClient(client.id, { deposits: updated, prepaidAmount: total })}
+                />
+              );
+            } else {
+              const clientId = depositDialog.id.replace('__vehicles', '');
+              const clientVehicleList = vehicles.filter(v => v.clientId === clientId);
+              return (
+                <div className="space-y-4">
+                  {clientVehicleList.map(v => (
+                    <div key={v.id}>
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">{[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}</div>
+                      <DepositLedger
+                        deposits={normalizeDeposits(v)}
+                        onChange={(updated, total) => updateVehicle(v.id, { deposits: updated, prepaidAmount: total })}
+                      />
+                    </div>
+                  ))}
+                  {clientVehicleList.length === 0 && <p className="text-sm text-muted-foreground">No vehicles.</p>}
+                </div>
+              );
+            }
+          })()}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

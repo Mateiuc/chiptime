@@ -1,4 +1,5 @@
 // Turns a recorded voice clip (WAV) into text via the Lovable AI Gateway.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
 const MODEL = 'openai/gpt-4o-mini-transcribe';
@@ -8,6 +9,21 @@ Deno.serve(async (req) => {
   const pre = handlePreflight(req);
   if (pre) return pre;
   const headers = { ...corsHeaders(req), 'Content-Type': 'application/json' };
+
+  // ---- Auth check ----
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
+  }
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { auth: { persistSession: false } }
+  );
+  const { data: userData, error: userErr } = await admin.auth.getUser(authHeader.replace('Bearer ', ''));
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
+  }
 
   try {
     const key = Deno.env.get('LOVABLE_API_KEY');

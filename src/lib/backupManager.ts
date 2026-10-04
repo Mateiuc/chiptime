@@ -1,3 +1,4 @@
+import { dlog } from '@/lib/devLog';
 import { capacitorStorage } from './capacitorStorage';
 import { exportToXML, parseXMLFile } from './xmlConverter';
 import { toast as baseToast } from '@/hooks/use-toast';
@@ -66,7 +67,7 @@ export class BackupManager {
             directory: Directory.Cache
           });
         } catch (e) {
-          console.log('Cache cleanup skipped');
+          dlog('Cache cleanup skipped');
         }
       }
 
@@ -235,7 +236,7 @@ export class BackupManager {
             path: backup.name,
             directory: Directory.Documents
           });
-          console.log(`Deleted old backup: ${backup.name}`);
+          dlog(`Deleted old backup: ${backup.name}`);
         } catch (error) {
           console.error(`Failed to delete backup ${backup.name}:`, error);
         }
@@ -273,7 +274,7 @@ export class BackupManager {
         }
       });
 
-      console.log('Auto backup created successfully');
+      dlog('Auto backup created successfully');
     } catch (error) {
       console.error('Auto backup failed:', error);
       
@@ -350,7 +351,7 @@ export class BackupManager {
           directory: Directory.Cache
         });
       } catch (e) {
-        console.log('Cache cleanup skipped');
+        dlog('Cache cleanup skipped');
       }
     } catch (error) {
       console.error('Export latest auto-backup failed:', error);

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Task, Client, Vehicle, Settings } from '@/types';
 import { formatDuration, formatCurrency, calcPeriodCost } from '@/lib/formatTime';
 import { computeTaskTotalAllocated } from '@/lib/billing';
+import { depositForTask } from '@/lib/deposit';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
 
@@ -434,7 +435,15 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
   const totalRevenue = useMemo(() => filteredTasks.filter(t => t.status === 'paid').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
   const totalHours = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskSeconds(t), 0) / 3600, [filteredTasks, taskMetrics]);
-  const unpaidBalance = useMemo(() => filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), [filteredTasks, taskMetrics]);
+  // Billed jobs still owed: labor + services − discount + parts, minus the
+  // deposit left (billed-first rule, same as the client header).
+  const unpaidBalance = useMemo(() => {
+    const fullCost = (t: Task) => getTaskCost(t) + getTaskParts(t);
+    return filteredTasks.filter(t => t.status === 'billed').reduce((s, t) => {
+      const dep = depositForTask(t, vehicles, tasks, clientsById.get(t.clientId), fullCost);
+      return s + Math.max(0, fullCost(t) - dep);
+    }, 0);
+  }, [filteredTasks, taskMetrics, vehicles, tasks, clientsById]);
   const totalParts = useMemo(() => filteredTasks.reduce((s, t) => s + getTaskParts(t), 0), [filteredTasks, taskMetrics]);
   const ROW_WINDOW = 200;
   const visibleDetailData = useMemo(
@@ -536,6 +545,39 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
 
     return { data, vehKeys, perKeys, labels };
   }, [drillVehicle, filteredTasks, vehicles]);
+
+  // Recharts draws every series on every day, so one series per vehicle and per
+  // period (hundreds) froze the page. Reuse a few per-day "slots" instead and
+  // carry each segment's own label + color on the row, so the chart looks the same.
+  const dailySlots = useMemo(() => {
+    const { data, vehKeys, perKeys, labels } = vehicleDaily;
+    const drilled = !!drillVehicle?.vehicleId;
+    let vehSlots = 0;
+    let perSlots = 0;
+    const rows = data.map((src: any) => {
+      const row: any = { day: src.day, dayKey: src.dayKey, total: src.total, meta: {} };
+      let j = 0;
+      vehKeys.forEach((key, i) => {
+        if (src[key] == null) return;
+        const slot = `v_s${j++}`;
+        row[slot] = src[key];
+        row.meta[slot] = { label: labels[key] || key, fill: vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length] };
+      });
+      vehSlots = Math.max(vehSlots, j);
+      j = 0;
+      perKeys.forEach((key, i) => {
+        if (src[key] == null) return;
+        const slot = drilled ? `p${j++}` : `p_s${j++}`;
+        row[slot] = src[key];
+        row.meta[slot] = { label: labels[key] || key, fill: PERIOD_COLORS[i % PERIOD_COLORS.length] };
+      });
+      perSlots = Math.max(perSlots, j);
+      return row;
+    });
+    const vehSlotKeys = Array.from({ length: vehSlots }, (_, k) => `v_s${k}`);
+    const perSlotKeys = Array.from({ length: perSlots }, (_, k) => (drilled ? `p${k}` : `p_s${k}`));
+    return { data: rows, vehSlotKeys, perSlotKeys };
+  }, [vehicleDaily, vehicleColorMap, drillVehicle]);
 
 
 
@@ -645,7 +687,7 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
           </Button>
           {unpaidBalance > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700"
-              title="Billed tasks. Labor + services − discount. Parts excluded (pass-through).">
+              title="Billed tasks still owed: labor + services − discount + parts, minus deposit left (deposit pays Billed first).">
               <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Unpaid:</span>
               <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{formatCurrency(unpaidBalance)}</span>
             </div>
@@ -751,12 +793,12 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={vehicleDaily.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }} barGap={0}>
+                        <BarChart data={dailySlots.data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }} barGap={0}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                           <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatHm(Number(v))} />
                           <Tooltip
-                            formatter={(v: any) => formatHm(Number(v))}
+                            formatter={(v: any, name: any, item: any) => [formatHm(Number(v)), item?.payload?.meta?.[item?.dataKey]?.label || name]}
                             labelFormatter={(l, payload) => {
                               // Avoid double-counting: sum only vehicle bars when present, else period bars.
                               const vehSum = payload?.filter((p: any) => String(p?.dataKey || '').startsWith('v_'))
@@ -767,23 +809,19 @@ export const DesktopReportsView = ({ tasks, clients, vehicles, settings }: Deskt
                             }}
                             contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                           />
-                          {vehicleDaily.vehKeys.map((key, i) => (
-                            <Bar
-                              key={key}
-                              dataKey={key}
-                              name={vehicleDaily.labels[key] || key}
-                              stackId="veh"
-                              fill={vehicleColorMap[key.slice(2)] || CHART_COLORS[i % CHART_COLORS.length]}
-                            />
+                          {dailySlots.vehSlotKeys.map(key => (
+                            <Bar key={key} dataKey={key} stackId="veh">
+                              {dailySlots.data.map((row: any, i: number) => (
+                                <Cell key={i} fill={row.meta[key]?.fill || CHART_COLORS[0]} />
+                              ))}
+                            </Bar>
                           ))}
-                          {vehicleDaily.perKeys.map((key, i) => (
-                            <Bar
-                              key={key}
-                              dataKey={key}
-                              name={vehicleDaily.labels[key] || key}
-                              stackId="per"
-                              fill={PERIOD_COLORS[i % PERIOD_COLORS.length]}
-                            />
+                          {dailySlots.perSlotKeys.map(key => (
+                            <Bar key={key} dataKey={key} stackId="per">
+                              {dailySlots.data.map((row: any, i: number) => (
+                                <Cell key={i} fill={row.meta[key]?.fill || PERIOD_COLORS[0]} />
+                              ))}
+                            </Bar>
                           ))}
 
                         </BarChart>

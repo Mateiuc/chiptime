@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp, Square } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Upload, Download, Pencil, Trash2, Receipt, DollarSign, ChevronDown, ChevronRight, ImageOff, Car, Mail, Phone, CreditCard, ArrowRightLeft, TrendingUp, Plus, FileText, ExternalLink, Save, X, UserPlus, ArrowUp, ArrowDown, BarChart3, Printer, KeyRound, Link2, Eye, Users, FileUp, Square, Play, Pause } from 'lucide-react';
 import { CompleteWorkDialog } from '@/components/CompleteWorkDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -366,6 +366,94 @@ const DesktopDashboard = () => {
       });
     }
     setShowCompleteWork(true);
+  };
+
+  // Start / Resume — same as the mobile card (Index.tsx handleRestartTimer)
+  const handleStartTimer = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Auto-pause every other running task
+    const { updates: pauseUpdates, pausedTasks } = buildPauseUpdatesForRunningTasks(tasks, taskId);
+    const taskUpdates: Array<{ id: string; updates: Partial<Task> }> = [...pauseUpdates];
+
+    if (pausedTasks.length > 0) {
+      const pausedVehicle = vehicles.find(v => v.id === pausedTasks[0].vehicleId);
+      toast({
+        title: 'Timer Auto-Paused',
+        description: pausedTasks.length > 1
+          ? `${pausedTasks.length} timers paused automatically`
+          : `${pausedVehicle?.make} ${pausedVehicle?.model} paused automatically`
+      });
+    }
+
+    let updatedSessions = [...(task.sessions || [])];
+    let activeSessionId = task.activeSessionId;
+    if (!activeSessionId) {
+      const newSession: WorkSession = {
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        periods: [],
+        parts: [],
+        createdBy: currentUserId || undefined,
+      };
+      updatedSessions.push(newSession);
+      activeSessionId = newSession.id;
+    }
+
+    taskUpdates.push({
+      id: taskId,
+      updates: {
+        status: 'in-progress',
+        startTime: new Date(),
+        sessions: updatedSessions,
+        activeSessionId,
+      }
+    });
+    batchUpdateTasks(taskUpdates);
+    toast({ title: task.status === 'paused' ? 'Timer Resumed' : 'Timer Started' });
+  };
+
+  // Pause — same as the mobile card (Index.tsx handlePauseTimer)
+  const handlePauseTimer = (taskId: string) => {
+    const activeTask = tasks.find(t => t.id === taskId);
+    if (!activeTask || activeTask.status !== 'in-progress' || !activeTask.startTime) return;
+
+    const start = activeTask.startTime instanceof Date ? activeTask.startTime : new Date(activeTask.startTime);
+    const elapsed = Math.floor((Date.now() - start.getTime()) / 1000);
+    const period: WorkPeriod = {
+      id: crypto.randomUUID(),
+      startTime: start,
+      endTime: new Date(),
+      duration: elapsed,
+      createdBy: currentUserId || undefined,
+    };
+
+    let updatedSessions = [...(activeTask.sessions || [])];
+    let activeSessionId = activeTask.activeSessionId;
+    if (!activeSessionId) {
+      const newSession: WorkSession = {
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        periods: [],
+        parts: [],
+        createdBy: currentUserId || undefined,
+      };
+      updatedSessions.push(newSession);
+      activeSessionId = newSession.id;
+    }
+    updatedSessions = updatedSessions.map(s =>
+      s.id === activeSessionId ? { ...s, periods: [...(s.periods || []), period] } : s
+    );
+
+    updateTask(activeTask.id, {
+      status: 'paused',
+      sessions: updatedSessions,
+      totalTime: activeTask.totalTime + elapsed,
+      startTime: undefined,
+      activeSessionId,
+    });
+    toast({ title: 'Timer Paused' });
   };
 
   const handleCompleteWork = (description: string, parts: Part[], needsFollowUp: boolean, periodMinHourFlags: boolean[] = [], isCloning: boolean = false, isProgramming: boolean = false, isAddKey: boolean = false, isAllKeysLost: boolean = false, extraCharge: number = 0) => {
@@ -1867,11 +1955,6 @@ const DesktopDashboard = () => {
                                           <WorkerChip key={uid} worker={getWorker(uid)} size="xs" />
                                         ))}
                                         <Badge className={`text-xs border ${statusColors[task.status] || ''}`}>{task.status}</Badge>
-                                        {(task.status === 'in-progress' || task.status === 'paused') && (
-                                          <Button variant="default" size="sm" className="h-5 px-2 py-0 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-full" onClick={() => handleStopTimer(task.id)} title="Stop & Complete">
-                                            <Square className="h-3 w-3 mr-1" />Stop
-                                          </Button>
-                                        )}
                                         <span className="font-mono text-sm font-semibold">{formatDuration(task.totalTime)}</span>
                                         <span className="font-bold text-sm">{formatCurrency(cost)}</span>
                                         {vehicle.discountType && (vehicle.discountValue || 0) > 0 && (
@@ -1908,6 +1991,37 @@ const DesktopDashboard = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
+                                        {/* Timer controls — same as the mobile card */}
+                                        {['pending', 'in-progress', 'paused'].includes(task.status) && (
+                                          <div className="flex items-center gap-1.5 mr-2">
+                                            {task.status === 'pending' && (
+                                              <Button variant="default" size="sm" className="h-7 px-3 text-xs gap-1" onClick={() => handleStartTimer(task.id)}>
+                                                <Play className="h-3.5 w-3.5" />Start
+                                              </Button>
+                                            )}
+                                            {task.status === 'in-progress' && (
+                                              <Button variant="secondary" size="sm" className="h-7 px-3 text-xs gap-1" onClick={() => handlePauseTimer(task.id)}>
+                                                <Pause className="h-3.5 w-3.5" />Pause
+                                              </Button>
+                                            )}
+                                            {task.status === 'paused' && (
+                                              <Button variant="default" size="sm" className="h-7 px-3 text-xs gap-1" onClick={() => handleStartTimer(task.id)}>
+                                                <Play className="h-3.5 w-3.5" />Resume
+                                              </Button>
+                                            )}
+                                            {(task.status === 'in-progress' || task.status === 'paused') && (
+                                              <Button
+                                                variant={task.status === 'paused' ? 'secondary' : 'default'}
+                                                size="sm"
+                                                className={`h-7 px-3 text-xs gap-1 ${task.status === 'in-progress' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
+                                                onClick={() => handleStopTimer(task.id)}
+                                                title="Stop & Complete"
+                                              >
+                                                <Square className="h-3.5 w-3.5" />Stop
+                                              </Button>
+                                            )}
+                                          </div>
+                                        )}
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTaskId(editingTaskId === task.id ? null : task.id)} title="Edit">
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>

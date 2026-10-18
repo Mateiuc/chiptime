@@ -115,14 +115,17 @@ const DesktopDashboard = () => {
   useEffect(() => {
     if (didFirstLoadRef.current) return;
     didFirstLoadRef.current = true;
-    refresh().then(() => {
-      // Defer baseline capture to next tick so React state has hydrated.
-      setTimeout(() => snapshotBaseline(), 0);
-    }).catch(() => {});
+    // Baseline is captured by the dirty-tracking effect once the pulled
+    // data is in React state (see lastSyncAt below).
+    refresh().catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Dirty tracking (local changes not yet pushed to cloud) ---
   const baselineRef = useRef<string>('');
+  // Set when the next state change should become the new baseline
+  // (e.g. after a backup import replaces everything).
+  const rebaselineRef = useRef(false);
+  const baselineSyncAtRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [dirtyCount, setDirtyCount] = useState(0);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -139,6 +142,14 @@ const DesktopDashboard = () => {
 
   // Recompute dirty whenever any tracked slice changes.
   useEffect(() => {
+    // A fresh cloud pull (lastSyncAt changes in the same render as the
+    // pulled data) or an import resets the baseline to what is on screen now.
+    if ((lastSyncAt && lastSyncAt !== baselineSyncAtRef.current) || rebaselineRef.current) {
+      baselineSyncAtRef.current = lastSyncAt;
+      rebaselineRef.current = false;
+      snapshotBaseline();
+      return;
+    }
     if (!baselineRef.current) return; // baseline not captured yet
     const current = computeSnapshotKey();
     if (current === baselineRef.current) {
@@ -162,7 +173,7 @@ const DesktopDashboard = () => {
       setDirtyCount(changed);
     } catch { setDirtyCount(0); }
     setIsDirty(true);
-  }, [clients, vehicles, tasks, settings]);
+  }, [clients, vehicles, tasks, settings, lastSyncAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Warn before navigating away with unsaved changes.
   useEffect(() => {
@@ -224,8 +235,8 @@ const DesktopDashboard = () => {
       vehiclesHook.replaceAll(freshVehicles);
       tasksHook.replaceAll(freshTasks);
       settingsHook.replaceAll(freshSettings);
+      rebaselineRef.current = true;
       scheduleHook.replaceAll(freshSchedule);
-      setTimeout(() => snapshotBaseline(), 0);
     };
     window.addEventListener('chiptime:import-complete', handleImportComplete);
     return () => window.removeEventListener('chiptime:import-complete', handleImportComplete);
@@ -239,9 +250,10 @@ const DesktopDashboard = () => {
       );
       if (!ok) return;
     }
+    // The dirty-tracking effect re-baselines when lastSyncAt changes. If the
+    // cloud is unchanged since the last pull, the old baseline already matches.
     await refresh();
     setLastLoadedAt(new Date());
-    setTimeout(() => snapshotBaseline(), 0);
     toast({ title: 'Reloaded from Cloud' });
   };
 

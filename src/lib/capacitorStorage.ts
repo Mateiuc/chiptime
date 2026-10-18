@@ -194,7 +194,15 @@ class CapacitorStorage {
     await this.setVehicles(data.vehicles || []);
     await this.setTasks(data.tasks || []);
     if (data.settings) {
-      await this.setSettings(data.settings);
+      // Device-only settings are not in backups (API key, backup/cloud-sync state):
+      // keep this device's values instead of wiping them.
+      const current: any = await this.getSettings().catch(() => null);
+      const deviceOnly = current ? {
+        ...(current.googleApiKey ? { googleApiKey: current.googleApiKey } : {}),
+        ...(current.backup ? { backup: current.backup } : {}),
+        ...(current.cloudSync ? { cloudSync: current.cloudSync } : {}),
+      } : {};
+      await this.setSettings({ ...data.settings, ...deviceOnly });
     }
   }
 }

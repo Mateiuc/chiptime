@@ -43,6 +43,11 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (client.accessCode) xml += `accessCode="${escapeXML(client.accessCode)}" `;
     if (client.portalId) xml += `portalId="${escapeXML(client.portalId)}" `;
     if (client.prepaidAmount) xml += `prepaidAmount="${escapeXML(client.prepaidAmount)}" `;
+    if (client.deposits && client.deposits.length > 0) xml += `deposits="${escapeXML(JSON.stringify(client.deposits))}" `;
+    if (client.portalLogoUrl) xml += `portalLogoUrl="${escapeXML(client.portalLogoUrl)}" `;
+    if (client.portalBgColor) xml += `portalBgColor="${escapeXML(client.portalBgColor)}" `;
+    if (client.portalBusinessName) xml += `portalBusinessName="${escapeXML(client.portalBusinessName)}" `;
+    if (client.portalBgImageUrl) xml += `portalBgImageUrl="${escapeXML(client.portalBgImageUrl)}" `;
     xml += `createdAt="${formatDate(client.createdAt)}" `;
     xml += `/>\n`;
   });
@@ -61,6 +66,10 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (vehicle.color) xml += `color="${escapeXML(vehicle.color)}" `;
     if (vehicle.prepaidAmount) xml += `prepaidAmount="${escapeXML(vehicle.prepaidAmount)}" `;
     if (vehicle.diagnosticPdfUrl) xml += `diagnosticPdfUrl="${escapeXML(vehicle.diagnosticPdfUrl)}" `;
+    if (vehicle.diagnosticPdfPath) xml += `diagnosticPdfPath="${escapeXML(vehicle.diagnosticPdfPath)}" `;
+    if (vehicle.deposits && vehicle.deposits.length > 0) xml += `deposits="${escapeXML(JSON.stringify(vehicle.deposits))}" `;
+    if (vehicle.discountType) xml += `discountType="${escapeXML(vehicle.discountType)}" `;
+    if (vehicle.discountValue != null) xml += `discountValue="${escapeXML(vehicle.discountValue)}" `;
     xml += `/>\n`;
   });
   xml += '  </Vehicles>\n';
@@ -81,6 +90,11 @@ export const exportToXML = (data: DatabaseExport): string => {
     if (task.importedSalary != null) xml += `importedSalary="${escapeXML(task.importedSalary)}" `;
     if (task.startTime) xml += `startTime="${formatDate(task.startTime)}" `;
     if (task.activeSessionId) xml += `activeSessionId="${escapeXML(task.activeSessionId)}" `;
+    if (task.paidAt) xml += `paidAt="${formatDate(task.paidAt)}" `;
+    if (task.depositApplied) xml += `depositApplied="${escapeXML(JSON.stringify(task.depositApplied))}" `;
+    if (task.diagnosticPdfUrl) xml += `diagnosticPdfUrl="${escapeXML(task.diagnosticPdfUrl)}" `;
+    if (task.diagnosticPdfPath) xml += `diagnosticPdfPath="${escapeXML(task.diagnosticPdfPath)}" `;
+    if (task.createdBy) xml += `createdBy="${escapeXML(task.createdBy)}" `;
     xml += `>\n`;
 
     // Sessions
@@ -98,6 +112,7 @@ export const exportToXML = (data: DatabaseExport): string => {
         if (session.isAddKey) xml += `isAddKey="true" `;
         if (session.isAllKeysLost) xml += `isAllKeysLost="true" `;
         if (session.extraCharge) xml += `extraCharge="${escapeXML(session.extraCharge)}" `;
+        if (session.createdBy) xml += `createdBy="${escapeXML(session.createdBy)}" `;
         xml += `>\n`;
 
         // Jobs (fixed-price work, billed as services)
@@ -109,6 +124,7 @@ export const exportToXML = (data: DatabaseExport): string => {
             xml += `name="${escapeXML(job.name)}" `;
             xml += `price="${escapeXML(job.price)}" `;
             if (job.description) xml += `description="${escapeXML(job.description)}" `;
+            if (job.createdBy) xml += `createdBy="${escapeXML(job.createdBy)}" `;
             xml += `/>\n`;
           });
           xml += '          </Jobs>\n';
@@ -124,6 +140,7 @@ export const exportToXML = (data: DatabaseExport): string => {
             xml += `endTime="${formatDate(period.endTime)}" `;
             xml += `duration="${escapeXML(period.duration)}" `;
             if (period.chargeMinimumHour) xml += `chargeMinimumHour="true" `;
+            if (period.createdBy) xml += `createdBy="${escapeXML(period.createdBy)}" `;
             xml += `/>\n`;
           });
           xml += '          </Periods>\n';
@@ -139,6 +156,7 @@ export const exportToXML = (data: DatabaseExport): string => {
             xml += `price="${escapeXML(part.price)}" `;
             if (part.description) xml += `description="${escapeXML(part.description)}" `;
             if (part.providedByClient) xml += `providedByClient="true" `;
+            if (part.createdBy) xml += `createdBy="${escapeXML(part.createdBy)}" `;
             xml += `/>\n`;
           });
           xml += '          </Parts>\n';
@@ -152,6 +170,7 @@ export const exportToXML = (data: DatabaseExport): string => {
             xml += `id="${escapeXML(photo.id)}" `;
             if (photo.filePath) xml += `filePath="${escapeXML(photo.filePath)}" `;
             if (photo.cloudUrl) xml += `cloudUrl="${escapeXML(photo.cloudUrl)}" `;
+            if (photo.cloudPath) xml += `cloudPath="${escapeXML(photo.cloudPath)}" `;
             xml += `capturedAt="${formatDate(photo.capturedAt)}" `;
             xml += `sessionNumber="${escapeXML(photo.sessionNumber)}" `;
             xml += `/>\n`;
@@ -180,6 +199,13 @@ export const exportToXML = (data: DatabaseExport): string => {
   // shared/exported files. They are device-local OCR credentials.
   if (data.settings.paymentLink) xml += `paymentLink="${escapeXML(data.settings.paymentLink)}" `;
   if (data.settings.paymentLabel) xml += `paymentLabel="${escapeXML(data.settings.paymentLabel)}" `;
+  if (data.settings.paymentMethods && data.settings.paymentMethods.length > 0) xml += `paymentMethods="${escapeXML(JSON.stringify(data.settings.paymentMethods))}" `;
+  if (data.settings.portalLogoUrl) xml += `portalLogoUrl="${escapeXML(data.settings.portalLogoUrl)}" `;
+  if (data.settings.portalBgColor) xml += `portalBgColor="${escapeXML(data.settings.portalBgColor)}" `;
+  if (data.settings.portalBusinessName) xml += `portalBusinessName="${escapeXML(data.settings.portalBusinessName)}" `;
+  if (data.settings.portalBgImageUrl) xml += `portalBgImageUrl="${escapeXML(data.settings.portalBgImageUrl)}" `;
+  if (data.settings.ocrProvider) xml += `ocrProvider="${escapeXML(data.settings.ocrProvider)}" `;
+  if (data.settings.notificationsEnabled != null) xml += `notificationsEnabled="${escapeXML(data.settings.notificationsEnabled)}" `;
   xml += '/>\n';
 
   xml += '</AutoTimeData>';
@@ -199,6 +225,13 @@ export const downloadXML = (xmlString: string, filename: string): void => {
 };
 
 // Parse XML from string
+// JSON stored in an attribute (deposits, depositApplied, ...). Bad value → undefined.
+const parseJSONAttr = (node: Element, name: string): any => {
+  const raw = node.getAttribute(name);
+  if (!raw) return undefined;
+  try { return JSON.parse(raw); } catch { return undefined; }
+};
+
 export const parseXMLString = (xmlText: string): DatabaseExport => {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
@@ -248,6 +281,11 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         accessCode: node.getAttribute('accessCode') || undefined,
         portalId: node.getAttribute('portalId') || undefined,
         prepaidAmount: node.getAttribute('prepaidAmount') ? parseFloat(node.getAttribute('prepaidAmount')!) : undefined,
+        deposits: parseJSONAttr(node, 'deposits'),
+        portalLogoUrl: node.getAttribute('portalLogoUrl') || undefined,
+        portalBgColor: node.getAttribute('portalBgColor') || undefined,
+        portalBusinessName: node.getAttribute('portalBusinessName') || undefined,
+        portalBgImageUrl: node.getAttribute('portalBgImageUrl') || undefined,
         createdAt: new Date(node.getAttribute('createdAt') || ''),
       });
     });
@@ -267,6 +305,10 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
         color: node.getAttribute('color') || undefined,
         prepaidAmount: node.getAttribute('prepaidAmount') ? parseFloat(node.getAttribute('prepaidAmount')!) : undefined,
         diagnosticPdfUrl: node.getAttribute('diagnosticPdfUrl') || undefined,
+        diagnosticPdfPath: node.getAttribute('diagnosticPdfPath') || undefined,
+        deposits: parseJSONAttr(node, 'deposits'),
+        discountType: (node.getAttribute('discountType') as 'fixed' | 'percent' | null) || undefined,
+        discountValue: node.getAttribute('discountValue') ? parseFloat(node.getAttribute('discountValue')!) : undefined,
       });
     });
   }
@@ -297,6 +339,16 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
       if (taskNode.getAttribute('importedSalary')) {
         task.importedSalary = parseFloat(taskNode.getAttribute('importedSalary')!);
       }
+      if (taskNode.getAttribute('paidAt')) {
+        task.paidAt = new Date(taskNode.getAttribute('paidAt')!);
+      }
+      const depositApplied = parseJSONAttr(taskNode, 'depositApplied');
+      if (depositApplied) {
+        task.depositApplied = { vehicle: depositApplied.vehicle || 0, client: depositApplied.client || 0, at: new Date(depositApplied.at || task.paidAt || task.createdAt) };
+      }
+      if (taskNode.getAttribute('diagnosticPdfUrl')) task.diagnosticPdfUrl = taskNode.getAttribute('diagnosticPdfUrl')!;
+      if (taskNode.getAttribute('diagnosticPdfPath')) task.diagnosticPdfPath = taskNode.getAttribute('diagnosticPdfPath')!;
+      if (taskNode.getAttribute('createdBy')) task.createdBy = taskNode.getAttribute('createdBy')!;
       // Phase 2: legacy `billedAmount` attribute on backups is silently dropped.
 
       // Parse Sessions
@@ -325,6 +377,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
             const ec = parseFloat(sessionNode.getAttribute('extraCharge')!);
             if (isFinite(ec) && ec > 0) session.extraCharge = ec;
           }
+          if (sessionNode.getAttribute('createdBy')) session.createdBy = sessionNode.getAttribute('createdBy')!;
 
           // Parse Jobs
           const jobsNode = sessionNode.querySelector('Jobs');
@@ -336,6 +389,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
                 name: jobNode.getAttribute('name') || '',
                 price: parseFloat(jobNode.getAttribute('price') || '0'),
                 description: jobNode.getAttribute('description') || undefined,
+                ...(jobNode.getAttribute('createdBy') ? { createdBy: jobNode.getAttribute('createdBy')! } : {}),
               });
             });
           }
@@ -350,6 +404,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
                 endTime: new Date(periodNode.getAttribute('endTime') || ''),
                 duration: parseInt(periodNode.getAttribute('duration') || '0'),
                 chargeMinimumHour: periodNode.getAttribute('chargeMinimumHour') === 'true' || undefined,
+                ...(periodNode.getAttribute('createdBy') ? { createdBy: periodNode.getAttribute('createdBy')! } : {}),
               });
             });
           }
@@ -364,6 +419,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
                 price: parseFloat(partNode.getAttribute('price') || '0'),
                 description: partNode.getAttribute('description') || undefined,
                 providedByClient: partNode.getAttribute('providedByClient') === 'true' || undefined,
+                ...(partNode.getAttribute('createdBy') ? { createdBy: partNode.getAttribute('createdBy')! } : {}),
               });
             });
           }
@@ -377,6 +433,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
                 id: photoNode.getAttribute('id') || '',
                 filePath: photoNode.getAttribute('filePath') || undefined,
                 cloudUrl: photoNode.getAttribute('cloudUrl') || undefined,
+                cloudPath: photoNode.getAttribute('cloudPath') || undefined,
                 capturedAt: new Date(photoNode.getAttribute('capturedAt') || ''),
                 sessionNumber: parseInt(photoNode.getAttribute('sessionNumber') || '1'),
               });
@@ -403,8 +460,16 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
       ...(settingsNode.getAttribute('googleApiKey') ? { googleApiKey: settingsNode.getAttribute('googleApiKey')! } : {}),
       ...(settingsNode.getAttribute('paymentLink') ? { paymentLink: settingsNode.getAttribute('paymentLink')! } : {}),
       ...(settingsNode.getAttribute('paymentLabel') ? { paymentLabel: settingsNode.getAttribute('paymentLabel')! } : {}),
+      ...(parseJSONAttr(settingsNode, 'paymentMethods') ? { paymentMethods: parseJSONAttr(settingsNode, 'paymentMethods') } : {}),
+      ...(settingsNode.getAttribute('portalLogoUrl') ? { portalLogoUrl: settingsNode.getAttribute('portalLogoUrl')! } : {}),
+      ...(settingsNode.getAttribute('portalBgColor') ? { portalBgColor: settingsNode.getAttribute('portalBgColor')! } : {}),
+      ...(settingsNode.getAttribute('portalBusinessName') ? { portalBusinessName: settingsNode.getAttribute('portalBusinessName')! } : {}),
+      ...(settingsNode.getAttribute('portalBgImageUrl') ? { portalBgImageUrl: settingsNode.getAttribute('portalBgImageUrl')! } : {}),
+      ...(settingsNode.getAttribute('ocrProvider') ? { ocrProvider: settingsNode.getAttribute('ocrProvider') as 'claude' | 'tesseract' } : {}),
+      ...(settingsNode.getAttribute('notificationsEnabled') ? { notificationsEnabled: settingsNode.getAttribute('notificationsEnabled') === 'true' } : {}),
     };
   }
+
 
   return data;
 };

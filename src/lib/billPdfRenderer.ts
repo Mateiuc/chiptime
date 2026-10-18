@@ -135,6 +135,8 @@ export interface RenderBillOptions {
   vehicle: Vehicle | undefined;
   settings: RendererSettings;
   billedDate?: Date;
+  /** Deposit set against this bill (Billed-first rule). Defaults to the car's deposit. */
+  deposit?: number;
 }
 
 // Layout constants — used by both measure and draw passes.
@@ -260,7 +262,7 @@ export async function renderBillPdf(opts: RenderBillOptions): Promise<jsPDF> {
   doc.setFont('helvetica', 'normal');
   const measured: MeasuredRow[] = flowRows.map((r) => measureRow(doc, r));
 
-  const deposit = vehicle?.prepaidAmount || 0;
+  const deposit = opts.deposit ?? (vehicle?.prepaidAmount || 0);
   const showDiscount = totals.laborDiscount > 0;
   const showDeposit = deposit > 0;
   const extraLines = (showDiscount ? 1 : 0) + (showDeposit ? 1 : 0);

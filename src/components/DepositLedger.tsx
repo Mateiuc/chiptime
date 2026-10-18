@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { DepositEntry, DepositMethod } from '@/types';
-import { addDeposit, updateDeposit, removeDeposit, depositTotal } from '@/lib/depositLedger';
+import { addDeposit, updateDeposit, removeDeposit, depositTotal, DepositUsage } from '@/lib/depositLedger';
 import { formatCurrency } from '@/lib/formatTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Pencil, Check, X, Plus } from 'lucide-react';
+import { Trash2, Pencil, Check, X, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 
 const METHODS: { value: DepositMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -19,9 +19,12 @@ interface Props {
   onChange: (deposits: DepositEntry[], total: number) => void;
   readOnly?: boolean;
   compact?: boolean;
+  /** Per-deposit used/left (keyed by deposit id). When given, rows show Used and Left. */
+  usage?: Record<string, DepositUsage>;
 }
 
-export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = false }: Props) => {
+export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = false, usage }: Props) => {
+  const [openJobsId, setOpenJobsId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<DepositEntry>>({});
   const [adding, setAdding] = useState(false);
@@ -60,13 +63,15 @@ export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = 
   };
 
   const total = depositTotal(deposits);
+  const totalUsed = usage ? deposits.reduce((s, d) => s + (usage[d.id]?.used || 0), 0) : 0;
   const methodLabel = (m?: string) => METHODS.find(x => x.value === m)?.label || m || '';
 
   return (
     <div className="space-y-1">
       {/* Entries */}
       {deposits.map(d => (
-        <div key={d.id} className={`flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-3 py-2 ${compact ? 'text-xs' : 'text-sm'}`}>
+        <div key={d.id}>
+        <div className={`flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-3 py-2 ${compact ? 'text-xs' : 'text-sm'}`}>
           {editingId === d.id ? (
             <>
               <Input type="date" value={editValues.date ?? d.date} onChange={e => setEditValues(v => ({ ...v, date: e.target.value }))} className="h-7 text-xs w-32 shrink-0" />
@@ -86,6 +91,19 @@ export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = 
               {d.method && <span className="shrink-0 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">{methodLabel(d.method)}</span>}
               {d.note && <span className="text-muted-foreground italic flex-1 truncate">"{d.note}"</span>}
               {!d.note && <span className="flex-1" />}
+              {usage?.[d.id] && (
+                <button
+                  type="button"
+                  className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setOpenJobsId(openJobsId === d.id ? null : d.id)}
+                  disabled={usage[d.id].jobs.length === 0}
+                  title={usage[d.id].jobs.length ? 'Show jobs paid from this deposit' : undefined}
+                >
+                  {usage[d.id].jobs.length > 0 && (openJobsId === d.id ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
+                  <span>Used <span className="text-red-600 dark:text-red-400 font-semibold">{formatCurrency(usage[d.id].used)}</span></span>
+                  <span>· Left <span className="text-foreground font-semibold">{formatCurrency(usage[d.id].left)}</span></span>
+                </button>
+              )}
               {!readOnly && (
                 <>
                   <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0" onClick={() => { setEditingId(d.id); setEditValues({}); }}><Pencil className="h-3 w-3" /></Button>
@@ -94,6 +112,17 @@ export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = 
               )}
             </>
           )}
+        </div>
+        {usage?.[d.id] && openJobsId === d.id && editingId !== d.id && (
+          <div className="ml-6 mt-1 mb-1 space-y-0.5 text-xs text-muted-foreground">
+            {usage[d.id].jobs.map((j, idx) => (
+              <div key={j.taskId + idx} className="flex justify-between gap-2">
+                <span>{j.date.slice(0, 10)} · {j.label}</span>
+                <span className="text-red-600 dark:text-red-400">−{formatCurrency(j.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         </div>
       ))}
 
@@ -122,6 +151,12 @@ export const DepositLedger = ({ deposits, onChange, readOnly = false, compact = 
         <div className={`flex justify-between items-center border-t border-border/50 pt-2 mt-1 font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>
           <span className="text-muted-foreground">Total ({deposits.length} payment{deposits.length !== 1 ? 's' : ''})</span>
           <span className="text-green-700 dark:text-green-400">{formatCurrency(total)}</span>
+        </div>
+      )}
+      {deposits.length > 0 && usage && (
+        <div className={`flex justify-between items-center font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>
+          <span className="text-muted-foreground">Used <span className="text-red-600 dark:text-red-400">{formatCurrency(totalUsed)}</span></span>
+          <span>Deposit left <span className="text-green-700 dark:text-green-400">{formatCurrency(Math.max(0, total - totalUsed))}</span></span>
         </div>
       )}
     </div>

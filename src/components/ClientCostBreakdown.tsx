@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { createPortal } from 'react-dom';
-import { ClientCostSummary } from '@/lib/clientPortalUtils';
+import { ClientCostSummary, VehicleCostSummary } from '@/lib/clientPortalUtils';
+import { splitDepositLeft } from '@/lib/deposit';
 import { applyLaborDiscount } from '@/lib/discount';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -160,6 +161,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
         client: bundle.client,
         vehicle: bundle.vehicle,
         settings: bundle.settings,
+        deposit: carDepositForTab(vehicleSummary.vehicle),
       });
       const vehicleName = [bundle.vehicle.year, bundle.vehicle.make, bundle.vehicle.model]
         .filter(Boolean)
@@ -193,6 +195,30 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   };
 
   const allowedStatuses = filter ? statusMap[filter] : null;
+
+  // Total of one car's sessions in the given statuses (same math as the filtered view below).
+  const totalForStatuses = (vehicleSummary: VehicleCostSummary, statuses: string[]) => {
+    const ss = vehicleSummary.sessions.filter(s => statuses.includes(s.status));
+    const labor = ss.reduce((sum, s) => sum + s.laborCost, 0);
+    const parts = ss.reduce((sum, s) => sum + s.partsCost, 0);
+    return Math.max(0, labor - applyLaborDiscount(labor, vehicleSummary.vehicle).discount) + parts;
+  };
+  // Deposit left (already net of paid jobs) pays Billed work first; whatever remains goes to Completed.
+  const depositSplit = splitDepositLeft(
+    costSummary.vehicles.map(vs => ({
+      left: vs.vehicle.prepaidAmount || 0,
+      billed: totalForStatuses(vs, ['billed']),
+      completed: totalForStatuses(vs, ['completed']),
+    })),
+    costSummary.client.prepaidAmount || 0
+  );
+  const carDepositForTab = (vehicle: VehicleCostSummary['vehicle']) => {
+    const idx = costSummary.vehicles.findIndex(vs => vs.vehicle === vehicle);
+    if (idx < 0) return 0;
+    const p = depositSplit.perCar[idx];
+    return filter === 'billed' ? p.forBilled : filter === 'pending' ? p.forCompleted : 0;
+  };
+  const clientDepositForTab = filter === 'billed' ? depositSplit.clientForBilled : filter === 'pending' ? depositSplit.clientForCompleted : 0;
 
   const filteredVehicles = costSummary.vehicles
     .map(vehicleSummary => {
@@ -282,7 +308,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               const v = vehicleSummary.vehicle;
               const vehicleName = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
               const isCollapsed = collapsedVehicles.has(vIdx);
-              const deposit = v.prepaidAmount || 0;
+              const deposit = carDepositForTab(v);
               const balanceDue = Math.max(0, vehicleSummary.vehicleTotal - deposit);
               const diagnosticPdfUrl = vehicleSummary.sessions.find(s => s.diagnosticPdfUrl)?.diagnosticPdfUrl;
               const color = getVehicleColorScheme(v.vin || String(vIdx));
@@ -513,8 +539,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                 </span>
               </div>
               {(() => {
-                const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + (v.vehicle.prepaidAmount || 0), 0);
-                const clientDeposit = costSummary.client.prepaidAmount || 0;
+                const vehicleDeposits = filteredVehicles.reduce((sum, v) => sum + carDepositForTab(v.vehicle), 0);
+                const clientDeposit = clientDepositForTab;
                 const totalDeposits = vehicleDeposits + clientDeposit;
                 const isPaid = filter === 'paid';
                 const depositColor = isPaid ? 'text-muted-foreground' : 'text-destructive';

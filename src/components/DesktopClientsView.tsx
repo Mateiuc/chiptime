@@ -16,6 +16,8 @@ import { getVehicleColorScheme } from '@/lib/vehicleColors';
 import { generateAccessCode, calculateClientCosts, encodeClientData, generatePortalHtmlFile, syncPortalToCloud, regeneratePortalPin, PORTAL_BASE_URL } from '@/lib/clientPortalUtils';
 import { getClientFinancials as sharedGetClientFinancials } from '@/lib/clientFinancials';
 import { formatCurrency, formatDuration } from '@/lib/formatTime';
+import { computeOpenBalance } from '@/lib/deposit';
+import { computeTaskCost } from '@/lib/billing';
 import jsPDF from 'jspdf';
 
 interface DesktopClientsViewProps {
@@ -133,17 +135,21 @@ export const DesktopClientsView = ({
     doc.text(`Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, y); y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, y); y += 6;
-    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + (v.prepaidAmount || 0), 0);
-    const clientDeposit = client.prepaidAmount || 0;
-    const totalDeposits = vehicleDeposits + clientDeposit;
-    if (totalDeposits > 0) {
+    // Unpaid work and deposit: the deposit pays Billed first, the rest goes to Completed.
+    const open = computeOpenBalance(client, vehicles, tasks, t => computeTaskCost(t, vehicles, tasks, client, settings));
+    if (open.billed + open.completed + open.inProgress > 0 || open.deposit > 0) {
+      y += 4;
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(200, 0, 0);
-      if (vehicleDeposits > 0) { doc.text(`Vehicle Deposits: -${formatCurrency(vehicleDeposits)}`, 25, y); y += 6; }
-      if (clientDeposit > 0) { doc.text(`Client Deposit: -${formatCurrency(clientDeposit)}`, 25, y); y += 6; }
-      doc.setTextColor(0, 0, 0);
+      if (open.billed > 0) { doc.text(`Billed (not paid): ${formatCurrency(open.billed)}`, 25, y); y += 6; }
+      if (open.completed > 0) { doc.text(`Completed (not billed): ${formatCurrency(open.completed)}`, 25, y); y += 6; }
+      if (open.inProgress > 0) { doc.text(`In progress: ${formatCurrency(open.inProgress)}`, 25, y); y += 6; }
+      if (open.deposit > 0) {
+        doc.setTextColor(200, 0, 0);
+        doc.text(`Deposit: -${formatCurrency(open.deposit)}`, 25, y); y += 6;
+        doc.setTextColor(0, 0, 0);
+      }
       doc.setFont('helvetica', 'bold');
-      doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalDeposits))}`, 25, y);
+      doc.text(`Balance Due: ${formatCurrency(open.balanceDue)}`, 25, y);
     }
     doc.setFont('helvetica', 'normal'); y += 12;
     const sanitizedName = client.name.replace(/[^a-zA-Z0-9]/g, '_');

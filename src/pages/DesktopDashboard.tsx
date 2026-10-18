@@ -25,7 +25,7 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { capacitorStorage } from '@/lib/capacitorStorage';
 import { Task, Client, Vehicle, WorkSession, WorkPeriod, Part, DepositEntry } from '@/types';
 import { DepositLedger } from '@/components/DepositLedger';
-import { normalizeDeposits, depositTotal } from '@/lib/depositLedger';
+import { normalizeDeposits, depositTotal, allocateDepositUsage } from '@/lib/depositLedger';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDuration, formatCurrency, formatTime, calcPeriodCost, formatSessionRange } from '@/lib/formatTime';
 import { computeTaskTotal, computeVehicleTotal, computeTaskCost } from '@/lib/billing';
@@ -47,7 +47,7 @@ import { renderBillPdf } from '@/lib/billPdfRenderer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkers } from '@/lib/workers';
 import { WorkerChip } from '@/components/WorkerChip';
-import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit, sumDepositAppliedToClient, sumDepositAppliedToVehicle } from '@/lib/deposit';
+import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit, sumDepositAppliedToClient, sumDepositAppliedToVehicle, splitDepositLeft, computeOpenBalance, depositForTask } from '@/lib/deposit';
 import { buildPauseUpdatesForRunningTasks, buildSingleRunnerHealUpdates } from '@/lib/timerControl';
 
 
@@ -569,7 +569,7 @@ const DesktopDashboard = () => {
 
   // --- Bill PDF generation (delegates to shared renderer) ---
   const generateBillPdf = async (task: Task, client: Client, vehicle: Vehicle) => {
-    const doc = await renderBillPdf({ task, client, vehicle, settings });
+    const doc = await renderBillPdf({ task, client, vehicle, settings, deposit: depositForTask(task, vehicles, tasks, client, getTaskCost) });
 
     // Merge diagnostic PDF if present.
     if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
@@ -758,6 +758,30 @@ const DesktopDashboard = () => {
 
   // --- Helpers — single source of truth: src/lib/billing.ts ---
   // Per-task chip total: pooled vehicle discount, allocated per task.
+  // Deposit set against the open work shown on a tab: Billed first, the rest to Completed.
+  const depositForTab = (client: Client, tab: FilterType) => {
+    if (tab !== 'all' && tab !== 'billed' && tab !== 'completed') return 0;
+    const sumCost = (list: Task[]) => list.reduce((s, t) => s + getTaskCost(t), 0);
+    const split = splitDepositLeft(
+      vehicles.filter(v => v.clientId === client.id).map(v => {
+        const vTasks = tasks.filter(t => t.vehicleId === v.id);
+        return {
+          left: remainingVehicleDeposit(v, tasks),
+          billed: sumCost(vTasks.filter(t => t.status === 'billed')),
+          completed: sumCost(vTasks.filter(t => t.status === 'completed')),
+        };
+      }),
+      remainingClientDeposit(client, tasks)
+    );
+    return tab === 'billed' ? split.forBilled : tab === 'completed' ? split.forCompleted : split.forBilled + split.forCompleted;
+  };
+
+  // Label for a job in the Deposits dialog: the car it was for.
+  const depositDrawLabel = (task: Task) => {
+    const v = vehicles.find(x => x.id === task.vehicleId);
+    return v ? ([v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin || 'Job') : (task.carVin || 'Job');
+  };
+
   const getTaskCost = (task: Task) => {
     const client = clients.find(c => c.id === task.clientId) || null;
     return computeTaskCost(task, vehicles, tasks, client, settings);
@@ -897,17 +921,21 @@ const DesktopDashboard = () => {
     doc.text(`Total Parts Cost: ${formatCurrency(financials.totalPartsCost)}`, 25, yPos); yPos += 6;
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: ${formatCurrency(financials.totalCost)}`, 25, yPos); yPos += 6;
-    const vehicleDeposits = clientVehicles.reduce((sum, v) => sum + remainingVehicleDeposit(v, tasks), 0);
-    const clientDeposit = remainingClientDeposit(client, tasks);
-    const totalDeposits = vehicleDeposits + clientDeposit;
-    if (totalDeposits > 0) {
+    // Unpaid work and deposit: the deposit pays Billed first, the rest goes to Completed.
+    const open = computeOpenBalance(client, vehicles, tasks, getTaskCost);
+    if (open.billed + open.completed + open.inProgress > 0 || open.deposit > 0) {
+      yPos += 4;
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(200, 0, 0);
-      if (vehicleDeposits > 0) { doc.text(`Vehicle Deposits: -${formatCurrency(vehicleDeposits)}`, 25, yPos); yPos += 6; }
-      if (clientDeposit > 0) { doc.text(`Client Deposit: -${formatCurrency(clientDeposit)}`, 25, yPos); yPos += 6; }
-      doc.setTextColor(0, 0, 0);
+      if (open.billed > 0) { doc.text(`Billed (not paid): ${formatCurrency(open.billed)}`, 25, yPos); yPos += 6; }
+      if (open.completed > 0) { doc.text(`Completed (not billed): ${formatCurrency(open.completed)}`, 25, yPos); yPos += 6; }
+      if (open.inProgress > 0) { doc.text(`In progress: ${formatCurrency(open.inProgress)}`, 25, yPos); yPos += 6; }
+      if (open.deposit > 0) {
+        doc.setTextColor(200, 0, 0);
+        doc.text(`Deposit: -${formatCurrency(open.deposit)}`, 25, yPos); yPos += 6;
+        doc.setTextColor(0, 0, 0);
+      }
       doc.setFont('helvetica', 'bold');
-      doc.text(`Balance Due: ${formatCurrency(Math.max(0, financials.totalCost - totalDeposits))}`, 25, yPos);
+      doc.text(`Balance Due: ${formatCurrency(open.balanceDue)}`, 25, yPos);
     }
     doc.setFont('helvetica', 'normal'); yPos += 12;
     if (clientVehicles.length > 0) {
@@ -939,13 +967,15 @@ const DesktopDashboard = () => {
         doc.setFont('helvetica', 'bold');
         doc.text(`Total: ${formatCurrency(vFin.totalCost)}`, 30, yPos);
         doc.setFont('helvetica', 'normal'); yPos += 5;
-        const vDeposit = remainingVehicleDeposit(vehicle, tasks);
-        if (vDeposit > 0) {
+        // This car's own deposit share (Billed first, rest to Completed) against its unpaid work.
+        const carOpen = open.perCar[vehicle.id];
+        if (carOpen && carOpen.deposit > 0) {
+          doc.text(`Not paid yet: ${formatCurrency(carOpen.open)}`, 30, yPos); yPos += 5;
           doc.setTextColor(200, 0, 0);
-          doc.text(`Deposit: -${formatCurrency(vDeposit)}`, 30, yPos); yPos += 5;
+          doc.text(`Deposit: -${formatCurrency(carOpen.deposit)}`, 30, yPos); yPos += 5;
           doc.setTextColor(0, 0, 0);
           doc.setFont('helvetica', 'bold');
-          doc.text(`Balance Due: ${formatCurrency(Math.max(0, vFin.totalCost - vDeposit))}`, 30, yPos);
+          doc.text(`Balance Due: ${formatCurrency(carOpen.balanceDue)}`, 30, yPos);
           doc.setFont('helvetica', 'normal');
         }
         yPos += 8;
@@ -1236,10 +1266,11 @@ const DesktopDashboard = () => {
                 const taskCount = clientVehicles.flatMap(v => v.tasks).length;
                 const isSelected = selectedClientId === client.id;
                 const clientColor = getVehicleColorScheme(client.id);
-                const clientDeposits = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0) + remainingClientDeposit(client, tasks);
+                const clientDeposits = depositForTab(client, filter);
                 const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                 const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
-                const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
+                // Same rule as the client header: deposit pays Billed first, the rest goes to Completed.
+                const balanceDue = (filter === 'all' || filter === 'billed' || filter === 'completed') ? Math.max(0, unpaidRevenue - clientDeposits) : 0;
 
                 return (
                   <button
@@ -1298,26 +1329,24 @@ const DesktopDashboard = () => {
                           <span>{taskCount} tasks</span>
                         </div>
                         {clientRevenue > 0 && (() => {
-                          const clientDeposits = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0) + remainingClientDeposit(client, tasks);
+                          const clientDeposits = depositForTab(client, filter);
                           const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                           const isFullyPaid = unpaidRevenue === 0;
+                          // Same rule as the client header: deposit pays Billed first, the rest goes to Completed.
+                          const showDeposit = clientDeposits > 0;
                           const balanceDue = Math.max(0, unpaidRevenue - clientDeposits);
                           return (
                             <div className="mt-2">
                               <div className={`text-lg font-bold ${
                               isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
-                              balanceDue > 0 ? 'text-orange-600 dark:text-orange-400' :
                               filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                               filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
-                              'text-emerald-600 dark:text-emerald-400'
+                              'text-foreground'
                             }`}>{formatCurrency(clientRevenue)}</div>
-                              {clientDeposits > 0 && isFullyPaid && (
-                                <div className="text-xs font-semibold text-muted-foreground">Deposit: -{formatCurrency(clientDeposits)}</div>
-                              )}
-                              {clientDeposits > 0 && !isFullyPaid && (
+                              {showDeposit && (
                                 <>
-                                  <div className="text-xs font-semibold text-red-500">Deposit: -{formatCurrency(clientDeposits)}</div>
-                                  {balanceDue > 0 && <div className="text-sm font-bold text-orange-600 dark:text-orange-400">Due: {formatCurrency(balanceDue)}</div>}
+                                  <div className="text-xs font-semibold text-muted-foreground">Deposit: -{formatCurrency(clientDeposits)}</div>
+                                  <div className="text-sm font-bold text-orange-600 dark:text-orange-400">To pay: {formatCurrency(balanceDue)}</div>
                                 </>
                               )}
                             </div>
@@ -1573,67 +1602,66 @@ const DesktopDashboard = () => {
                         )}
                         {client.notes && <p className="text-xs text-muted-foreground italic mt-1">{client.notes}</p>}
 
-                        {/* Totals */}
+                        {/* Totals: one simple sum per tab. Deposit history lives in the Deposits dialog. */}
                         {(() => {
                           const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0);
                           const clientDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks), 0);
                           const clientRevenue = Math.max(0, clientGross - clientDiscount);
-                          const vehicleDeps = clientVehicles.reduce((sum, cv) => sum + remainingVehicleDeposit(cv.vehicle, tasks), 0);
-                          const clientDep = remainingClientDeposit(client, tasks);
-                          // Info-only: deposit left after billed work AND deposit already consumed by paid tasks.
-                          const clientFullDeposit = client.prepaidAmount || 0;
-                          const vehicleFullDeposit = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle?.prepaidAmount || 0), 0);
-                          const clientBilled = tasks.filter(t => t.clientId === client.id && t.status === 'billed').reduce((sum, t) => sum + getTaskCost(t), 0);
-                          const clientDepositUsed = sumDepositAppliedToClient(client.id, tasks);
-                          const clientDepositLeft = clientFullDeposit - clientBilled - clientDepositUsed;
-                          const vehicleBilled = clientVehicles.reduce((sum, cv) => sum + cv.tasks.filter(t => t.status === 'billed').reduce((s, t) => s + getTaskCost(t), 0), 0);
-                          const vehicleDepositUsed = clientVehicles.reduce((sum, cv) => sum + (cv.vehicle ? sumDepositAppliedToVehicle(cv.vehicle.id, tasks) : 0), 0);
-                          const vehicleDepositLeft = vehicleFullDeposit - vehicleBilled - vehicleDepositUsed;
-                          const unpaidGross = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCostGross(t), 0);
-                          const unpaidDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks.filter(t => t.status !== 'paid')), 0);
-                          const unpaidRevenue = Math.max(0, unpaidGross - unpaidDiscount);
-                          const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
-                          const balanceDue = Math.max(0, unpaidRevenue - vehicleDeps - clientDep);
+                          // Deposit set against this tab's work: Billed gets it first, whatever remains goes to Completed.
+                          const depositLeft = depositForTab(client, filter);
+                          const allClientVehicles = vehicles.filter(v => v.clientId === client.id);
+                          const hasClientDeposit = (client.prepaidAmount || 0) > 0;
+                          const hasCarDeposits = allClientVehicles.some(v => (v.prepaidAmount || 0) > 0);
+                          const subtractsDeposit = filter === 'all' || filter === 'billed' || filter === 'completed';
+                          const showDeposit = depositLeft > 0;
+                          const toPay = Math.max(0, clientRevenue - (showDeposit ? depositLeft : 0));
+                          const label = filter === 'all' ? 'Open work'
+                            : filter === 'billed' ? 'Billed'
+                            : filter === 'completed' ? 'Completed'
+                            : filter === 'active' ? 'In progress'
+                            : filter === 'paid' ? 'Paid'
+                            : 'Total';
+                          const labelColor = filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400'
+                            : filter === 'billed' ? 'text-amber-600 dark:text-amber-400'
+                            : filter === 'active' ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-foreground';
+                          const openClientDeposits = (e: React.MouseEvent) => { e.stopPropagation(); setDepositDialog({ type: 'client', id: client.id, name: client.name }); };
                           if (clientGross <= 0) return null;
                           return (
-                            <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
-                              <span className={`font-semibold ${
-                                isFullyPaid ? 'text-emerald-600 dark:text-emerald-400' :
-                                filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
-                                filter === 'active' ? 'text-blue-600 dark:text-blue-400' :
-                                'text-emerald-600 dark:text-emerald-400'
-                              }`}>Total: {formatCurrency(clientGross)}</span>
-                              {clientDiscount > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-bold">Discount: -{formatCurrency(clientDiscount)}</span>}
-                              {(vehicleDeps > 0 || clientDep > 0 || clientDiscount > 0) && balanceDue > 0 && !isFullyPaid && <span className="text-orange-600 font-bold">Still to Pay: {formatCurrency(balanceDue)}</span>}
-                              {vehicleFullDeposit > 0 && (
+                            <div className="flex items-baseline gap-2 mt-2 text-sm flex-wrap">
+                              <span className={labelColor}>{label} <span className="font-bold">{formatCurrency(clientGross)}</span></span>
+                              {clientDiscount > 0 && (
                                 <>
-                                  <span className={`font-bold ${vehicleDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                                    {vehicleDepositLeft >= 0
-                                      ? `Car Deposit Left: ${formatCurrency(vehicleDepositLeft)}`
-                                      : `Car Deposit Over: -${formatCurrency(Math.abs(vehicleDepositLeft))}`}
-                                  </span>
-                                  <button className="text-muted-foreground underline underline-offset-2 cursor-pointer" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'vehicle', id: client.id + '__vehicles', name: client.name + ' — Car Deposits' }); }}>
-                                    Full Car Deposit: {formatCurrency(vehicleFullDeposit)}
+                                  <span className="text-muted-foreground">−</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400">Discount <span className="font-bold">{formatCurrency(clientDiscount)}</span></span>
+                                </>
+                              )}
+                              {showDeposit && (
+                                <>
+                                  <span className="text-muted-foreground">−</span>
+                                  <button className="underline underline-offset-2 cursor-pointer hover:text-primary" onClick={openClientDeposits}>
+                                    Deposit <span className="font-bold">{formatCurrency(depositLeft)}</span>
                                   </button>
                                 </>
                               )}
-                              {clientFullDeposit > 0 && (
+                              {(showDeposit || clientDiscount > 0) && (
                                 <>
-                                  <span className={`font-bold ${clientDepositLeft >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                                    {clientDepositLeft >= 0
-                                      ? `After Billed: ${formatCurrency(clientDepositLeft)}`
-                                      : `Over After Billed: -${formatCurrency(Math.abs(clientDepositLeft))}`}
-                                  </span>
-                                  <button className="text-muted-foreground underline underline-offset-2 cursor-pointer" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'client', id: client.id, name: client.name }); }}>
-                                    Full Deposit: {formatCurrency(clientFullDeposit)}
-                                  </button>
+                                  <span className="text-muted-foreground">=</span>
+                                  {subtractsDeposit
+                                    ? <span className="text-orange-600 dark:text-orange-400">To pay <span className="font-bold">{formatCurrency(toPay)}</span></span>
+                                    : <span className="font-bold">{formatCurrency(clientRevenue)}</span>}
                                 </>
                               )}
-                              {vehicleFullDeposit === 0 && clientFullDeposit === 0 && !isFullyPaid && (
-                                <button className="text-muted-foreground hover:text-primary text-xs underline underline-offset-2" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'client', id: client.id, name: client.name }); }}>+ Add deposit</button>
+                              {!showDeposit && hasClientDeposit && (
+                                <button className="ml-2 text-xs text-muted-foreground underline underline-offset-2 cursor-pointer hover:text-primary" onClick={openClientDeposits}>Deposits</button>
+                              )}
+                              {hasCarDeposits && (
+                                <button className="ml-2 text-xs text-muted-foreground underline underline-offset-2 cursor-pointer hover:text-primary" onClick={e => { e.stopPropagation(); setDepositDialog({ type: 'vehicle', id: client.id + '__vehicles', name: client.name + ' — Car Deposits' }); }}>Car deposits</button>
+                              )}
+                              {!hasClientDeposit && !hasCarDeposits && filter !== 'paid' && (
+                                <button className="ml-2 text-xs text-muted-foreground hover:text-primary underline underline-offset-2" onClick={openClientDeposits}>+ Add deposit</button>
                               )}
                             </div>
-
                           );
                         })()}
                       </div>
@@ -2193,9 +2221,13 @@ const DesktopDashboard = () => {
               const client = clients.find(c => c.id === depositDialog.id);
               if (!client) return null;
               const deps = normalizeDeposits(client);
+              const draws = tasks
+                .filter(t => t.clientId === client.id && (t.depositApplied?.client || 0) > 0)
+                .map(t => ({ taskId: t.id, label: depositDrawLabel(t), date: new Date(t.depositApplied!.at || t.paidAt || t.createdAt).toISOString(), amount: t.depositApplied!.client }));
               return (
                 <DepositLedger
                   deposits={deps}
+                  usage={allocateDepositUsage(deps, draws)}
                   onChange={(updated, total) => updateClient(client.id, { deposits: updated, prepaidAmount: total })}
                 />
               );
@@ -2204,15 +2236,18 @@ const DesktopDashboard = () => {
               const clientVehicleList = vehicles.filter(v => v.clientId === clientId);
               return (
                 <div className="space-y-4">
-                  {clientVehicleList.map(v => (
+                  {clientVehicleList.map(v => { const vDeps = normalizeDeposits(v); return (
                     <div key={v.id}>
                       <div className="text-xs font-semibold text-muted-foreground mb-1">{[v.year, v.make, v.model].filter(Boolean).join(' ') || v.vin}</div>
                       <DepositLedger
-                        deposits={normalizeDeposits(v)}
+                        deposits={vDeps}
+                        usage={allocateDepositUsage(vDeps, tasks
+                          .filter(t => t.vehicleId === v.id && (t.depositApplied?.vehicle || 0) > 0)
+                          .map(t => ({ taskId: t.id, label: depositDrawLabel(t), date: new Date(t.depositApplied!.at || t.paidAt || t.createdAt).toISOString(), amount: t.depositApplied!.vehicle })))}
                         onChange={(updated, total) => updateVehicle(v.id, { deposits: updated, prepaidAmount: total })}
                       />
                     </div>
-                  ))}
+                  ); })}
                   {clientVehicleList.length === 0 && <p className="text-sm text-muted-foreground">No vehicles.</p>}
                 </div>
               );

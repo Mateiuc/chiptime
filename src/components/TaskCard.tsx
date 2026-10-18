@@ -13,7 +13,8 @@ import {
   computeTaskTotalAllocated,
   resolveRates,
 } from '@/lib/billing';
-import { remainingVehicleDeposit } from '@/lib/deposit';
+import { depositForTask } from '@/lib/deposit';
+import { computeTaskCost } from '@/lib/billing';
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -358,7 +359,7 @@ export const TaskCard = ({
   // shape used by handleGenerateBill / Share.
   const generateBillingPDF = async () => {
     try {
-      const doc = await renderBillPdf({ task, client, vehicle, settings });
+      const doc = await renderBillPdf({ task, client, vehicle, settings, deposit: taskDeposit });
 
       const clientNameSafe = sanitizeForFilename(client?.name);
       const carBrand = sanitizeForFilename(vehicle?.make);
@@ -368,7 +369,7 @@ export const TaskCard = ({
       const vehicleInfoStr = [vehicle?.year, vehicle?.make, vehicle?.model]
         .filter(Boolean)
         .join(' ') || 'your vehicle';
-      const deposit = vehicle?.prepaidAmount || 0;
+      const deposit = taskDeposit;
       const displayedTotal = deposit > 0 ? Math.max(0, totalCost - deposit) : totalCost;
 
       // Merge diagnostic PDF if available (task-level).
@@ -430,7 +431,7 @@ export const TaskCard = ({
         return;
       }
 
-      const doc = await renderBillPdf({ task, client, vehicle, settings });
+      const doc = await renderBillPdf({ task, client, vehicle, settings, deposit: taskDeposit });
       const fileName = `preview_${sanitizeForFilename(client?.name)}_${sanitizeForFilename(vehicle?.make)}_${formatDateForFilename(task.createdAt)}.pdf`;
 
       if (task.diagnosticPdfUrl || task.diagnosticPdfPath) {
@@ -495,7 +496,7 @@ export const TaskCard = ({
           pdfUri: fileUri.uri,
           clientName: cName,
           vehicleInfo: vInfo,
-          totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
+          totalAmount: formatCurrency(taskDeposit > 0 ? Math.max(0, total - taskDeposit) : total),
           clientPhone: cPhone,
         });
         setShowShareDialog(true);
@@ -527,7 +528,7 @@ export const TaskCard = ({
         pdfUri: '',
         clientName: cName,
         vehicleInfo: vInfo,
-        totalAmount: formatCurrency((vehicle?.prepaidAmount || 0) > 0 ? Math.max(0, total - (vehicle?.prepaidAmount || 0)) : total),
+        totalAmount: formatCurrency(taskDeposit > 0 ? Math.max(0, total - taskDeposit) : total),
         clientPhone: cPhone,
       });
       setShowShareDialog(true);
@@ -799,6 +800,15 @@ export const TaskCard = ({
   const laborDiscount = allocated.discount;
   const laborCost = Math.max(0, (allocated.labor + allocated.services) - laborDiscount);
   const totalCost = allocated.total;
+  // Deposit set against this task: Billed tasks get the deposit first, the rest goes to Completed.
+  const taskDeposit = depositForTask(
+    task,
+    allVehicles ?? (vehicle ? [vehicle] : []),
+    allTasks ?? vehicleTasks ?? [task],
+    // Client deposit needs every task of the client; without the full list only the car deposit is used.
+    allTasks ? client : null,
+    t => (t.id === task.id ? totalCost : computeTaskCost(t, allVehicles ?? (vehicle ? [vehicle] : []), allTasks ?? vehicleTasks ?? [task], client, settings as Settings))
+  );
   return <Card className={`overflow-hidden transition-all hover:shadow-md ${colorScheme.card} border ${colorScheme.border}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="p-3 py-0">
@@ -932,7 +942,7 @@ export const TaskCard = ({
             </div>
             <div className="text-center">
               <div className="text-muted-foreground text-xs font-medium mb-1">{task.status === 'paid' ? 'Cost' : 'Due'}</div>
-              <div className={`font-bold text-sm ${task.status === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>{formatCurrency(task.status === 'paid' ? totalCost : Math.max(0, totalCost - remainingVehicleDeposit(vehicle, vehicleTasks ?? [task])))}</div>
+              <div className={`font-bold text-sm ${task.status === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>{formatCurrency(task.status === 'paid' ? totalCost : Math.max(0, totalCost - taskDeposit))}</div>
             </div>
           </div>
 
@@ -1077,18 +1087,17 @@ export const TaskCard = ({
                 <div className="flex justify-between text-emerald-700 dark:text-emerald-400"><span>Discount{vehicle?.discountType === 'percent' ? ` (${vehicle?.discountValue}%)` : ''}:</span><span>-{formatCurrency(laborDiscount)}</span></div>
               )}
               <div className="flex justify-between font-bold"><span>Total:</span><span>{formatCurrency(totalCost)}</span></div>
-              {(vehicle?.prepaidAmount || 0) > 0 && (
-                task.status === 'paid' ? (
-                  <>
-                    <div className="flex justify-between text-muted-foreground"><span>Deposit:</span><span>-{formatCurrency(vehicle?.prepaidAmount || 0)}</span></div>
-                    <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400"><span>Paid:</span><span>{formatCurrency(totalCost)}</span></div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(vehicle?.prepaidAmount || 0)}</span></div>
-                    <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - (vehicle?.prepaidAmount || 0)))}</span></div>
-                  </>
-                )
+              {task.status === 'paid' && ((task.depositApplied?.vehicle || 0) + (task.depositApplied?.client || 0)) > 0 && (
+                <>
+                  <div className="flex justify-between text-muted-foreground"><span>Deposit:</span><span>-{formatCurrency((task.depositApplied?.vehicle || 0) + (task.depositApplied?.client || 0))}</span></div>
+                  <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400"><span>Paid:</span><span>{formatCurrency(totalCost)}</span></div>
+                </>
+              )}
+              {taskDeposit > 0 && (
+                <>
+                  <div className="flex justify-between text-destructive"><span>Deposit:</span><span>-{formatCurrency(taskDeposit)}</span></div>
+                  <div className="flex justify-between font-bold text-orange-600"><span>Balance Due:</span><span>{formatCurrency(Math.max(0, totalCost - taskDeposit))}</span></div>
+                </>
               )}
             </div>
           </div>

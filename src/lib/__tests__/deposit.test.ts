@@ -77,3 +77,32 @@ describe('deposit ledger', () => {
     expect(r.vehicle).toBe(200);
   });
 });
+
+import { splitDepositLeft } from '@/lib/deposit';
+describe('splitDepositLeft', () => {
+  it('gives the deposit to Billed first, the rest to Completed', () => {
+    // Lance: $2,392 left, $6,328 billed, $1,138 completed → all to billed
+    expect(splitDepositLeft([{ left: 0, billed: 6328, completed: 1138 }], 2392)).toMatchObject({ forBilled: 2392, forCompleted: 0 });
+    // Example (not real data): $8,000 left → billed fully covered, $1,138 of the rest to completed
+    expect(splitDepositLeft([{ left: 0, billed: 6328, completed: 1138 }], 8000)).toMatchObject({ forBilled: 6328, forCompleted: 1138 });
+    // Car deposit covers its own car first, client deposit the rest
+    const s = splitDepositLeft([{ left: 100, billed: 300, completed: 50 }, { left: 0, billed: 200, completed: 0 }], 450);
+    expect(s.perCar[0]).toEqual({ forBilled: 100, forCompleted: 0 });
+    expect(s).toMatchObject({ clientForBilled: 400, clientForCompleted: 50, forBilled: 500, forCompleted: 50 });
+  });
+});
+
+import { depositForTask } from '@/lib/deposit';
+describe('depositForTask', () => {
+  it('gives the client deposit to billed tasks first, then completed', () => {
+    const mk = (id: string, status: any, created: string) => ({ id, clientId: 'c', vehicleId: 'v', status, createdAt: new Date(created), sessions: [] } as any);
+    const tasks = [mk('done', 'completed', '2026-01-01'), mk('b1', 'billed', '2026-02-01'), mk('b2', 'billed', '2026-03-01')];
+    const cost: Record<string, number> = { done: 100, b1: 300, b2: 300 };
+    const client = { id: 'c', prepaidAmount: 500, createdAt: new Date() } as any;
+    const v = [{ id: 'v', clientId: 'c', vin: '' } as any];
+    const f = (id: string) => depositForTask(tasks.find(t => t.id === id), v, tasks, client, t => cost[t.id]);
+    expect(f('b1')).toBe(300);
+    expect(f('b2')).toBe(200);
+    expect(f('done')).toBe(0);
+  });
+});

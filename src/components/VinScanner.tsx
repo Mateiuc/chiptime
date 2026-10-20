@@ -360,6 +360,28 @@ const VinScanner: React.FC<VinScannerProps> = ({
     }
   };
 
+  // Capture the whole visible camera picture (what the user sees, object-cover),
+  // in color, scaled down to max 1600px on the long side. Returns JPEG base64.
+  const captureFullView = (video: HTMLVideoElement, canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => {
+    const vsw = video.videoWidth;
+    const vsh = video.videoHeight;
+    let sx = 0, sy = 0, sw = vsw, sh = vsh;
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (containerRect && containerRect.width > 0 && containerRect.height > 0) {
+      const scale = Math.max(containerRect.width / vsw, containerRect.height / vsh);
+      sx = Math.max(0, (vsw * scale - containerRect.width) / 2) / scale;
+      sy = Math.max(0, (vsh * scale - containerRect.height) / 2) / scale;
+      sw = Math.min(vsw - sx, containerRect.width / scale);
+      sh = Math.min(vsh - sy, containerRect.height / scale);
+    }
+    const MAX_SIDE = 1600;
+    const out = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+    canvas.width = Math.round(sw * out);
+    canvas.height = Math.round(sh * out);
+    context.drawImage(video, Math.round(sx), Math.round(sy), Math.round(sw), Math.round(sh), 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+  };
+
   // Capture single frame for manual mode
   const captureSingleFrame = async (provider?: OcrProvider) => {
     const video = videoRef.current;
@@ -372,80 +394,89 @@ const VinScanner: React.FC<VinScannerProps> = ({
     const providerToUse = provider || ocrProvider;
 
 
-    // Get DOM rectangles
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const guideRect = guideRef.current.getBoundingClientRect();
-    const cw = containerRect.width;
-    const ch = containerRect.height;
-    const vsw = video.videoWidth;
-    const vsh = video.videoHeight;
-    const scale = Math.max(cw / vsw, ch / vsh);
-    const dw = vsw * scale;
-    const dh = vsh * scale;
-    const dx = Math.max(0, (dw - cw) / 2);
-    const dy = Math.max(0, (dh - ch) / 2);
-    const ox = guideRect.left - containerRect.left;
-    const oy = guideRect.top - containerRect.top;
-    const ow = guideRect.width;
-    const oh = guideRect.height;
-    let sx = (ox + dx) / scale;
-    let sy = (oy + dy) / scale;
-    let sw = ow / scale;
-    let sh = oh / scale;
-    sx = Math.max(0, Math.min(sx, vsw));
-    sy = Math.max(0, Math.min(sy, vsh));
-    sw = Math.min(sw, vsw - sx);
-    sh = Math.min(sh, vsh - sy);
-    sx = Math.round(sx);
-    sy = Math.round(sy);
-    sw = Math.round(sw);
-    sh = Math.round(sh);
+    let base64: string;
+    let mediaType = 'image/png';
+    if (providerToUse === 'claude') {
+      // AI reads the whole visible camera picture, not only the guide box
+      base64 = captureFullView(video, canvas, context);
+      mediaType = 'image/jpeg';
+      setLastFrameDataUrl(`data:image/jpeg;base64,${base64}`);
+    } else {
+      // Get DOM rectangles
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const guideRect = guideRef.current.getBoundingClientRect();
+      const cw = containerRect.width;
+      const ch = containerRect.height;
+      const vsw = video.videoWidth;
+      const vsh = video.videoHeight;
+      const scale = Math.max(cw / vsw, ch / vsh);
+      const dw = vsw * scale;
+      const dh = vsh * scale;
+      const dx = Math.max(0, (dw - cw) / 2);
+      const dy = Math.max(0, (dh - ch) / 2);
+      const ox = guideRect.left - containerRect.left;
+      const oy = guideRect.top - containerRect.top;
+      const ow = guideRect.width;
+      const oh = guideRect.height;
+      let sx = (ox + dx) / scale;
+      let sy = (oy + dy) / scale;
+      let sw = ow / scale;
+      let sh = oh / scale;
+      sx = Math.max(0, Math.min(sx, vsw));
+      sy = Math.max(0, Math.min(sy, vsh));
+      sw = Math.min(sw, vsw - sx);
+      sh = Math.min(sh, vsh - sy);
+      sx = Math.round(sx);
+      sy = Math.round(sy);
+      sw = Math.round(sw);
+      sh = Math.round(sh);
 
-    // Capture frame
-    canvas.width = sw;
-    canvas.height = sh;
-    context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+      // Capture frame
+      canvas.width = sw;
+      canvas.height = sh;
+      context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
-    // Upscale 2x if crop is too small for reliable OCR
-    if (sh < 120) {
-      const upCanvas = document.createElement('canvas');
-      upCanvas.width = sw * 2;
-      upCanvas.height = sh * 2;
-      const upCtx = upCanvas.getContext('2d')!;
-      upCtx.imageSmoothingEnabled = false;
-      upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
-      canvas.width = sw * 2;
-      canvas.height = sh * 2;
-      context.drawImage(upCanvas, 0, 0);
-      sw = sw * 2;
-      sh = sh * 2;
-    }
+      // Upscale 2x if crop is too small for reliable OCR
+      if (sh < 120) {
+        const upCanvas = document.createElement('canvas');
+        upCanvas.width = sw * 2;
+        upCanvas.height = sh * 2;
+        const upCtx = upCanvas.getContext('2d')!;
+        upCtx.imageSmoothingEnabled = false;
+        upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
+        canvas.width = sw * 2;
+        canvas.height = sh * 2;
+        context.drawImage(upCanvas, 0, 0);
+        sw = sw * 2;
+        sh = sh * 2;
+      }
 
-    // Percentile-based contrast stretch — preserves anti-aliasing for LSTM engine
-    {
-      const imageData = context.getImageData(0, 0, sw, sh);
-      const data = imageData.data;
-      const grays = new Uint8Array(data.length / 4);
-      for (let i = 0; i < data.length; i += 4) {
-        grays[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      // Percentile-based contrast stretch — preserves anti-aliasing for LSTM engine
+      {
+        const imageData = context.getImageData(0, 0, sw, sh);
+        const data = imageData.data;
+        const grays = new Uint8Array(data.length / 4);
+        for (let i = 0; i < data.length; i += 4) {
+          grays[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+        }
+        // Find 5th and 95th percentile for contrast stretch
+        const sorted = Array.from(grays).sort((a, b) => a - b);
+        const lo = sorted[Math.floor(sorted.length * 0.05)];
+        const hi = sorted[Math.floor(sorted.length * 0.95)];
+        const range = Math.max(hi - lo, 1);
+        for (let i = 0; i < data.length; i += 4) {
+          const stretched = Math.min(255, Math.max(0, ((grays[i / 4] - lo) / range) * 255));
+          data[i] = data[i + 1] = data[i + 2] = stretched;
+        }
+        context.putImageData(imageData, 0, 0);
       }
-      // Find 5th and 95th percentile for contrast stretch
-      const sorted = Array.from(grays).sort((a, b) => a - b);
-      const lo = sorted[Math.floor(sorted.length * 0.05)];
-      const hi = sorted[Math.floor(sorted.length * 0.95)];
-      const range = Math.max(hi - lo, 1);
-      for (let i = 0; i < data.length; i += 4) {
-        const stretched = Math.min(255, Math.max(0, ((grays[i / 4] - lo) / range) * 255));
-        data[i] = data[i + 1] = data[i + 2] = stretched;
-      }
-      context.putImageData(imageData, 0, 0);
+    
+      // PNG for OCR (lossless), JPEG for upload (smaller)
+      base64 = canvas.toDataURL('image/png').split(',')[1];
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    
+      setLastFrameDataUrl(dataUrl);
     }
-    
-    // PNG for OCR (lossless), JPEG for upload (smaller)
-    const base64 = canvas.toDataURL('image/png').split(',')[1];
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    
-    setLastFrameDataUrl(dataUrl);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -455,7 +486,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
       if (providerToUse === 'tesseract') {
         result = await readVinWithTesseract({ base64Image: base64, signal: controller.signal, debug: true });
       } else {
-        result = await readVinWithClaude({ base64Image: base64, mediaType: 'image/png', signal: controller.signal, debug: true });
+        result = await readVinWithClaude({ base64Image: base64, mediaType, signal: controller.signal, debug: true });
       }
 
 
@@ -528,96 +559,105 @@ const VinScanner: React.FC<VinScannerProps> = ({
         if (!containerRef.current || !guideRef.current) continue;
         attempts++;
 
-        // Get DOM rectangles
-        const containerRect = containerRef.current.getBoundingClientRect();
-        const guideRect = guideRef.current.getBoundingClientRect();
+        let base64: string;
+        let mediaType = 'image/png';
+        if (ocrProvider === 'claude') {
+          // AI reads the whole visible camera picture, not only the guide box
+          base64 = captureFullView(video, canvas, context);
+          mediaType = 'image/jpeg';
+          dlog('[VIN Scan] attempt', attempts, 'provider', ocrProvider, 'full view');
+        } else {
+          // Get DOM rectangles
+          const containerRect = containerRef.current.getBoundingClientRect();
+          const guideRect = guideRef.current.getBoundingClientRect();
         
-        // Container dimensions
-        const cw = containerRect.width;
-        const ch = containerRect.height;
+          // Container dimensions
+          const cw = containerRect.width;
+          const ch = containerRect.height;
         
-        // Video source dimensions
-        const vsw = video.videoWidth;
-        const vsh = video.videoHeight;
+          // Video source dimensions
+          const vsw = video.videoWidth;
+          const vsh = video.videoHeight;
         
-        // Calculate object-cover scale and offsets
-        const scale = Math.max(cw / vsw, ch / vsh);
-        const dw = vsw * scale; // displayed width
-        const dh = vsh * scale; // displayed height
-        const dx = Math.max(0, (dw - cw) / 2); // horizontal overflow
-        const dy = Math.max(0, (dh - ch) / 2); // vertical overflow
+          // Calculate object-cover scale and offsets
+          const scale = Math.max(cw / vsw, ch / vsh);
+          const dw = vsw * scale; // displayed width
+          const dh = vsh * scale; // displayed height
+          const dx = Math.max(0, (dw - cw) / 2); // horizontal overflow
+          const dy = Math.max(0, (dh - ch) / 2); // vertical overflow
         
-        // Guide rectangle position relative to container
-        const ox = guideRect.left - containerRect.left;
-        const oy = guideRect.top - containerRect.top;
-        const ow = guideRect.width;
-        const oh = guideRect.height;
+          // Guide rectangle position relative to container
+          const ox = guideRect.left - containerRect.left;
+          const oy = guideRect.top - containerRect.top;
+          const ow = guideRect.width;
+          const oh = guideRect.height;
         
-        // Map back to video source coordinates
-        let sx = (ox + dx) / scale;
-        let sy = (oy + dy) / scale;
-        let sw = ow / scale;
-        let sh = oh / scale;
+          // Map back to video source coordinates
+          let sx = (ox + dx) / scale;
+          let sy = (oy + dy) / scale;
+          let sw = ow / scale;
+          let sh = oh / scale;
         
-        // Clamp to valid bounds
-        sx = Math.max(0, Math.min(sx, vsw));
-        sy = Math.max(0, Math.min(sy, vsh));
-        sw = Math.min(sw, vsw - sx);
-        sh = Math.min(sh, vsh - sy);
+          // Clamp to valid bounds
+          sx = Math.max(0, Math.min(sx, vsw));
+          sy = Math.max(0, Math.min(sy, vsh));
+          sw = Math.min(sw, vsw - sx);
+          sh = Math.min(sh, vsh - sy);
         
-        // Round to integers
-        sx = Math.round(sx);
-        sy = Math.round(sy);
-        sw = Math.round(sw);
-        sh = Math.round(sh);
+          // Round to integers
+          sx = Math.round(sx);
+          sy = Math.round(sy);
+          sw = Math.round(sw);
+          sh = Math.round(sh);
 
-        dlog('[VIN Scan] attempt', attempts, 'provider', ocrProvider, {
-          video: { w: vsw, h: vsh },
-          display: { w: cw, h: ch, scale, dx, dy },
-          crop: { sx, sy, sw, sh }
-        });
+          dlog('[VIN Scan] attempt', attempts, 'provider', ocrProvider, {
+            video: { w: vsw, h: vsh },
+            display: { w: cw, h: ch, scale, dx, dy },
+            crop: { sx, sy, sw, sh }
+          });
 
-        // Capture current frame (cropped to exact guide rectangle)
-        canvas.width = sw;
-        canvas.height = sh;
-        context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+          // Capture current frame (cropped to exact guide rectangle)
+          canvas.width = sw;
+          canvas.height = sh;
+          context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        // Upscale 2x if crop is too small
-        if (sh < 120) {
-          const upCanvas = document.createElement('canvas');
-          upCanvas.width = sw * 2;
-          upCanvas.height = sh * 2;
-          const upCtx = upCanvas.getContext('2d')!;
-          upCtx.imageSmoothingEnabled = false;
-          upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
-          canvas.width = sw * 2;
-          canvas.height = sh * 2;
-          context.drawImage(upCanvas, 0, 0);
-          sw = sw * 2;
-          sh = sh * 2;
+          // Upscale 2x if crop is too small
+          if (sh < 120) {
+            const upCanvas = document.createElement('canvas');
+            upCanvas.width = sw * 2;
+            upCanvas.height = sh * 2;
+            const upCtx = upCanvas.getContext('2d')!;
+            upCtx.imageSmoothingEnabled = false;
+            upCtx.drawImage(canvas, 0, 0, sw * 2, sh * 2);
+            canvas.width = sw * 2;
+            canvas.height = sh * 2;
+            context.drawImage(upCanvas, 0, 0);
+            sw = sw * 2;
+            sh = sh * 2;
+          }
+
+          // Percentile-based contrast stretch — preserves anti-aliasing for LSTM
+          const imgData = context.getImageData(0, 0, sw, sh);
+          const px = imgData.data;
+          const grays = new Uint8Array(px.length / 4);
+          for (let i = 0; i < px.length; i += 4) {
+            grays[i / 4] = Math.round(0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2]);
+          }
+          const sorted = Array.from(grays).sort((a, b) => a - b);
+          const lo = sorted[Math.floor(sorted.length * 0.05)];
+          const hi = sorted[Math.floor(sorted.length * 0.95)];
+          const range = Math.max(hi - lo, 1);
+          for (let i = 0; i < px.length; i += 4) {
+            const stretched = Math.min(255, Math.max(0, ((grays[i / 4] - lo) / range) * 255));
+            px[i] = px[i+1] = px[i+2] = stretched;
+          }
+          context.putImageData(imgData, 0, 0);
+
+          // PNG for Tesseract (lossless), JPEG for other providers
+          const dataUrl = canvas.toDataURL('image/png');
+
+          base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
         }
-
-        // Percentile-based contrast stretch — preserves anti-aliasing for LSTM
-        const imgData = context.getImageData(0, 0, sw, sh);
-        const px = imgData.data;
-        const grays = new Uint8Array(px.length / 4);
-        for (let i = 0; i < px.length; i += 4) {
-          grays[i / 4] = Math.round(0.299 * px[i] + 0.587 * px[i+1] + 0.114 * px[i+2]);
-        }
-        const sorted = Array.from(grays).sort((a, b) => a - b);
-        const lo = sorted[Math.floor(sorted.length * 0.05)];
-        const hi = sorted[Math.floor(sorted.length * 0.95)];
-        const range = Math.max(hi - lo, 1);
-        for (let i = 0; i < px.length; i += 4) {
-          const stretched = Math.min(255, Math.max(0, ((grays[i / 4] - lo) / range) * 255));
-          px[i] = px[i+1] = px[i+2] = stretched;
-        }
-        context.putImageData(imgData, 0, 0);
-
-        // PNG for Tesseract (lossless), JPEG for other providers
-        const dataUrl = canvas.toDataURL('image/png');
-
-        const base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
 
         // Call selected OCR provider with timeout
         const controller = new AbortController();
@@ -628,7 +668,7 @@ const VinScanner: React.FC<VinScannerProps> = ({
           if (ocrProvider === 'tesseract') {
             vin = await readVinWithTesseract({ base64Image: base64, signal: controller.signal, debug: false }) as string | null;
           } else {
-            vin = await readVinWithClaude({ base64Image: base64, mediaType: 'image/png', signal: controller.signal, debug: false }) as string | null;
+            vin = await readVinWithClaude({ base64Image: base64, mediaType, signal: controller.signal, debug: false }) as string | null;
           }
         } finally {
 
@@ -689,7 +729,8 @@ const VinScanner: React.FC<VinScannerProps> = ({
 
       {isFrameReady && (
         <>
-          {/* Gradient blur overlay - focuses attention on VIN frame */}
+          {/* Gradient blur overlay - focuses attention on VIN frame (offline reader only) */}
+          {ocrProvider === 'tesseract' && (
           <div 
             className="absolute inset-0 pointer-events-none transition-all duration-300"
             style={{
@@ -699,9 +740,10 @@ const VinScanner: React.FC<VinScannerProps> = ({
               WebkitMaskImage: `radial-gradient(ellipse ${frameDimensions.widthPercent}% ${frameDimensions.heightPx + 25}px at center, transparent 0%, transparent 10%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,1) 100%)`
             }}
           />
+          )}
 
-          {/* Visual guide frame */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* Visual guide frame (kept invisible in AI mode so "Retry with offline reader" can still crop) */}
+          <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${ocrProvider === 'claude' ? 'invisible' : ''}`}>
             <div 
               ref={guideRef}
               className={`border-2 rounded-lg transition-colors duration-300 ${
@@ -713,6 +755,18 @@ const VinScanner: React.FC<VinScannerProps> = ({
               }}
             />
           </div>
+
+          {/* AI mode: whole picture is read; corners mark the full camera view */}
+          {ocrProvider === 'claude' && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-2.5">
+                <div className="absolute left-0 top-0 w-7 h-7 border-green-500 border-t-[3px] border-l-[3px] rounded-tl-lg" />
+                <div className="absolute right-0 top-0 w-7 h-7 border-green-500 border-t-[3px] border-r-[3px] rounded-tr-lg" />
+                <div className="absolute left-0 bottom-0 w-7 h-7 border-green-500 border-b-[3px] border-l-[3px] rounded-bl-lg" />
+                <div className="absolute right-0 bottom-0 w-7 h-7 border-green-500 border-b-[3px] border-r-[3px] rounded-br-lg" />
+              </div>
+            </div>
+          )}
         </>
 
       )}

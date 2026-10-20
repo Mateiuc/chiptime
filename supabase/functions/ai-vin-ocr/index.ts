@@ -4,7 +4,8 @@ import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { callClaude } from '../_shared/claude.ts';
 
 const PROMPT = [
-  'You are given a cropped photo of a vehicle VIN plate, door sticker, windshield etching or barcode label.',
+  'You are given a photo that contains a vehicle VIN plate, door sticker, windshield etching or barcode label.',
+  'The VIN can be anywhere in the photo, at any size or angle, and other text may be present; find the VIN and ignore the rest.',
   'Read the 17-character VIN.',
   'Valid characters: A-H, J-N, P, R-Z and digits 0-9. The letters I, O and Q never appear in a VIN.',
   'Common confusions: O -> 0, I -> 1, Q -> 0, S -> 5, B -> 8, Z -> 2, G -> 6.',

@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { isOleFile, readXlsFirstSheet } from '@/lib/xlsBiffReader';
 
 /** Normalize an exceljs cell value to a plain string/number/Date. */
 function cellValue(v: ExcelJS.CellValue): any {
@@ -33,15 +34,20 @@ export interface ImportedSession {
  */
 export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]> => {
   const data = await file.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(data);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
   const raw: any[][] = [];
-  sheet.eachRow({ includeEmpty: true }, (row) => {
-    // row.values is 1-indexed (index 0 is undefined)
-    raw.push((row.values as any[]).slice(1).map(cellValue));
-  });
+  if (isOleFile(data)) {
+    // Old Excel 97-2003 .xls: exceljs can't read it, use the BIFF reader.
+    raw.push(...readXlsFirstSheet(data));
+  } else {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(data);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return [];
+    sheet.eachRow({ includeEmpty: true }, (row) => {
+      // row.values is 1-indexed (index 0 is undefined)
+      raw.push((row.values as any[]).slice(1).map(cellValue));
+    });
+  }
 
   if (raw.length === 0) return [];
 
@@ -114,7 +120,7 @@ export const parseWorkHistoryXls = async (file: File): Promise<ImportedSession[]
       }
 
       // Parse breaks
-      const breaks = parseBreaksDescription(breaksDescRaw, baseDate);
+      const breaks = parseBreaksDescription(breaksDescRaw, baseDate, startTime);
 
       // Build work periods from start/end with breaks carved out
       const periods = buildPeriods(startTime, endTime, breaks);
@@ -223,7 +229,7 @@ interface BreakInterval {
   end: Date;
 }
 
-function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
+function parseBreaksDescription(raw: string, baseDate: Date, jobStart: Date): BreakInterval[] {
   if (!raw) return [];
 
   // Split on <br/> or newline only — NOT comma (commas appear inside full date strings)
@@ -253,6 +259,11 @@ function parseBreaksDescription(raw: string, baseDate: Date): BreakInterval[] {
       // Try as HH:MM time only
       breakStart = parseTimeOnly(startStr, baseDate);
       breakEnd = parseTimeOnly(endStr, baseDate);
+      // Job crossed midnight: a time-only break earlier than the job start is on the next day
+      if (breakStart && breakEnd && breakStart < jobStart) {
+        breakStart.setDate(breakStart.getDate() + 1);
+        breakEnd.setDate(breakEnd.getDate() + 1);
+      }
     }
 
     if (breakStart && breakEnd) {

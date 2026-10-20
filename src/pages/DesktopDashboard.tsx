@@ -51,7 +51,7 @@ import { applyDepositOnPaid, remainingClientDeposit, remainingVehicleDeposit, su
 import { buildPauseUpdatesForRunningTasks, buildSingleRunnerHealUpdates } from '@/lib/timerControl';
 
 
-type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid';
+type FilterType = 'all' | 'active' | 'completed' | 'billed' | 'paid' | 'history';
 
 const statusMatches = (status: string, filter: FilterType): boolean => {
   switch (filter) {
@@ -63,6 +63,14 @@ const statusMatches = (status: string, filter: FilterType): boolean => {
     default: return true;
   }
 };
+
+// Lists: History shows only imported old jobs; the other tabs never list them.
+const taskMatches = (task: Task, filter: FilterType): boolean =>
+  filter === 'history' ? !!task.isHistory : !task.isHistory && statusMatches(task.status, filter);
+
+// Money: History jobs still count by their status (paid / not paid) on the other tabs.
+const historyMoneyTasks = (tasks: Task[], clientId: string, filter: FilterType): Task[] =>
+  filter === 'history' ? [] : tasks.filter(t => t.isHistory && t.clientId === clientId && statusMatches(t.status, filter));
 
 const statusColors: Record<string, string> = {
   'pending': 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/40',
@@ -131,8 +139,10 @@ const DesktopDashboard = () => {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
 
+  // Portal PIN and portal id come from the portal server on every portal sync
+  // (the PIN is never uploaded), so writing them back is not an unsaved change.
   const computeSnapshotKey = () => JSON.stringify({
-    c: clients, v: vehicles, t: tasks, s: settings,
+    c: clients.map(({ accessCode: _pin, portalId: _portal, ...c }) => c), v: vehicles, t: tasks, s: settings,
   });
   const snapshotBaseline = () => {
     baselineRef.current = computeSnapshotKey();
@@ -621,6 +631,7 @@ const DesktopDashboard = () => {
           needsFollowUp: false,
           createdAt: s.date,
           importedSalary: s.relSalary,
+          isHistory: true,
           sessions: [workSession],
           createdBy: currentUserId || undefined,
         };
@@ -634,7 +645,7 @@ const DesktopDashboard = () => {
       }
       await setTasks([...tasks, ...newTasks]);
 
-      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName}` });
+      toast({ title: `Imported ${newTasks.length} tasks (${newVehicles.length} new vehicles)`, description: `Added to ${clientName} → History` });
     } catch (err: any) {
       console.error('XLS import failed:', err);
       toast({ title: 'Import failed', description: err.message, variant: 'destructive' });
@@ -906,6 +917,7 @@ const DesktopDashboard = () => {
     const statusFiltered = filtered.filter(t => {
       // When a specific filter is selected from left panel, use it directly
       if (filter !== 'all') {
+        if (filter === 'history') return !!t.isHistory;
         if (filter === 'active') return ['in-progress', 'paused', 'pending'].includes(t.status);
         return t.status === filter;
       }
@@ -1093,7 +1105,7 @@ const DesktopDashboard = () => {
     return clients.map(client => {
       const clientVehicles = vehicles.filter(v => v.clientId === client.id).map(vehicle => {
         const vehicleTasks = tasks
-          .filter(t => t.vehicleId === vehicle.id && statusMatches(t.status, filter))
+          .filter(t => t.vehicleId === vehicle.id && taskMatches(t, filter))
           .filter(t => {
             if (!q) return true;
             return client.name.toLowerCase().includes(q) ||
@@ -1103,23 +1115,24 @@ const DesktopDashboard = () => {
           });
         return { vehicle, tasks: vehicleTasks };
       }).filter(v => v.tasks.length > 0);
-      return { client, vehicles: clientVehicles };
+      return { client, vehicles: clientVehicles, historyTasks: historyMoneyTasks(tasks, client.id, filter) };
     }).filter(c => {
       if (q && !c.client.name.toLowerCase().includes(q) && c.vehicles.length === 0) return false;
-      if (c.vehicles.length === 0) return false;
+      if (c.vehicles.length === 0 && c.historyTasks.length === 0) return false;
       return true;
     });
   }, [clients, vehicles, tasks, filter, searchQuery]);
 
   // --- Stats ---
   const allFilteredTasks = filteredTree.flatMap(c => c.vehicles.flatMap(v => v.tasks));
-  const totalRevenue = allFilteredTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
+  const totalRevenue = [...allFilteredTasks, ...filteredTree.flatMap(c => c.historyTasks)].reduce((sum, t) => sum + getTaskCost(t), 0);
   const countByStatus = {
-    all: tasks.filter(t => t.status !== 'paid').length,
-    active: tasks.filter(t => statusMatches(t.status, 'active')).length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    billed: tasks.filter(t => t.status === 'billed').length,
-    paid: tasks.filter(t => t.status === 'paid').length,
+    all: tasks.filter(t => taskMatches(t, 'all')).length,
+    active: tasks.filter(t => taskMatches(t, 'active')).length,
+    completed: tasks.filter(t => taskMatches(t, 'completed')).length,
+    billed: tasks.filter(t => taskMatches(t, 'billed')).length,
+    paid: tasks.filter(t => taskMatches(t, 'paid')).length,
+    history: tasks.filter(t => taskMatches(t, 'history')).length,
   };
 
   // --- Revenue chart data (for paid filter) ---
@@ -1329,6 +1342,7 @@ const DesktopDashboard = () => {
                 { key: 'completed' as FilterType, label: 'Completed', color: 'bg-green-500/15 text-green-700 dark:text-green-400' },
                 { key: 'billed' as FilterType, label: 'Billed', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-400' },
                 { key: 'paid' as FilterType, label: 'Paid', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' },
+                { key: 'history' as FilterType, label: 'History', color: 'bg-sky-500/15 text-sky-700 dark:text-sky-400' },
               ]).map(f => (
                 <button
                   key={f.key}
@@ -1361,13 +1375,14 @@ const DesktopDashboard = () => {
                   No {filter === "all" ? "open tasks" : `${filter} tasks`} found.
                 </div>
               )}
-              {filteredTree.map(({ client, vehicles: clientVehicles }) => {
-                const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+              {filteredTree.map(({ client, vehicles: clientVehicles, historyTasks }) => {
+                const moneyTasks = [...clientVehicles.flatMap(v => v.tasks), ...historyTasks];
+                const clientRevenue = moneyTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
                 const taskCount = clientVehicles.flatMap(v => v.tasks).length;
                 const isSelected = selectedClientId === client.id;
                 const clientColor = getVehicleColorScheme(client.id);
                 const clientDeposits = depositForTab(client, filter);
-                const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                const unpaidRevenue = moneyTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                 const isFullyPaid = unpaidRevenue === 0 && clientRevenue > 0;
                 // Same rule as the client header: deposit pays Billed first, the rest goes to Completed.
                 const balanceDue = (filter === 'all' || filter === 'billed' || filter === 'completed') ? Math.max(0, unpaidRevenue - clientDeposits) : 0;
@@ -1413,8 +1428,9 @@ const DesktopDashboard = () => {
                   {filter === 'all' ? 'All Clients' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Tasks`} — Select a client from the left
                 </h2>
                 <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-                  {filteredTree.map(({ client, vehicles: clientVehicles }) => {
-                    const clientRevenue = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCost(t), 0);
+                  {filteredTree.map(({ client, vehicles: clientVehicles, historyTasks }) => {
+                    const moneyTasks = [...clientVehicles.flatMap(v => v.tasks), ...historyTasks];
+                    const clientRevenue = moneyTasks.reduce((sum, t) => sum + getTaskCost(t), 0);
                     const taskCount = clientVehicles.flatMap(v => v.tasks).length;
                     const clientColor = getVehicleColorScheme(client.id);
                     return (
@@ -1430,7 +1446,7 @@ const DesktopDashboard = () => {
                         </div>
                         {clientRevenue > 0 && (() => {
                           const clientDeposits = depositForTab(client, filter);
-                          const unpaidRevenue = clientVehicles.flatMap(v => v.tasks).filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                          const unpaidRevenue = moneyTasks.filter(t => t.status !== 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
                           const isFullyPaid = unpaidRevenue === 0;
                           // Same rule as the client header: deposit pays Billed first, the rest goes to Completed.
                           const showDeposit = clientDeposits > 0;
@@ -1591,7 +1607,7 @@ const DesktopDashboard = () => {
                     </div>
                   );
                 }
-                const { client, vehicles: clientVehicles } = clientData;
+                const { client, vehicles: clientVehicles, historyTasks } = clientData;
                 const clientColor = getVehicleColorScheme(client.id);
                 const rate = client.hourlyRate || settings.defaultHourlyRate;
 
@@ -1704,7 +1720,21 @@ const DesktopDashboard = () => {
 
                         {/* Totals: one simple sum per tab. Deposit history lives in the Deposits dialog. */}
                         {(() => {
-                          const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          if (filter === 'history') {
+                            const listed = clientVehicles.flatMap(v => v.tasks);
+                            if (listed.length === 0) return null;
+                            const histTotal = listed.reduce((sum, t) => sum + getTaskCost(t), 0);
+                            const histPaid = listed.filter(t => t.status === 'paid').reduce((sum, t) => sum + getTaskCost(t), 0);
+                            return (
+                              <div className="flex items-baseline gap-4 mt-2 text-sm flex-wrap">
+                                <span className="text-sky-700 dark:text-sky-400">History <span className="font-bold">{formatCurrency(histTotal)}</span></span>
+                                <span className="text-emerald-600 dark:text-emerald-400">Paid <span className="font-bold">{formatCurrency(histPaid)}</span></span>
+                                <span className="text-orange-600 dark:text-orange-400">Not paid <span className="font-bold">{formatCurrency(histTotal - histPaid)}</span></span>
+                              </div>
+                            );
+                          }
+                          const historyGross = historyTasks.reduce((sum, t) => sum + getTaskCostGross(t), 0);
+                          const clientGross = clientVehicles.flatMap(v => v.tasks).reduce((sum, t) => sum + getTaskCostGross(t), 0) + historyGross;
                           const clientDiscount = clientVehicles.reduce((sum, cv) => sum + getVehicleDiscount(cv.vehicle, cv.tasks), 0);
                           const clientRevenue = Math.max(0, clientGross - clientDiscount);
                           // Deposit set against this tab's work: Billed gets it first, whatever remains goes to Completed.
@@ -1730,6 +1760,7 @@ const DesktopDashboard = () => {
                           return (
                             <div className="flex items-baseline gap-2 mt-2 text-sm flex-wrap">
                               <span className={labelColor}>{label} <span className="font-bold">{formatCurrency(clientGross)}</span></span>
+                              {historyGross > 0 && <span className="text-xs text-muted-foreground">(incl. History {formatCurrency(historyGross)})</span>}
                               {clientDiscount > 0 && (
                                 <>
                                   <span className="text-muted-foreground">−</span>

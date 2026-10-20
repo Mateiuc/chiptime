@@ -34,6 +34,29 @@ const byId = <T extends { id: string }>(arr: T[]): Map<string, T> => {
 };
 
 /**
+ * Portal PINs (client.accessCode) are stripped before upload (see
+ * appSyncService.sanitizeForCloud), so cloud copies never carry them.
+ * Keep each device's own PIN when cloud data replaces local clients,
+ * otherwise every pull loses the PIN ("Set PIN") and the next portal
+ * action writes it back, lighting Save with nothing really changed.
+ *
+ * Same for portalId: the portal server owns it (one portal per client) and
+ * hands it back on every portal sync. A cloud copy can hold a stale one
+ * (e.g. data copied from another app), so the local value from the server wins.
+ */
+export function keepLocalPins(pulled: Client[], local: Client[]): Client[] {
+  const byId = new Map(local.filter(c => c.accessCode || c.portalId).map(c => [c.id, c]));
+  if (byId.size === 0) return pulled;
+  return pulled.map(c => {
+    const l = byId.get(c.id);
+    if (!l) return c;
+    const accessCode = c.accessCode || l.accessCode;
+    const portalId = l.portalId || c.portalId;
+    return accessCode === c.accessCode && portalId === c.portalId ? c : { ...c, accessCode, portalId };
+  });
+}
+
+/**
  * 3-way merge: for any id in `changedIds.<entity>`, take local. For all
  * other ids, take remote. Returns the merged snapshot AND a flag noting
  * whether any TRUE overlap occurred — i.e. an id where BOTH local and
@@ -100,7 +123,7 @@ function mergeOnConflict(
   };
 
   const merged: SyncData = {
-    clients: mergeArr(local.clients, remote.clients, base?.clients, ch.clients),
+    clients: keepLocalPins(mergeArr(local.clients, remote.clients, base?.clients, ch.clients), local.clients),
     vehicles: mergeArr(local.vehicles, remote.vehicles, base?.vehicles, ch.vehicles),
     tasks: mergeArr(local.tasks, remote.tasks, base?.tasks, ch.tasks),
     settings: ch.settingsChanged ? local.settings : (remote.settings || local.settings),
@@ -547,7 +570,7 @@ export const useCloudSync = (deps: {
       const result = await appSyncService.pullFromCloud();
       if (result && result.data) {
         const d = result.data;
-        if (d.clients) deps.clients.replaceAll(d.clients);
+        if (d.clients) deps.clients.replaceAll(keepLocalPins(d.clients, await capacitorStorage.getClients()));
         if (d.vehicles) deps.vehicles.replaceAll(d.vehicles);
         if (d.tasks) deps.tasks.replaceAll(d.tasks);
         if (d.settings) deps.settings.replaceAll(d.settings);

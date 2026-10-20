@@ -28,6 +28,7 @@ export interface SessionCostDetail {
   diagnosticPdfUrl?: string;
   periods: { start: Date; end: Date }[];
   imported?: boolean; // synthetic row representing an XLS-imported task total
+  history?: boolean; // old job imported with Import XLS: shown only in the portal History tab
 }
 
 export interface VehicleCostSummary {
@@ -92,6 +93,7 @@ interface SlimSession {
   pds?: [number, number][];
   ld?: number; // labor discount applied to this session
   imp?: 1; // imported (XLS) — flag for the portal badge
+  hi?: 1; // History job (Import XLS)
   jbs?: { n: string; pr: number; ds?: string }[]; // fixed-price jobs
 }
 
@@ -229,6 +231,7 @@ export function calculateClientCosts(
           diagnosticPdfUrl: task.diagnosticPdfPath || task.diagnosticPdfUrl,
           periods: [],
           imported: true,
+          history: task.isHistory || undefined,
         });
         return;
       }
@@ -299,6 +302,7 @@ export function calculateClientCosts(
             .filter((u): u is string => !!u),
           diagnosticPdfUrl: showDiagnostic ? (task.diagnosticPdfPath || task.diagnosticPdfUrl) : undefined,
           periods: session.periods.map(p => ({ start: new Date(p.startTime), end: new Date(p.endTime) })),
+          history: task.isHistory || undefined,
         });
       });
     });
@@ -382,6 +386,7 @@ function slimDown(data: ClientCostSummary): SlimPayload {
         pds: s.periods.length > 0 ? s.periods.map(p => [Math.floor(new Date(p.start).getTime() / 1000), Math.floor(new Date(p.end).getTime() / 1000)] as [number, number]) : undefined,
         ld: s.laborDiscount > 0 ? Math.round(s.laborDiscount * 100) / 100 : undefined,
         imp: s.imported ? 1 : undefined,
+        hi: s.history ? 1 : undefined,
         jbs: (s.jobs && s.jobs.length > 0)
           ? s.jobs.map(j => ({ n: j.name || '', pr: Math.round((j.price || 0) * 100) / 100, ds: j.description || undefined }))
           : undefined,
@@ -454,6 +459,7 @@ export function inflateSlimPayload(slim: SlimPayload): ClientCostSummary {
         diagnosticPdfUrl: ss.dpdf || undefined,
         periods: (ss.pds || []).map(([s, e]) => ({ start: new Date(s * 1000), end: new Date(e * 1000) })),
         imported: ss.imp ? true : undefined,
+        history: ss.hi ? true : undefined,
         jobs: ss.jbs ? ss.jbs.map((j, i) => ({ id: `job-restore-${i}`, name: j.n, price: j.pr, description: j.ds })) : undefined,
       })),
       totalLabor: sv.tl,

@@ -88,6 +88,7 @@ export const exportToXML = (data: DatabaseExport): string => {
     xml += `needsFollowUp="${escapeXML(task.needsFollowUp)}" `;
     xml += `createdAt="${formatDate(task.createdAt)}" `;
     if (task.importedSalary != null) xml += `importedSalary="${escapeXML(task.importedSalary)}" `;
+    if (task.isHistory) xml += `isHistory="true" `;
     if (task.startTime) xml += `startTime="${formatDate(task.startTime)}" `;
     if (task.activeSessionId) xml += `activeSessionId="${escapeXML(task.activeSessionId)}" `;
     if (task.paidAt) xml += `paidAt="${formatDate(task.paidAt)}" `;
@@ -339,6 +340,7 @@ export const parseXMLString = (xmlText: string): DatabaseExport => {
       if (taskNode.getAttribute('importedSalary')) {
         task.importedSalary = parseFloat(taskNode.getAttribute('importedSalary')!);
       }
+      if (taskNode.getAttribute('isHistory') === 'true') task.isHistory = true;
       if (taskNode.getAttribute('paidAt')) {
         task.paidAt = new Date(taskNode.getAttribute('paidAt')!);
       }

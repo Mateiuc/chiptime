@@ -650,8 +650,9 @@ const Index = () => {
     });
   };
 
-  const activeTasks = tasks.filter(t => ['pending', 'in-progress', 'paused'].includes(t.status));
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  // Imported old jobs (History) are desk + portal only, never listed on mobile.
+  const activeTasks = tasks.filter(t => !t.isHistory && ['pending', 'in-progress', 'paused'].includes(t.status));
+  const completedTasks = tasks.filter(t => !t.isHistory && t.status === 'completed');
   const runningTask = tasks.find(t => t.status === 'in-progress');
   const unbilledCompleted = completedTasks.length;
 

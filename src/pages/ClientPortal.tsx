@@ -24,7 +24,7 @@ const ClientPortal = () => {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [requiresCode, setRequiresCode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pending' | 'billed' | 'paid'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'billed' | 'paid' | 'history'>('pending');
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -214,10 +214,14 @@ const ClientPortal = () => {
   }
 
   // Cost breakdown view
+  // History jobs are counted only on the History tab.
+  const allSessions = costSummary?.vehicles.flatMap(v => v.sessions) ?? [];
+  const regularSessions = allSessions.filter(s => !s.history);
   const tabCounts = {
-    pending: costSummary?.vehicles.flatMap(v => v.sessions).filter(s => ['pending','in-progress','paused','completed'].includes(s.status)).length ?? 0,
-    billed: costSummary?.vehicles.flatMap(v => v.sessions).filter(s => s.status === 'billed').length ?? 0,
-    paid: costSummary?.vehicles.flatMap(v => v.sessions).filter(s => s.status === 'paid').length ?? 0,
+    pending: regularSessions.filter(s => ['pending','in-progress','paused','completed'].includes(s.status)).length,
+    billed: regularSessions.filter(s => s.status === 'billed').length,
+    paid: regularSessions.filter(s => s.status === 'paid').length,
+    history: allSessions.length - regularSessions.length,
   };
 
   return (
@@ -268,12 +272,13 @@ const ClientPortal = () => {
 
           {/* Tab bar */}
           <div className="mt-3">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pending' | 'billed' | 'paid')}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pending' | 'billed' | 'paid' | 'history')}>
               <TabsList className="w-full bg-white/15 border border-white/20 p-1 rounded-xl h-auto">
                 {([
                   { value: 'pending', label: 'In Progress', emoji: '🔧' },
                   { value: 'billed', label: 'Billed', emoji: '📋' },
                   { value: 'paid', label: 'Paid', emoji: '✅' },
+                  ...(tabCounts.history > 0 ? [{ value: 'history', label: 'History', emoji: '🕘' } as const] : []),
                 ] as const).map(tab => (
                   <TabsTrigger
                     key={tab.value}

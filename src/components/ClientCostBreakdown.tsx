@@ -17,7 +17,7 @@ import { vehicleSummaryToTaskBundle } from '@/lib/portalToTask';
 
 interface ClientCostBreakdownProps {
   costSummary: ClientCostSummary;
-  filter?: 'pending' | 'billed' | 'paid';
+  filter?: 'pending' | 'billed' | 'paid' | 'history';
 }
 
 const statusMap: Record<string, string[]> = {
@@ -117,6 +117,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const [allCollapsed, setAllCollapsed] = useState(false);
   // Payment sheet: null=closed, 'deposit'=deposit, number=vehicle index
   const [paySheet, setPaySheet] = useState<null | 'deposit' | number>(null);
+  // History tab: All / Paid / Not paid
+  const [historyView, setHistoryView] = useState<'all' | 'paid' | 'unpaid'>('all');
 
   const hasPayment = (costSummary.paymentMethods?.length ?? 0) > 0 || !!costSummary.paymentLink;
   const showPayButtons = hasPayment && filter === 'billed';
@@ -198,7 +200,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
 
   // Total of one car's sessions in the given statuses (same math as the filtered view below).
   const totalForStatuses = (vehicleSummary: VehicleCostSummary, statuses: string[]) => {
-    const ss = vehicleSummary.sessions.filter(s => statuses.includes(s.status));
+    const ss = vehicleSummary.sessions.filter(s => !s.history && statuses.includes(s.status));
     const labor = ss.reduce((sum, s) => sum + s.laborCost, 0);
     const parts = ss.reduce((sum, s) => sum + s.partsCost, 0);
     return Math.max(0, labor - applyLaborDiscount(labor, vehicleSummary.vehicle).discount) + parts;
@@ -207,7 +209,8 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const depositSplit = splitDepositLeft(
     costSummary.vehicles.map(vs => ({
       left: vs.vehicle.prepaidAmount || 0,
-      billed: totalForStatuses(vs, ['billed']),
+      // Not-paid History jobs are due with Billed work.
+      billed: totalForStatuses(vs, ['billed']) + vs.sessions.filter(s => s.history && s.status !== 'paid').reduce((sum, s) => sum + s.laborCost + s.partsCost, 0),
       completed: totalForStatuses(vs, ['completed']),
     })),
     costSummary.client.prepaidAmount || 0
@@ -220,11 +223,24 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   };
   const clientDepositForTab = filter === 'billed' ? depositSplit.clientForBilled : filter === 'pending' ? depositSplit.clientForCompleted : 0;
 
+  // History jobs are listed only on the History tab; on the other tabs they still count in the money (by status).
+  const sessionShown = (s: VehicleCostSummary['sessions'][number]) => {
+    if (filter === 'history') {
+      if (!s.history) return false;
+      return historyView === 'all' || (historyView === 'paid' ? s.status === 'paid' : s.status !== 'paid');
+    }
+    if (s.history) return false;
+    return allowedStatuses ? allowedStatuses.includes(s.status) : true;
+  };
+  const historySessions = costSummary.vehicles.flatMap(v => v.sessions).filter(s => s.history);
+  const historyMoney = (list: typeof historySessions) => list.reduce((sum, s) => sum + s.laborCost + s.partsCost, 0);
+  // Not-paid History counts in the Billed total (not In Progress); paid History in the Paid total.
+  const historyForTab = filter === 'billed' ? historyMoney(historySessions.filter(s => s.status !== 'paid'))
+    : filter === 'paid' ? historyMoney(historySessions.filter(s => s.status === 'paid')) : 0;
+
   const filteredVehicles = costSummary.vehicles
     .map(vehicleSummary => {
-      const sessions = allowedStatuses
-        ? vehicleSummary.sessions.filter(s => allowedStatuses.includes(s.status))
-        : vehicleSummary.sessions;
+      const sessions = vehicleSummary.sessions.filter(sessionShown);
       const totalLabor = sessions.reduce((sum, s) => sum + s.laborCost, 0);
       const totalParts = sessions.reduce((sum, s) => sum + s.partsCost, 0);
       const totalCloning = sessions.reduce((sum, s) => sum + (s.cloningCost || 0), 0);
@@ -247,7 +263,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
   const grandTotalAddKey = filteredVehicles.reduce((sum, v) => sum + (v.totalAddKey || 0), 0);
   const grandTotalAllKeysLost = filteredVehicles.reduce((sum, v) => sum + (v.totalAllKeysLost || 0), 0);
   const grandTotalDiscount = filteredVehicles.reduce((sum, v) => sum + (v.totalDiscount || 0), 0);
-  const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts;
+  const grandTotal = Math.max(0, grandTotalLabor - grandTotalDiscount) + grandTotalParts + historyForTab;
 
 
   const monthlyData = useMemo(() => {
@@ -275,11 +291,29 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
     pending: 'No pending work found.',
     billed: 'No billed work found.',
     paid: 'No paid work found.',
+    history: 'No history jobs found.',
   };
 
   return (
     <div className="space-y-4 md:space-y-5" style={{ background: 'transparent' }}>
 
+      {filter === 'history' && historySessions.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl flex-wrap" style={{ background: 'var(--color-background-primary, white)', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
+          {([
+            { key: 'all', label: 'All', count: historySessions.length },
+            { key: 'paid', label: 'Paid', count: historySessions.filter(s => s.status === 'paid').length },
+            { key: 'unpaid', label: 'Not paid', count: historySessions.filter(s => s.status !== 'paid').length },
+          ] as const).map(o => (
+            <button
+              key={o.key}
+              onClick={() => setHistoryView(o.key)}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${historyView === o.key ? 'bg-foreground text-background' : 'bg-muted text-foreground hover:bg-muted/70'}`}
+            >
+              {o.label} {o.count}
+            </button>
+          ))}
+        </div>
+      )}
 
       {filteredVehicles.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
@@ -399,7 +433,7 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0">
-                              <Badge variant="outline" className={`text-[10px] ${statusColors[session.status] || ''}`}>{session.status}</Badge>
+                              <Badge variant="outline" className={`text-[10px] ${statusColors[session.status] || ''}`}>{session.history ? (session.status === 'paid' ? 'paid' : 'not paid') : session.status}</Badge>
                               {session.imported && (
                                 <span className="inline-flex items-center rounded-md border-2 border-amber-600 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-200 dark:text-amber-950" title="Imported from XLS — parts not billed.">
                                   Imported · parts not billed
@@ -523,12 +557,13 @@ export const ClientCostBreakdown = ({ costSummary, filter }: ClientCostBreakdown
               {grandTotalAllKeysLost > 0 && <div className="flex justify-between text-sm"><span>All Keys Lost:</span><span className="font-semibold">{formatCurrency(grandTotalAllKeysLost)}</span></div>}
               {grandTotalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400"><span>Total Discount:</span><span className="font-semibold">-{formatCurrency(grandTotalDiscount)}</span></div>}
               <div className="flex justify-between text-sm"><span>Total Parts:</span><span className="font-semibold">{formatCurrency(grandTotalParts)}</span></div>
+              {historyForTab > 0 && <div className="flex justify-between text-sm"><span>History{filter === 'paid' ? ' (paid)' : ' (not paid)'}:</span><span className="font-semibold">{formatCurrency(historyForTab)}</span></div>}
               <div className={`flex justify-between items-center text-lg font-bold border-t pt-2 mt-2 ${
                 filter === 'paid' ? 'text-emerald-600 dark:text-emerald-400' :
                 filter === 'billed' ? 'text-amber-600 dark:text-amber-400' :
                 'text-blue-600 dark:text-blue-400'
               }`}>
-                <span>{filter === 'paid' ? 'TOTAL PAID:' : filter === 'billed' ? 'TOTAL DUE:' : filter === 'pending' ? 'TOTAL:' : 'GRAND TOTAL:'}</span>
+                <span>{filter === 'paid' ? 'TOTAL PAID:' : filter === 'billed' ? 'TOTAL DUE:' : filter === 'pending' ? 'TOTAL:' : filter === 'history' ? 'HISTORY TOTAL:' : 'GRAND TOTAL:'}</span>
                 <span className="flex items-center gap-2">
                   <span>{formatCurrency(grandTotal)}</span>
                   {filter === 'paid' && (

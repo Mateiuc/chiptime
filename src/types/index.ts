@@ -128,6 +128,7 @@ export interface Task {
   activeSessionId?: string; // Track which session is currently being worked on
   
   importedSalary?: number; // Exact dollar amount from XLS "rel. Salary" column — locks task total
+  isHistory?: boolean;     // Old job imported with Import XLS: listed only under History (desk + portal), never on mobile
   paidAt?: Date;           // Timestamp when task was marked as paid
   /**
    * Ledger entry written when status flips to 'paid'. Records how much of

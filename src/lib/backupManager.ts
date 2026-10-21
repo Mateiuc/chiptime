@@ -1,5 +1,6 @@
 import { dlog } from '@/lib/devLog';
 import { capacitorStorage } from './capacitorStorage';
+import { appSyncService } from '@/services/appSyncService';
 import { exportToXML, parseXMLFile } from './xmlConverter';
 import { toast as baseToast } from '@/hooks/use-toast';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -93,6 +94,67 @@ export class BackupManager {
     }
   }
 
+  /**
+   * Restore = replace this device AND the cloud, in one step, after the user
+   * has seen what would change. (The cloud is the master copy; a restore that
+   * only filled this device would be thrown away by the next Reload.)
+   */
+  private async confirmAndRestore(data: any): Promise<boolean> {
+    const [curClients, curVehicles, curTasks] = await Promise.all([
+      capacitorStorage.getClients(),
+      capacitorStorage.getVehicles(),
+      capacitorStorage.getTasks(),
+    ]);
+    const line = (label: string, now: Array<{ id: string }>, next: Array<{ id: string }> = []) => {
+      const nextIds = new Set(next.map(x => x.id));
+      const removed = now.filter(x => !nextIds.has(x.id)).length;
+      return `${label}: ${now.length} \u2192 ${next.length}` + (removed > 0 ? ` (${removed} will be deleted)` : '');
+    };
+    const ok = window.confirm(
+      'Restore this backup?\n\n' +
+      'This REPLACES everything on this device and in the cloud.\n\n' +
+      [line('Jobs', curTasks, data.tasks), line('Cars', curVehicles, data.vehicles), line('Clients', curClients, data.clients)].join('\n') +
+      '\n\nContinue?'
+    );
+    if (!ok) return false;
+
+    await capacitorStorage.importAllData(data);
+
+    let pushed = false;
+    try {
+      if (appSyncService.getWorkspaceId()) {
+        // Fresh version first, so the replace is not rejected as a conflict.
+        await appSyncService.pullFromCloud();
+        const [clients, vehicles, tasks, settings, schedule] = await Promise.all([
+          capacitorStorage.getClients(),
+          capacitorStorage.getVehicles(),
+          capacitorStorage.getTasks(),
+          capacitorStorage.getSettings(),
+          capacitorStorage.getSchedule(),
+        ]);
+        await appSyncService.pushToCloud({ clients, vehicles, tasks, settings, schedule });
+        pushed = true;
+      }
+    } catch (error) {
+      console.error('Restore: cloud update failed:', error);
+    }
+
+    if (pushed) {
+      toast({ title: 'Backup Restored', description: 'Restored here and in the cloud.' });
+    } else {
+      // Always shown (even with popups off): the cloud still has the old data.
+      baseToast({
+        variant: 'destructive',
+        title: 'Restored on this device only',
+        description: 'The cloud could not be updated. On desktop press Save, otherwise Reload will undo the restore.',
+        duration: 10000,
+      });
+    }
+
+    window.dispatchEvent(new CustomEvent('chiptime:import-complete', { detail: { pushed } }));
+    return true;
+  }
+
   async importBackup(): Promise<void> {
     try {
       if (Capacitor.getPlatform() === 'web') {
@@ -110,14 +172,7 @@ export class BackupManager {
             
             try {
               const data = await parseXMLFile(file);
-              await capacitorStorage.importAllData(data);
-
-              toast({
-                title: "Backup Restored",
-                description: "Your data has been successfully restored.",
-              });
-
-              window.dispatchEvent(new CustomEvent('chiptime:import-complete'));
+              await this.confirmAndRestore(data);
               resolve();
             } catch (error) {
               reject(error);
@@ -170,14 +225,7 @@ export class BackupManager {
         const tempFile = new File([blob], 'backup.xml', { type: 'text/xml' });
         const data = await parseXMLFile(tempFile);
         
-        await capacitorStorage.importAllData(data);
-
-        toast({
-          title: "Backup Restored",
-          description: "Your data has been successfully restored.",
-        });
-
-        window.dispatchEvent(new CustomEvent('chiptime:import-complete'));
+        await this.confirmAndRestore(data);
       }
     } catch (error) {
       console.error('Import backup failed:', error);

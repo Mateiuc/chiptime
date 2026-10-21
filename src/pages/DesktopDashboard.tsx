@@ -141,8 +141,15 @@ const DesktopDashboard = () => {
 
   // Portal PIN and portal id come from the portal server on every portal sync
   // (the PIN is never uploaded), so writing them back is not an unsaved change.
-  const computeSnapshotKey = () => JSON.stringify({
-    c: clients.map(({ accessCode: _pin, portalId: _portal, ...c }) => c), v: vehicles, t: tasks, s: settings,
+  // Same data with fields in a different order (e.g. parsed from a backup file)
+  // must compare equal, so keys are sorted before comparing.
+  const stable = (v: any) => JSON.stringify(v, (_k, val) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.fromEntries(Object.keys(val).sort().map(k => [k, val[k]]))
+      : val);
+  const withoutPortalFields = () => clients.map(({ accessCode: _pin, portalId: _portal, ...c }) => c);
+  const computeSnapshotKey = () => stable({
+    c: withoutPortalFields(), v: vehicles, t: tasks, s: settings, sc: schedule,
   });
   const snapshotBaseline = () => {
     baselineRef.current = computeSnapshotKey();
@@ -167,23 +174,26 @@ const DesktopDashboard = () => {
       setDirtyCount(0);
       return;
     }
-    // Count tasks whose JSON differs from the baseline's tasks.
+    // Count changed items (added, edited, deleted) across everything that Save pushes.
     try {
       const base = JSON.parse(baselineRef.current);
-      const baseTasksById = new Map<string, string>(
-        (base.t || []).map((t: any) => [t.id, JSON.stringify(t)])
-      );
-      let changed = 0;
-      for (const t of tasks) {
-        const baseStr = baseTasksById.get(t.id);
-        if (!baseStr || baseStr !== JSON.stringify(t)) changed++;
-        baseTasksById.delete(t.id);
-      }
-      changed += baseTasksById.size; // deletions
+      const countChanged = (now: any[], before: any[]) => {
+        const beforeById = new Map<string, string>((before || []).map((x: any) => [x.id, stable(x)]));
+        let n = 0;
+        for (const x of now || []) {
+          const was = beforeById.get(x.id);
+          if (!was || was !== stable(x)) n++;
+          beforeById.delete(x.id);
+        }
+        return n + beforeById.size; // deletions
+      };
+      let changed = countChanged(tasks, base.t) + countChanged(withoutPortalFields(), base.c)
+        + countChanged(vehicles, base.v) + countChanged(schedule, base.sc);
+      if (stable(settings) !== stable(base.s)) changed++;
       setDirtyCount(changed);
     } catch { setDirtyCount(0); }
     setIsDirty(true);
-  }, [clients, vehicles, tasks, settings, lastSyncAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clients, vehicles, tasks, settings, schedule, lastSyncAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Warn before navigating away with unsaved changes.
   useEffect(() => {
@@ -199,7 +209,7 @@ const DesktopDashboard = () => {
 
   // After a backup import, re-read all data from storage and update React state directly
   useEffect(() => {
-    const handleImportComplete = async () => {
+    const handleImportComplete = async (e?: Event) => {
       const [freshClients, freshVehicles, freshTasks, freshSettings, freshSchedule] = await Promise.all([
         capacitorStorage.getClients(),
         capacitorStorage.getVehicles(),
@@ -211,7 +221,9 @@ const DesktopDashboard = () => {
       vehiclesHook.replaceAll(freshVehicles);
       tasksHook.replaceAll(freshTasks);
       settingsHook.replaceAll(freshSettings);
-      rebaselineRef.current = true;
+      // If the restore already reached the cloud there is nothing to save; if not,
+      // keep the old baseline so Save shows the restore as unsaved changes.
+      if ((e as CustomEvent | undefined)?.detail?.pushed) rebaselineRef.current = true;
       scheduleHook.replaceAll(freshSchedule);
     };
     window.addEventListener('chiptime:import-complete', handleImportComplete);
@@ -237,7 +249,7 @@ const DesktopDashboard = () => {
   const handleSaveToCloud = async () => {
     setSaving(true);
     try {
-      await pushNow({ clients, vehicles, tasks, settings });
+      await pushNow({ clients, vehicles, tasks, settings, schedule });
       setLastSavedAt(new Date());
       snapshotBaseline();
       toast({ title: 'Saved to Cloud', description: `${dirtyCount || 'All'} change${dirtyCount === 1 ? '' : 's'} pushed.` });

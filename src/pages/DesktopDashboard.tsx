@@ -196,40 +196,6 @@ const DesktopDashboard = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // Ongoing backfill: stamp every Task/Session/Period/Part missing `createdBy`
-  // with the current user. Runs whenever new unstamped items appear (e.g. data
-  // arriving from cloud sync or created on a device that didn't stamp them).
-  useEffect(() => {
-    if (!currentUserId) return;
-    if (!tasks || tasks.length === 0) return;
-    let dirty = false;
-    const next = tasks.map(t => {
-      const sessions = (t.sessions || []).map(s => {
-        let sChanged = false;
-        const periods = (s.periods || []).map(p => {
-          if (!p.createdBy) { sChanged = true; return { ...p, createdBy: currentUserId }; }
-          return p;
-        });
-        const parts = (s.parts || []).map(p => {
-          if (!p.createdBy) { sChanged = true; return { ...p, createdBy: currentUserId }; }
-          return p;
-        });
-        if (!s.createdBy) { sChanged = true; return { ...s, createdBy: currentUserId, periods, parts }; }
-        if (sChanged) return { ...s, periods, parts };
-        return s;
-      });
-      const tChanged = !t.createdBy || sessions.some((s, i) => s !== (t.sessions || [])[i]);
-      if (tChanged) {
-        dirty = true;
-        return { ...t, createdBy: t.createdBy || currentUserId, sessions };
-      }
-      return t;
-    });
-    if (dirty) {
-      setTasks(next).catch(() => {});
-    }
-  }, [currentUserId, tasks]); // eslint-disable-line react-hooks/exhaustive-deps
-
 
   // After a backup import, re-read all data from storage and update React state directly
   useEffect(() => {

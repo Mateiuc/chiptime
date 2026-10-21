@@ -554,6 +554,7 @@ const Index = () => {
         needsFollowUp: false,
         sessions: [],
         createdAt: new Date(),
+        createdBy: getCurrentUserId() || undefined,
       };
       await addTask(newTask);
 

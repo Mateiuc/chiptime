@@ -11,6 +11,57 @@ import { Lock, Wrench, Shield, Clock } from 'lucide-react';
 /** Tick interval for the PIN-lockout countdown (1s). */
 const LOCKOUT_TICK_MS = 1000;
 
+/** Last portal opened on this device, so the installed portal app can find it again. */
+const SAVED_PORTAL_KEY = 'chiptime_portal_id';
+
+/**
+ * Give the portal its own install (Add to Home Screen) that opens this client's
+ * portal, instead of the main app's manifest whose start is "/".
+ */
+const usePortalManifest = (portalId: string | null, appName: string) => {
+  useEffect(() => {
+    if (!portalId) return;
+    try { localStorage.setItem(SAVED_PORTAL_KEY, portalId); } catch { /* storage off */ }
+    const origin = window.location.origin;
+    const portalUrl = `${origin}/client-view?id=${encodeURIComponent(portalId)}`;
+    const manifest = {
+      id: portalUrl,
+      name: appName,
+      short_name: appName,
+      start_url: portalUrl,
+      scope: `${origin}/client-view`,
+      display: 'standalone',
+      orientation: 'portrait',
+      theme_color: '#1d4ed8',
+      background_color: '#1d4ed8',
+      icons: [
+        { src: `${origin}/pwa-192x192.png`, sizes: '192x192', type: 'image/png' },
+        { src: `${origin}/pwa-512x512.png`, sizes: '512x512', type: 'image/png' },
+        { src: `${origin}/pwa-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    };
+    const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+    let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const created = !link;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'manifest';
+      document.head.appendChild(link);
+    }
+    const oldHref = link.getAttribute('href');
+    link.setAttribute('href', blobUrl);
+    const titleMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    const oldTitle = titleMeta?.content;
+    if (titleMeta) titleMeta.content = appName;
+    return () => {
+      if (created) link!.remove();
+      else if (oldHref) link!.setAttribute('href', oldHref);
+      if (titleMeta && oldTitle != null) titleMeta.content = oldTitle;
+      URL.revokeObjectURL(blobUrl);
+    };
+  }, [portalId, appName]);
+};
+
 const ClientPortal = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -58,6 +109,13 @@ const ClientPortal = () => {
         } else if (isSharedMode) {
           const hash = location.hash.slice(1);
           if (!hash) {
+            // Installed portal opened without its link: go to the last portal opened here.
+            let saved: string | null = null;
+            try { saved = localStorage.getItem(SAVED_PORTAL_KEY); } catch { /* storage off */ }
+            if (saved) {
+              window.location.replace(`/client-view?id=${encodeURIComponent(saved)}`);
+              return;
+            }
             setError('No data found in link.');
             setLoading(false);
             return;
@@ -78,6 +136,38 @@ const ClientPortal = () => {
     };
     load();
   }, [cloudPortalId, isSharedMode, location.hash]);
+
+  usePortalManifest(cloudPortalId, costSummary?.portalBusinessName || 'Service Portal');
+
+  // Reload the data when the client comes back to the portal (reopens the app or tab),
+  // so it never shows an old copy.
+  useEffect(() => {
+    if (!cloudPortalId || !verified) return;
+    let busy = false;
+    const reload = async () => {
+      if (document.visibilityState !== 'visible' || busy) return;
+      busy = true;
+      try {
+        if (isPreview || !requiresCode) {
+          const result = await checkPortalAccess(cloudPortalId, isPreview);
+          if (result.data) setCostSummary(result.data);
+        } else if (pin.length === 4) {
+          const result = await fetchPortalWithCode(cloudPortalId, pin);
+          setCostSummary(result.data);
+        }
+      } catch (e) {
+        console.warn('Portal refresh failed:', e);
+      } finally {
+        busy = false;
+      }
+    };
+    document.addEventListener('visibilitychange', reload);
+    window.addEventListener('focus', reload);
+    return () => {
+      document.removeEventListener('visibilitychange', reload);
+      window.removeEventListener('focus', reload);
+    };
+  }, [cloudPortalId, verified, isPreview, requiresCode, pin]);
 
   const handleVerify = async () => {
     if (cloudPortalId) {
@@ -214,14 +304,15 @@ const ClientPortal = () => {
   }
 
   // Cost breakdown view
+  // Tab badges count CARS (a car is counted once per tab, however many sessions it has).
   // History jobs are counted only on the History tab.
-  const allSessions = costSummary?.vehicles.flatMap(v => v.sessions) ?? [];
-  const regularSessions = allSessions.filter(s => !s.history);
+  const carsWith = (match: (s: ClientCostSummary['vehicles'][number]['sessions'][number]) => boolean) =>
+    (costSummary?.vehicles ?? []).filter(v => v.sessions.some(match)).length;
   const tabCounts = {
-    pending: regularSessions.filter(s => ['pending','in-progress','paused','completed'].includes(s.status)).length,
-    billed: regularSessions.filter(s => s.status === 'billed').length,
-    paid: regularSessions.filter(s => s.status === 'paid').length,
-    history: allSessions.length - regularSessions.length,
+    pending: carsWith(s => !s.history && ['pending','in-progress','paused','completed'].includes(s.status)),
+    billed: carsWith(s => !s.history && s.status === 'billed'),
+    paid: carsWith(s => !s.history && s.status === 'paid'),
+    history: carsWith(s => !!s.history),
   };
 
   return (

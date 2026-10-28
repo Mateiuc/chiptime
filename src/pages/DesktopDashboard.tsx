@@ -249,9 +249,42 @@ const DesktopDashboard = () => {
   const handleSaveToCloud = async () => {
     setSaving(true);
     try {
+      // Clients whose portal shows changed data (their own record, cars or jobs;
+      // a settings change can move every client's rates), worked out before
+      // the baseline is reset.
+      const portalClients = (() => {
+        const withPortal = clients.filter(c => c.portalId);
+        try {
+          const base = JSON.parse(baselineRef.current || '');
+          if (stable(settings) !== stable(base.s)) return withPortal;
+          // Client ids touched by an added, edited or deleted item (before and after, in case it moved client).
+          const changedClientIds = new Set<string>();
+          const collect = (now: any[], before: any[], clientOf: (x: any) => string) => {
+            const beforeById = new Map<string, any>((before || []).map((x: any) => [x.id, x]));
+            for (const x of now || []) {
+              const was = beforeById.get(x.id);
+              if (!was || stable(was) !== stable(x)) {
+                changedClientIds.add(clientOf(x));
+                if (was) changedClientIds.add(clientOf(was));
+              }
+              beforeById.delete(x.id);
+            }
+            beforeById.forEach(x => changedClientIds.add(clientOf(x)));
+          };
+          collect(withoutPortalFields(), base.c, c => c.id);
+          collect(vehicles, base.v, v => v.clientId);
+          collect(tasks, base.t, t => t.clientId);
+          return withPortal.filter(c => changedClientIds.has(c.id));
+        } catch { return withPortal; }
+      })();
       await pushNow({ clients, vehicles, tasks, settings, schedule });
       setLastSavedAt(new Date());
       snapshotBaseline();
+      // Keep each changed client's portal up to date with what was just saved.
+      portalClients.forEach(client => {
+        syncPortalToCloud(client, vehicles, tasks, settings.defaultHourlyRate, settings.defaultCloningRate, settings.defaultProgrammingRate, settings.defaultAddKeyRate, settings.defaultAllKeysLostRate, settings.paymentLink, settings.paymentLabel, settings.paymentMethods, client.portalLogoUrl || settings.portalLogoUrl, client.portalBgColor || settings.portalBgColor, client.portalBusinessName || settings.portalBusinessName, client.portalBgImageUrl || settings.portalBgImageUrl)
+          .catch(err => console.warn('[CloudSync] Portal sync failed:', err));
+      });
       toast({ title: 'Saved to Cloud', description: `${dirtyCount || 'All'} change${dirtyCount === 1 ? '' : 's'} pushed.` });
     } catch (err: any) {
       console.error('[Desktop] Save failed:', err);

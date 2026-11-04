@@ -672,8 +672,8 @@ const Index = () => {
   const completedTasksByClient = groupTasksByClient(completedTasks);
 
   return (
-    <div className="h-dvh overflow-y-auto bg-background">
-      <header className="border-b bg-primary/20 backdrop-blur-sm shadow-md sticky top-0 z-10">
+    <div className="min-h-full bg-background">
+      <header className="border-b bg-secondary shadow-md sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-primary leading-tight">Chip's Time</h1>

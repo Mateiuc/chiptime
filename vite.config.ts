@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mcpPlugin(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mcpPlugin() as any,
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",

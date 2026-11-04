@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Trash2, Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronLeft, ChevronsDownUp, ChevronsUpDown, Flag, Copy, Cpu, Key, KeyRound, ArrowRightLeft, ImageOff } from 'lucide-react';
 import { formatDuration, formatCurrency, formatTime, formatTimeForInput, formatDateForInput } from '@/lib/formatTime';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -899,7 +899,12 @@ export const EditTaskDialog = ({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-full h-full m-0 p-0 rounded-none max-w-none max-h-none flex flex-col inset-0">
           <DialogHeader className={`px-4 py-3 border-b ${colorScheme.gradient}`}>
-            <DialogTitle>Edit Task</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" aria-label="Back" onClick={() => onOpenChange(false)} className="h-9 w-9">
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <DialogTitle>Edit Task</DialogTitle>
+            </div>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
             {sessions.map((session, sessionIndex) => {

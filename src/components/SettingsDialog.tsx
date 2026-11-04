@@ -259,17 +259,15 @@ export const SettingsDialog = ({
           currentView === 'backup' && "bg-orange-500/10"
         )}>
           <div className="px-4 py-3 flex items-center gap-2">
-            {currentView !== 'menu' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Back to settings menu"
-                onClick={() => setCurrentView('menu')}
-                className="h-8 w-8"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={() => (currentView === 'menu' ? onOpenChange(false) : setCurrentView('menu'))}
+              className="h-9 w-9"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
             <DialogTitle className="text-lg font-bold text-primary">{getDialogTitle()}</DialogTitle>
           </div>
         </header>

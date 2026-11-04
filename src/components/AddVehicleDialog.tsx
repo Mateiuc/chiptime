@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Scan } from 'lucide-react';
+import { Loader2, Scan, ChevronLeft } from 'lucide-react';
 import { Client, Vehicle, Task, Settings } from '@/types';
 import { decodeVin, validateVin } from '@/lib/vinDecoder';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -172,7 +172,10 @@ export const AddVehicleDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-full m-0 p-0 rounded-none flex flex-col">
         <header className="border-b bg-primary/10 backdrop-blur-sm shadow-sm">
-          <div className="px-4 py-3 flex items-center justify-between">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => onOpenChange(false)} className="h-9 w-9">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
             <DialogTitle className="text-lg font-bold text-primary">Add New Vehicle</DialogTitle>
           </div>
         </header>
